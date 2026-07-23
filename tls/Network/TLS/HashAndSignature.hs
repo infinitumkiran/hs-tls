@@ -32,6 +32,7 @@ module Network.TLS.HashAndSignature (
         SignatureBrainpoolP512
     ),
     HashAndSignatureAlgorithm,
+    nullHashAndSignature,
     supportedSignatureSchemes,
     signatureSchemesForTLS13,
 ) where
@@ -137,6 +138,14 @@ type HashAndSignatureAlgorithm = (HashAlgorithm, SignatureAlgorithm)
 instance {-# OVERLAPS #-} Show (HashAlgorithm, SignatureAlgorithm) where
     show (HashIntrinsic, s) = show s
     show (h, s) = show h ++ "-" ++ show s
+
+-- | Sentinel used in-memory for a @DigitallySigned@ structure that carries no
+-- explicit hash/signature algorithm on the wire, i.e. TLS 1.0 and TLS 1.1
+-- (before TLS 1.2 the algorithm was implied by the cipher suite).  It is never
+-- serialized: the encoder omits the algorithm field for this value and the
+-- decoder produces it for pre-TLS-1.2 versions.
+nullHashAndSignature :: HashAndSignatureAlgorithm
+nullHashAndSignature = (HashNone, SignatureAnonymous)
 
 {- FOURMOLU_DISABLE -}
 supportedSignatureSchemes :: [HashAndSignatureAlgorithm]

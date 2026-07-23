@@ -118,9 +118,12 @@ decryptData ver record econtent tst lim =
         throwError
             (Error_Packet "encrypted content too small for encryption parameters")
 
+    explicitIV = hasExplicitBlockIV ver
+
     decryptOf :: BulkState -> RecordM ByteString
     decryptOf (BulkStateBlock decryptF) = do
-        let minContent = bulkIVSize bulk + max (macSize + 1) blockSize
+        let minContent =
+                (if explicitIV then bulkIVSize bulk else 0) + max (macSize + 1) blockSize
 
         -- check if we have enough bytes to cover the minimum for this cipher
         when
@@ -128,8 +131,12 @@ decryptData ver record econtent tst lim =
             sanityCheckError
 
         {- update IV -}
+        -- TLS 1.1+ carries an explicit per-record IV at the front; TLS 1.0 uses
+        -- an implicit IV chained from the previous record's last cipher block.
         (iv, econtent') <-
-            get2o econtent (bulkIVSize bulk, econtentLen - bulkIVSize bulk)
+            if explicitIV
+                then get2o econtent (bulkIVSize bulk, econtentLen - bulkIVSize bulk)
+                else return (cstIV cst, econtent)
         let (content', iv') = decryptF iv econtent'
         modify $ \txs -> txs{stCryptState = cst{cstIV = iv'}}
 

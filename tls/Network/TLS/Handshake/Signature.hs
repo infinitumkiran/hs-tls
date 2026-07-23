@@ -119,6 +119,8 @@ checkCertificateVerify
     -> DigitallySigned
     -> IO Bool
 checkCertificateVerify ctx usedVersion pubKey msgs digSig@(DigitallySigned hashSigAlg _)
+    -- TLS 1.0/1.1 carry no algorithm; the signature scheme is fixed by the key.
+    | usedVersion < TLS12 = doVerify
     | pubKey `signatureCompatible` hashSigAlg = doVerify
     | otherwise = return False
   where
@@ -135,7 +137,12 @@ createCertificateVerify
     -> IO DigitallySigned
 createCertificateVerify ctx usedVersion pubKey hashSigAlg msgs =
     prepareCertificateVerifySignatureData ctx usedVersion pubKey hashSigAlg msgs
-        >>= signatureCreateWithCertVerifyData ctx hashSigAlg
+        >>= signatureCreateWithCertVerifyData ctx malg
+  where
+    -- TLS 1.0/1.1 emit no algorithm field in the DigitallySigned structure.
+    malg
+        | usedVersion < TLS12 = nullHashAndSignature
+        | otherwise = hashSigAlg
 
 type CertVerifyData = (SignatureParams, ByteString)
 
@@ -152,8 +159,20 @@ prepareCertificateVerifySignatureData
     -> HashAndSignatureAlgorithm -- TLS12 only
     -> ByteString
     -> IO CertVerifyData
-prepareCertificateVerifySignatureData _ctx _usedVersion pubKey hashSigAlg msgs =
-    return (signatureParams pubKey hashSigAlg, msgs)
+prepareCertificateVerifySignatureData _ctx usedVersion pubKey hashSigAlg msgs
+    | usedVersion < TLS12 =
+        return $ buildVerifyData (signatureParamsPreTLS12 pubKey) msgs
+    | otherwise = return (signatureParams pubKey hashSigAlg, msgs)
+
+-- | Signature parameters for TLS 1.0 and 1.1, where the algorithm is fixed by
+-- the key type rather than negotiated: RSA signs the MD5+SHA1 concatenation,
+-- DSA and ECDSA use SHA-1.
+signatureParamsPreTLS12 :: PubKey -> SignatureParams
+signatureParamsPreTLS12 (PubKeyRSA _) = RSAParams SHA1_MD5 RSApkcs1
+signatureParamsPreTLS12 (PubKeyDSA _) = DSAParams
+signatureParamsPreTLS12 (PubKeyEC _) = ECDSAParams SHA1
+signatureParamsPreTLS12 pk =
+    error ("signatureParamsPreTLS12: " ++ pubkeyType pk ++ " is not supported")
 
 signatureParams :: PubKey -> HashAndSignatureAlgorithm -> SignatureParams
 signatureParams (PubKeyRSA _) hashSigAlg =
@@ -209,16 +228,16 @@ signatureCreateWithCertVerifyData ctx malg (sigParam, toSign) = do
 signatureVerify :: Context -> DigitallySigned -> PubKey -> ByteString -> IO Bool
 signatureVerify ctx digSig@(DigitallySigned hashSigAlg _) pubKey toVerifyData = do
     usedVersion <- usingState_ ctx getVersion
-    let (sigParam, toVerify) =
-            case (usedVersion, hashSigAlg) of
-                (TLS12, hs)
-                    | pubKey `signatureCompatible` hs ->
-                        (signatureParams pubKey hashSigAlg, toVerifyData)
-                    | otherwise ->
-                        error "expecting different signature algorithm"
-                _ ->
-                    error
-                        "not expecting hash and signature algorithm in a < TLS12 digitially signed structure"
+    let (sigParam, toVerify)
+            | usedVersion == TLS12 =
+                if pubKey `signatureCompatible` hashSigAlg
+                    then (signatureParams pubKey hashSigAlg, toVerifyData)
+                    else error "expecting different signature algorithm"
+            -- TLS 1.0/1.1: the algorithm is implied by the key, not on the wire.
+            | usedVersion == TLS10 || usedVersion == TLS11 =
+                buildVerifyData (signatureParamsPreTLS12 pubKey) toVerifyData
+            | otherwise =
+                error "unexpected TLS version for a digitally signed structure"
     signatureVerifyWithCertVerifyData ctx digSig (sigParam, toVerify)
 
 signatureVerifyWithCertVerifyData
@@ -227,7 +246,9 @@ signatureVerifyWithCertVerifyData
     -> CertVerifyData
     -> IO Bool
 signatureVerifyWithCertVerifyData ctx (DigitallySigned hs bs) (sigParam, toVerify) = do
-    checkSupportedHashSignature ctx hs
+    -- The pre-TLS-1.2 sentinel is not a real advertised algorithm, so only
+    -- check membership for TLS 1.2+ structures that actually carry one.
+    unless (hs == nullHashAndSignature) $ checkSupportedHashSignature ctx hs
     verifyPublic ctx sigParam toVerify bs
 
 digitallySignParams
@@ -236,12 +257,16 @@ digitallySignParams
     -> PubKey
     -> HashAndSignatureAlgorithm
     -> IO DigitallySigned
-digitallySignParams ctx signatureData pubKey hashSigAlg =
-    let sigParam = signatureParams pubKey hashSigAlg
-     in signatureCreateWithCertVerifyData
-            ctx
-            hashSigAlg
-            (buildVerifyData sigParam signatureData)
+digitallySignParams ctx signatureData pubKey hashSigAlg = do
+    usedVersion <- usingState_ ctx getVersion
+    -- TLS 1.0/1.1 sign with the key-implied scheme and carry no algorithm field.
+    let (malg, sigParam)
+            | usedVersion < TLS12 = (nullHashAndSignature, signatureParamsPreTLS12 pubKey)
+            | otherwise = (hashSigAlg, signatureParams pubKey hashSigAlg)
+    signatureCreateWithCertVerifyData
+        ctx
+        malg
+        (buildVerifyData sigParam signatureData)
 
 digitallySignDHParams
     :: Context

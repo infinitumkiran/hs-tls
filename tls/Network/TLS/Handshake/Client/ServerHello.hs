@@ -67,10 +67,12 @@ processServerHello13 _ _ h = unexpected (show h) (Just "server hello")
 processServerHello
     :: ClientParams -> Context -> Handshake -> IO ()
 processServerHello cparams ctx (ServerHello rver serverRan serverSession (CipherId cid) compression shExts) = do
-    -- A server which receives a legacy_version value not equal to
-    -- 0x0303 MUST abort the handshake with an "illegal_parameter"
-    -- alert.
-    when (rver /= TLS12) $
+    -- In TLS 1.3 the ServerHello legacy_version is 0x0303 (TLS12) and the real
+    -- version is carried in the supported_versions extension.  In TLS 1.2 and
+    -- below the ServerHello version field is the negotiated version itself, so
+    -- a genuine TLS 1.0/1.1 server sends TLS10/TLS11 here.  Accept TLS 1.0/1.1/
+    -- 1.2 and reject only SSL and out-of-range values.
+    when (rver < TLS10 || rver > TLS12) $
         throwCore $
             Error_Protocol (show rver ++ " is not supported") IllegalParameter
     -- find the compression and cipher methods that the server want to use.
@@ -115,7 +117,9 @@ processServerHello cparams ctx (ServerHello rver serverRan serverSession (Cipher
 
     ver <- usingState_ ctx getVersion
 
-    when (ver == TLS12) $ do
+    -- TLS 1.2 and below (TLS 1.3 sets its version via the supported_versions
+    -- extension above, so 'ver' is TLS13 there and this is skipped).
+    when (ver <= TLS12) $ do
         usingHState ctx $ setServerHelloParameters rver serverRan cipherAlg compressAlg
 
     let supportedVers = supportedVersions $ clientSupported cparams
@@ -204,7 +208,8 @@ updateContext13 ctx cipherAlg = do
 
 updateContext12 :: Context -> [ExtensionRaw] -> Maybe SessionData -> IO ()
 updateContext12 ctx shExts resumingSession = do
-    ems <- processExtendedMainSecret ctx TLS12 MsgTServerHello shExts
+    ver <- usingState_ ctx getVersion
+    ems <- processExtendedMainSecret ctx ver MsgTServerHello shExts
     case resumingSession of
         Nothing -> return ()
         Just sessionData -> do
@@ -213,7 +218,7 @@ updateContext12 ctx shExts resumingSession = do
                 let err = "server resumes a session which is not EMS consistent"
                  in throwCore $ Error_Protocol err HandshakeFailure
             let mainSecret = sessionSecret sessionData
-            usingHState ctx $ setMainSecret TLS12 ClientRole mainSecret
+            usingHState ctx $ setMainSecret ver ClientRole mainSecret
             logKey ctx (MainSecret mainSecret)
 
 ----------------------------------------------------------------

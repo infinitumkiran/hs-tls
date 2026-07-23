@@ -502,14 +502,21 @@ putServerECDHParams (ServerECDHParams (Group grp) grppub) = do
 ------------------------------------------------------------
 
 getDigitallySigned :: Version -> Get DigitallySigned
-getDigitallySigned _ver =
-    DigitallySigned
-        <$> getSignatureHashAlgorithm
-        <*> getOpaque16
+getDigitallySigned ver
+    -- TLS 1.0 and 1.1 have no explicit hash/signature algorithm field; the
+    -- algorithm is implied by the cipher suite.
+    | ver < TLS12 = DigitallySigned nullHashAndSignature <$> getOpaque16
+    | otherwise =
+        DigitallySigned
+            <$> getSignatureHashAlgorithm
+            <*> getOpaque16
 
 putDigitallySigned :: DigitallySigned -> Put
-putDigitallySigned (DigitallySigned h sig) =
-    putSignatureHashAlgorithm h >> putOpaque16 sig
+putDigitallySigned (DigitallySigned h sig)
+    -- The 'nullHashAndSignature' sentinel marks a pre-TLS-1.2 structure, which
+    -- has no algorithm field on the wire.
+    | h == nullHashAndSignature = putOpaque16 sig
+    | otherwise = putSignatureHashAlgorithm h >> putOpaque16 sig
 
 ------------------------------------------------------------
 

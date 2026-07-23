@@ -70,9 +70,9 @@ handshake sparams ctx clientHello = do
                     recvClientSecondFlight13 sparams ctx r1 ch
         else do
             r <-
-                processClientHello12 sparams ctx ch
+                processClientHello12 sparams ctx chosenVersion ch
             resumeSessionData <-
-                sendServerHello12 sparams ctx r ch
+                sendServerHello12 sparams ctx chosenVersion r ch
             recvClientSecondFlight12 sparams ctx resumeSessionData
 
 newCertReqContext :: Context -> IO CertReqContext

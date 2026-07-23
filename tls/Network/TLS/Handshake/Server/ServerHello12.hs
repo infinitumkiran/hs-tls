@@ -30,17 +30,18 @@ import Network.TLS.X509 hiding (Certificate)
 sendServerHello12
     :: ServerParams
     -> Context
+    -> Version
     -> (Cipher, Maybe Credential)
     -> CH
     -> IO (Maybe SessionData)
-sendServerHello12 sparams ctx (usedCipher, mcred) ch@CH{..} = do
-    resumeSessionData <- recoverSessionData ctx ch
+sendServerHello12 sparams ctx ver (usedCipher, mcred) ch@CH{..} = do
+    resumeSessionData <- recoverSessionData ctx ver ch
     case resumeSessionData of
         Nothing -> do
             serverSession <- newSession ctx
             usingState_ ctx $ setSession serverSession
             serverhello <-
-                makeServerHello sparams ctx usedCipher mcred chExtensions serverSession
+                makeServerHello sparams ctx ver usedCipher mcred chExtensions serverSession
             build <- sendServerFirstFlight sparams ctx usedCipher mcred chExtensions
             let ff = serverhello : build [ServerHelloDone]
             sendPacket12 ctx $ Handshake ff
@@ -50,18 +51,18 @@ sendServerHello12 sparams ctx (usedCipher, mcred) ch@CH{..} = do
                 setSession chSession
                 setTLS12SessionResuming True
             serverhello <-
-                makeServerHello sparams ctx usedCipher mcred chExtensions chSession
+                makeServerHello sparams ctx ver usedCipher mcred chExtensions chSession
             sendPacket12 ctx $ Handshake [serverhello]
             let mainSecret = sessionSecret sessionData
-            usingHState ctx $ setMainSecret TLS12 ServerRole mainSecret
+            usingHState ctx $ setMainSecret ver ServerRole mainSecret
             logKey ctx $ MainSecret mainSecret
             sendCCSandFinished ctx ServerRole
     return resumeSessionData
 
-recoverSessionData :: Context -> CH -> IO (Maybe SessionData)
-recoverSessionData ctx CH{..} = do
+recoverSessionData :: Context -> Version -> CH -> IO (Maybe SessionData)
+recoverSessionData ctx ver CH{..} = do
     serverName <- usingState_ ctx getClientSNI
-    ems <- processExtendedMainSecret ctx TLS12 MsgTClientHello chExtensions
+    ems <- processExtendedMainSecret ctx ver MsgTClientHello chExtensions
     let mticket =
             lookupAndDecode
                 EID_SessionTicket
@@ -184,9 +185,15 @@ sendServerFirstFlight ServerParams{..} ctx usedCipher mcred chExts = do
     -- If RSA is also used for key exchange, this function is
     -- not called.
     decideHashSig pubKey = do
-        case filter (pubKey `signatureCompatible`) commonHashSigs of
-            [] -> error ("no hash signature for " ++ pubkeyType pubKey)
-            x : _ -> return x
+        ver <- usingState_ ctx getVersion
+        if ver < TLS12
+            -- TLS 1.0/1.1 do not negotiate a hash/signature algorithm for the
+            -- ServerKeyExchange signature; the value is ignored downstream by
+            -- 'digitallySignParams' for these versions.
+            then return nullHashAndSignature
+            else case filter (pubKey `signatureCompatible`) commonHashSigs of
+                [] -> error ("no hash signature for " ++ pubkeyType pubKey)
+                x : _ -> return x
 
     generateSKX_DHE kxsAlg = do
         serverParams <- setup_DHE
@@ -232,15 +239,16 @@ sendServerFirstFlight ServerParams{..} ctx usedCipher mcred chExts = do
 makeServerHello
     :: ServerParams
     -> Context
+    -> Version
     -> Cipher
     -> Maybe Credential
     -> [ExtensionRaw]
     -> Session
     -> IO Handshake
-makeServerHello sparams ctx usedCipher mcred chExts session = do
+makeServerHello sparams ctx ver usedCipher mcred chExts session = do
     resuming <- usingState_ ctx getTLS12SessionResuming
     srand <-
-        serverRandom ctx TLS12 $ supportedVersions $ serverSupported sparams
+        serverRandom ctx ver $ supportedVersions $ serverSupported sparams
     case mcred of
         Just cred -> storePrivInfoServer ctx cred
         _ -> return () -- return a sensible error
@@ -299,12 +307,12 @@ makeServerHello sparams ctx usedCipher mcred chExts session = do
                     , {- 0x23 -} sessionTicketExt
                     , {- 0xff01 -} secureRenegExt
                     ]
-    usingState_ ctx $ setVersion TLS12
+    usingState_ ctx $ setVersion ver
     usingHState ctx $
-        setServerHelloParameters TLS12 srand usedCipher nullCompression
+        setServerHelloParameters ver srand usedCipher nullCompression
     return $
         ServerHello
-            TLS12
+            ver
             srand
             session
             (CipherId (cipherID usedCipher))

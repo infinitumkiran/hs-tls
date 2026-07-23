@@ -44,7 +44,11 @@ processClientHello sparams ctx clientHello@(ClientHello legacyVersion cran compr
     unless hrr $ startHandshake ctx legacyVersion cran
     processHandshake12 ctx clientHello
 
-    when (legacyVersion /= TLS12) $
+    -- Reject SSL 2.0/3.0 and any out-of-range legacy_version.  TLS 1.0/1.1/1.2
+    -- are allowed here; whether they are actually negotiated is decided below
+    -- from 'supportedVersions', so a server on the secure default still refuses
+    -- TLS 1.0/1.1 (they are simply absent from its version list).
+    when (legacyVersion < TLS10 || legacyVersion > TLS12) $
         throwCore $
             Error_Protocol (show legacyVersion ++ " is not supported") ProtocolVersion
 

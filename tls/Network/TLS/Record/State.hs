@@ -13,6 +13,7 @@ module Network.TLS.Record.State (
     runRecordM,
     getRecordOptions,
     getRecordVersion,
+    hasExplicitBlockIV,
     setRecordIV,
     withCompression,
     computeDigest,
@@ -111,6 +112,12 @@ getRecordOptions = RecordM $ \opt st -> Right (opt, st)
 
 getRecordVersion :: RecordM Version
 getRecordVersion = recordVersion <$> getRecordOptions
+
+-- | Whether the negotiated version prepends an explicit per-record IV to CBC
+-- records.  TLS 1.1 and later do (RFC 4346); TLS 1.0 uses an implicit IV
+-- chained from the previous record's last cipher block.
+hasExplicitBlockIV :: Version -> Bool
+hasExplicitBlockIV ver = ver >= TLS11
 
 instance MonadState RecordState RecordM where
     put x = RecordM $ \_ _ -> Right ((), x)

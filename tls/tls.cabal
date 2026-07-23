@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               tls
-version:            2.1.8
+version:            2.1.8.1
 license:            BSD3
 license-file:       LICENSE
 copyright:          Vincent Hanquez <vincent@snarc.org>
@@ -144,6 +144,7 @@ test-suite spec
     other-modules:
         API
         Arbitrary
+        BackwardCompatSpec
         Certificate
         CiphersSpec
         EncodeSpec

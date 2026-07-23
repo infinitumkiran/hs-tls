@@ -73,6 +73,7 @@ encryptContent tls13 record content = do
 encryptBlock :: BulkBlock -> ByteString -> Bulk -> RecordM ByteString
 encryptBlock encryptF content bulk = do
     cst <- getCryptState
+    ver <- getRecordVersion
     let blockSize = fromIntegral $ bulkBlockSize bulk
     let msg_len = B.length content
     let padding =
@@ -83,9 +84,15 @@ encryptBlock encryptF content bulk = do
                          in B.replicate padbyte' (fromIntegral (padbyte' - 1))
                 else B.empty
 
-    let (e, _iv') = encryptF (cstIV cst) $ B.concat [content, padding]
+    let (e, iv') = encryptF (cstIV cst) $ B.concat [content, padding]
 
-    return $ B.concat [cstIV cst, e]
+    -- TLS 1.1+ prepends a fresh explicit IV to each record; TLS 1.0 uses an
+    -- implicit IV chained from the previous record's last cipher block.
+    if hasExplicitBlockIV ver
+        then return $ B.concat [cstIV cst, e]
+        else do
+            modify $ \tstate -> tstate{stCryptState = cst{cstIV = iv'}}
+            return e
 
 encryptStream :: BulkStream -> ByteString -> RecordM ByteString
 encryptStream (BulkStream encryptF) content = do

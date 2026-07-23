@@ -8,6 +8,9 @@ module Network.TLS.Extra.Cipher (
     ciphersuite_strong_det,
     ciphersuite_dhe_rsa,
 
+    -- ** Backward compatibility (legacy, pre-2.0.0)
+    ciphersuite_backwardCompat,
+
     -- * Individual ciphers
 
     -- ** RFC 5288
@@ -67,6 +70,27 @@ module Network.TLS.Extra.Cipher (
     cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256,
     cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
     cipher_DHE_RSA_CHACHA20POLY1305_SHA256,
+
+    -- ** Legacy CBC / RC4 / 3DES ciphers (pre-2.0.0, insecure)
+    cipher_RC4_128_MD5,
+    cipher_RC4_128_SHA1,
+    cipher_RSA_3DES_EDE_CBC_SHA1,
+    cipher_AES128_SHA1,
+    cipher_AES256_SHA1,
+    cipher_AES128_SHA256,
+    cipher_AES256_SHA256,
+    cipher_DHE_RSA_AES128_SHA1,
+    cipher_DHE_RSA_AES256_SHA1,
+    cipher_DHE_RSA_AES128_SHA256,
+    cipher_DHE_RSA_AES256_SHA256,
+    cipher_ECDHE_RSA_AES128CBC_SHA,
+    cipher_ECDHE_RSA_AES256CBC_SHA,
+    cipher_ECDHE_RSA_AES128CBC_SHA256,
+    cipher_ECDHE_RSA_AES256CBC_SHA384,
+    cipher_ECDHE_ECDSA_AES128CBC_SHA,
+    cipher_ECDHE_ECDSA_AES256CBC_SHA,
+    cipher_ECDHE_ECDSA_AES128CBC_SHA256,
+    cipher_ECDHE_ECDSA_AES256CBC_SHA384,
 ) where
 
 import qualified Data.ByteString as B
@@ -75,8 +99,12 @@ import Data.Tuple (swap)
 import Network.TLS.Cipher
 import Network.TLS.Types
 
+import Data.Maybe (fromMaybe)
+
 import Crypto.Cipher.AES
 import qualified Crypto.Cipher.ChaChaPoly1305 as ChaChaPoly1305
+import qualified Crypto.Cipher.RC4 as RC4
+import Crypto.Cipher.TripleDES
 import Crypto.Cipher.Types hiding (Cipher, cipherName)
 import Crypto.Error
 import qualified Crypto.MAC.Poly1305 as Poly1305
@@ -178,6 +206,371 @@ ciphersuite_dhe_rsa =
     , cipher_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256
     , cipher_DHE_RSA_WITH_AES_128_GCM_SHA256
     ]
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- Backward compatibility: the CBC, RC4 and 3DES cipher suites that were
+-- removed in version 2.0.0.  These are INSECURE (BEAST/Lucky13 for CBC,
+-- RC4 biases, Sweet32 for 3DES) and are provided only to interoperate with
+-- legacy peers, in particular for TLS 1.0 and TLS 1.1.  Use via
+-- 'ciphersuite_backwardCompat', not the secure default.
+
+-- | 'ciphersuite_default' extended with the legacy CBC/RC4/3DES suites needed
+-- to negotiate TLS 1.0/1.1 (which have no AEAD ciphers) and to interoperate
+-- with old TLS 1.2 peers.  The strong AEAD suites remain preferred; the legacy
+-- suites are only reachable when nothing better is mutually supported.
+--
+-- Both RSA and signed (ECDHE\/DHE) key-exchange suites are included and work
+-- down to TLS 1.0.  The DHE_DSS\/DSA suites are excluded (that key exchange is
+-- not wired in this codebase); they remain exported for callers that need them.
+ciphersuite_backwardCompat :: [Cipher]
+ciphersuite_backwardCompat = ciphersuite_default ++ complement_backwardCompat
+
+complement_backwardCompat :: [Cipher]
+complement_backwardCompat =
+    -- ECDHE/DHE CBC (forward secrecy), strongest hash first
+    [ cipher_ECDHE_ECDSA_AES256CBC_SHA384
+    , cipher_ECDHE_RSA_AES256CBC_SHA384
+    , cipher_ECDHE_ECDSA_AES128CBC_SHA256
+    , cipher_ECDHE_RSA_AES128CBC_SHA256
+    , cipher_ECDHE_ECDSA_AES256CBC_SHA
+    , cipher_ECDHE_RSA_AES256CBC_SHA
+    , cipher_ECDHE_ECDSA_AES128CBC_SHA
+    , cipher_ECDHE_RSA_AES128CBC_SHA
+    , cipher_DHE_RSA_AES256_SHA256
+    , cipher_DHE_RSA_AES128_SHA256
+    , cipher_DHE_RSA_AES256_SHA1
+    , cipher_DHE_RSA_AES128_SHA1
+    , -- RSA key exchange (no forward secrecy)
+      cipher_AES256_SHA256
+    , cipher_AES128_SHA256
+    , cipher_AES256_SHA1
+    , cipher_AES128_SHA1
+    , cipher_RSA_3DES_EDE_CBC_SHA1
+    , cipher_RC4_128_SHA1
+    , cipher_RC4_128_MD5
+    ]
+
+-- RC4 cipher, RSA key exchange and MD5 for digest
+cipher_RC4_128_MD5 :: Cipher
+cipher_RC4_128_MD5 =
+    Cipher
+        { cipherID = 0x0004
+        , cipherName = "RSA-rc4-128-md5"
+        , cipherBulk = bulk_rc4
+        , cipherHash = MD5
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Nothing
+        }
+
+-- RC4 cipher, RSA key exchange and SHA1 for digest
+cipher_RC4_128_SHA1 :: Cipher
+cipher_RC4_128_SHA1 =
+    Cipher
+        { cipherID = 0x0005
+        , cipherName = "RSA-rc4-128-sha1"
+        , cipherBulk = bulk_rc4
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Nothing
+        }
+
+-- 3DES cipher (168 bit key), RSA key exchange and SHA1 for digest
+cipher_RSA_3DES_EDE_CBC_SHA1 :: Cipher
+cipher_RSA_3DES_EDE_CBC_SHA1 =
+    Cipher
+        { cipherID = 0x000A
+        , cipherName = "RSA-3DES-EDE-CBC-SHA1"
+        , cipherBulk = bulk_tripledes_ede
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Nothing
+        }
+
+-- AES cipher (128 bit key), RSA key exchange and SHA1 for digest
+cipher_AES128_SHA1 :: Cipher
+cipher_AES128_SHA1 =
+    Cipher
+        { cipherID = 0x002F
+        , cipherName = "RSA-AES128-SHA1"
+        , cipherBulk = bulk_aes128
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Just TLS10
+        }
+
+-- AES cipher (256 bit key), RSA key exchange and SHA1 for digest
+cipher_AES256_SHA1 :: Cipher
+cipher_AES256_SHA1 =
+    Cipher
+        { cipherID = 0x0035
+        , cipherName = "RSA-AES256-SHA1"
+        , cipherBulk = bulk_aes256
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Just TLS10
+        }
+
+-- AES cipher (128 bit key), RSA key exchange and SHA256 for digest
+cipher_AES128_SHA256 :: Cipher
+cipher_AES128_SHA256 =
+    Cipher
+        { cipherID = 0x003C
+        , cipherName = "RSA-AES128-SHA256"
+        , cipherBulk = bulk_aes128
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- AES cipher (256 bit key), RSA key exchange and SHA256 for digest
+cipher_AES256_SHA256 :: Cipher
+cipher_AES256_SHA256 =
+    Cipher
+        { cipherID = 0x003D
+        , cipherName = "RSA-AES256-SHA256"
+        , cipherBulk = bulk_aes256
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- AES cipher (128 bit key), DHE key exchange signed by RSA and SHA1 for digest
+cipher_DHE_RSA_AES128_SHA1 :: Cipher
+cipher_DHE_RSA_AES128_SHA1 =
+    Cipher
+        { cipherID = 0x0033
+        , cipherName = "DHE-RSA-AES128-SHA1"
+        , cipherBulk = bulk_aes128
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_DHE_RSA
+        , cipherMinVer = Nothing
+        }
+
+-- AES cipher (256 bit key), DHE key exchange signed by RSA and SHA1 for digest
+cipher_DHE_RSA_AES256_SHA1 :: Cipher
+cipher_DHE_RSA_AES256_SHA1 =
+    cipher_DHE_RSA_AES128_SHA1
+        { cipherID = 0x0039
+        , cipherName = "DHE-RSA-AES256-SHA1"
+        , cipherBulk = bulk_aes256
+        }
+
+-- AES cipher (128 bit key), DHE key exchange signed by RSA and SHA256 for digest
+cipher_DHE_RSA_AES128_SHA256 :: Cipher
+cipher_DHE_RSA_AES128_SHA256 =
+    cipher_DHE_RSA_AES128_SHA1
+        { cipherID = 0x0067
+        , cipherName = "DHE-RSA-AES128-SHA256"
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherMinVer = Just TLS12
+        }
+
+-- AES cipher (256 bit key), DHE key exchange signed by RSA and SHA256 for digest
+cipher_DHE_RSA_AES256_SHA256 :: Cipher
+cipher_DHE_RSA_AES256_SHA256 =
+    cipher_DHE_RSA_AES128_SHA256
+        { cipherID = 0x006B
+        , cipherName = "DHE-RSA-AES256-SHA256"
+        , cipherBulk = bulk_aes256
+        }
+
+cipher_ECDHE_ECDSA_AES128CBC_SHA :: Cipher
+cipher_ECDHE_ECDSA_AES128CBC_SHA =
+    Cipher
+        { cipherID = 0xC009
+        , cipherName = "ECDHE-ECDSA-AES128CBC-SHA"
+        , cipherBulk = bulk_aes128
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_ECDHE_ECDSA
+        , cipherMinVer = Just TLS10
+        }
+
+cipher_ECDHE_ECDSA_AES256CBC_SHA :: Cipher
+cipher_ECDHE_ECDSA_AES256CBC_SHA =
+    Cipher
+        { cipherID = 0xC00A
+        , cipherName = "ECDHE-ECDSA-AES256CBC-SHA"
+        , cipherBulk = bulk_aes256
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_ECDHE_ECDSA
+        , cipherMinVer = Just TLS10
+        }
+
+cipher_ECDHE_RSA_AES128CBC_SHA :: Cipher
+cipher_ECDHE_RSA_AES128CBC_SHA =
+    Cipher
+        { cipherID = 0xC013
+        , cipherName = "ECDHE-RSA-AES128CBC-SHA"
+        , cipherBulk = bulk_aes128
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_ECDHE_RSA
+        , cipherMinVer = Just TLS10
+        }
+
+cipher_ECDHE_RSA_AES256CBC_SHA :: Cipher
+cipher_ECDHE_RSA_AES256CBC_SHA =
+    Cipher
+        { cipherID = 0xC014
+        , cipherName = "ECDHE-RSA-AES256CBC-SHA"
+        , cipherBulk = bulk_aes256
+        , cipherHash = SHA1
+        , cipherPRFHash = Nothing
+        , cipherKeyExchange = CipherKeyExchange_ECDHE_RSA
+        , cipherMinVer = Just TLS10
+        }
+
+cipher_ECDHE_RSA_AES128CBC_SHA256 :: Cipher
+cipher_ECDHE_RSA_AES128CBC_SHA256 =
+    Cipher
+        { cipherID = 0xC027
+        , cipherName = "ECDHE-RSA-AES128CBC-SHA256"
+        , cipherBulk = bulk_aes128
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_ECDHE_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+cipher_ECDHE_RSA_AES256CBC_SHA384 :: Cipher
+cipher_ECDHE_RSA_AES256CBC_SHA384 =
+    Cipher
+        { cipherID = 0xC028
+        , cipherName = "ECDHE-RSA-AES256CBC-SHA384"
+        , cipherBulk = bulk_aes256
+        , cipherHash = SHA384
+        , cipherPRFHash = Just SHA384
+        , cipherKeyExchange = CipherKeyExchange_ECDHE_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+cipher_ECDHE_ECDSA_AES128CBC_SHA256 :: Cipher
+cipher_ECDHE_ECDSA_AES128CBC_SHA256 =
+    Cipher
+        { cipherID = 0xC023
+        , cipherName = "ECDHE-ECDSA-AES128CBC-SHA256"
+        , cipherBulk = bulk_aes128
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_ECDHE_ECDSA
+        , cipherMinVer = Just TLS12
+        }
+
+cipher_ECDHE_ECDSA_AES256CBC_SHA384 :: Cipher
+cipher_ECDHE_ECDSA_AES256CBC_SHA384 =
+    Cipher
+        { cipherID = 0xC024
+        , cipherName = "ECDHE-ECDSA-AES256CBC-SHA384"
+        , cipherBulk = bulk_aes256
+        , cipherHash = SHA384
+        , cipherPRFHash = Just SHA384
+        , cipherKeyExchange = CipherKeyExchange_ECDHE_ECDSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- Legacy bulk cipher definitions
+
+bulk_rc4 :: Bulk
+bulk_rc4 =
+    Bulk
+        { bulkName = "RC4-128"
+        , bulkKeySize = 16
+        , bulkIVSize = 0
+        , bulkExplicitIV = 0
+        , bulkAuthTagLen = 0
+        , bulkBlockSize = 0
+        , bulkF = BulkStreamF rc4
+        }
+
+bulk_aes128 :: Bulk
+bulk_aes128 =
+    Bulk
+        { bulkName = "AES128"
+        , bulkKeySize = 16
+        , bulkIVSize = 16
+        , bulkExplicitIV = 0
+        , bulkAuthTagLen = 0
+        , bulkBlockSize = 16
+        , bulkF = BulkBlockF aes128cbc
+        }
+
+bulk_aes256 :: Bulk
+bulk_aes256 =
+    Bulk
+        { bulkName = "AES256"
+        , bulkKeySize = 32
+        , bulkIVSize = 16
+        , bulkExplicitIV = 0
+        , bulkAuthTagLen = 0
+        , bulkBlockSize = 16
+        , bulkF = BulkBlockF aes256cbc
+        }
+
+bulk_tripledes_ede :: Bulk
+bulk_tripledes_ede =
+    Bulk
+        { bulkName = "3DES-EDE-CBC"
+        , bulkKeySize = 24
+        , bulkIVSize = 8
+        , bulkExplicitIV = 0
+        , bulkAuthTagLen = 0
+        , bulkBlockSize = 8
+        , bulkF = BulkBlockF tripledes_ede
+        }
+
+-- Legacy bulk primitives
+
+takelast :: Int -> B.ByteString -> B.ByteString
+takelast i b = B.drop (B.length b - i) b
+
+makeIV_ :: BlockCipher a => B.ByteString -> IV a
+makeIV_ = fromMaybe (error "makeIV_") . makeIV
+
+aes128cbc :: BulkDirection -> BulkKey -> BulkBlock
+aes128cbc BulkEncrypt key =
+    let ctx = noFail (cipherInit key) :: AES128
+     in \iv input -> let output = cbcEncrypt ctx (makeIV_ iv) input in (output, takelast 16 output)
+aes128cbc BulkDecrypt key =
+    let ctx = noFail (cipherInit key) :: AES128
+     in \iv input -> let output = cbcDecrypt ctx (makeIV_ iv) input in (output, takelast 16 input)
+
+aes256cbc :: BulkDirection -> BulkKey -> BulkBlock
+aes256cbc BulkEncrypt key =
+    let ctx = noFail (cipherInit key) :: AES256
+     in \iv input -> let output = cbcEncrypt ctx (makeIV_ iv) input in (output, takelast 16 output)
+aes256cbc BulkDecrypt key =
+    let ctx = noFail (cipherInit key) :: AES256
+     in \iv input -> let output = cbcDecrypt ctx (makeIV_ iv) input in (output, takelast 16 input)
+
+tripledes_ede :: BulkDirection -> BulkKey -> BulkBlock
+tripledes_ede BulkEncrypt key =
+    let ctx = noFail $ cipherInit key
+     in \iv input -> let output = cbcEncrypt ctx (tripledes_iv iv) input in (output, takelast 8 output)
+tripledes_ede BulkDecrypt key =
+    let ctx = noFail $ cipherInit key
+     in \iv input -> let output = cbcDecrypt ctx (tripledes_iv iv) input in (output, takelast 8 input)
+
+tripledes_iv :: BulkIV -> IV DES_EDE3
+tripledes_iv iv = fromMaybe (error "tripledes cipher iv internal error") $ makeIV iv
+
+rc4 :: BulkDirection -> BulkKey -> BulkStream
+rc4 _ bulkKey = BulkStream (combineRC4 $ RC4.initialize bulkKey)
+  where
+    combineRC4 ctx input =
+        let (ctx', output) = RC4.combine ctx input
+         in (output, BulkStream (combineRC4 ctx'))
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

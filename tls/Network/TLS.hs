@@ -105,6 +105,7 @@ module Network.TLS (
     -- ** Supported
     Supported,
     defaultSupported,
+    defaultSupportedBackwardCompat,
     supportedVersions,
     supportedCiphers,
     supportedCompressions,

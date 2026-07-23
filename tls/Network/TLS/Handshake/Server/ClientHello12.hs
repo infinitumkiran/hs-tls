@@ -27,23 +27,24 @@ import Network.TLS.Types (CipherId (..), Role (..))
 processClientHello12
     :: ServerParams
     -> Context
+    -> Version
     -> CH
     -> IO (Cipher, Maybe Credential)
-processClientHello12 sparams ctx ch = do
+processClientHello12 sparams ctx ver ch = do
     let secureRenegotiation = supportedSecureRenegotiation $ serverSupported sparams
     when secureRenegotiation $ checkSecureRenegotiation ctx ch
     serverName <- usingState_ ctx getClientSNI
     let hooks = serverHooks sparams
     extraCreds <- onServerNameIndication hooks serverName
     let (creds, signatureCreds, ciphersFilteredVersion) =
-            credsTriple sparams ch extraCreds
+            credsTriple sparams ver ch extraCreds
     -- The shared cipherlist can become empty after filtering for compatible
     -- creds, check now before calling onCipherChoosing, which does not handle
     -- empty lists.
     when (null ciphersFilteredVersion) $
         throwCore $
             Error_Protocol "no cipher in common with the TLS 1.2 client" HandshakeFailure
-    let usedCipher = onCipherChoosing hooks TLS12 ciphersFilteredVersion
+    let usedCipher = onCipherChoosing hooks ver ciphersFilteredVersion
     mcred <- chooseCreds usedCipher creds signatureCreds
     return (usedCipher, mcred)
 
@@ -71,10 +72,11 @@ checkSecureRenegotiation ctx CH{..} = do
 
 credsTriple
     :: ServerParams
+    -> Version
     -> CH
     -> Credentials
     -> (Credentials, Credentials, [Cipher])
-credsTriple sparams CH{..} extraCreds
+credsTriple sparams ver CH{..} extraCreds
     | cipherListCredentialFallback cltCiphers = (allCreds, sigAllCreds, allCiphers)
     | otherwise = (cltCreds, sigCltCreds, cltCiphers)
   where
@@ -84,9 +86,9 @@ credsTriple sparams CH{..} extraCreds
       where
         availableCiphers = getCiphers ciphers creds sigCreds
 
-    p = makeCredentialPredicate TLS12 chExtensions
+    p = makeCredentialPredicate ver chExtensions
     allCreds =
-        filterCredentials (isCredentialAllowed TLS12 p) $
+        filterCredentials (isCredentialAllowed ver p) $
             extraCreds `mappend` sharedCredentials (serverShared sparams)
 
     -- When selecting a cipher we must ensure that it is allowed for the
@@ -124,7 +126,7 @@ credsTriple sparams CH{..} extraCreds
 
     -- Ciphers are selected according to TLS version, availability of
     -- (EC)DHE group and credential depending on key exchange.
-    cipherAllowed cipher = cipherAllowedForVersion TLS12 cipher && hasCommonGroup cipher
+    cipherAllowed cipher = cipherAllowedForVersion ver cipher && hasCommonGroup cipher
     selectCipher credentials signatureCredentials = filter cipherAllowed (commonCiphers credentials signatureCredentials)
 
     -- Build a list of all hash/signature algorithms in common between

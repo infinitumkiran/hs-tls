@@ -14,6 +14,7 @@ module Network.TLS.Parameters (
     defaultServerHooks,
     Supported (..),
     defaultSupported,
+    defaultSupportedBackwardCompat,
     Shared (..),
     defaultShared,
     Limit (..),
@@ -371,6 +372,35 @@ defaultSupported =
 
 instance Default Supported where
     def = defaultSupported
+
+-- | A backward-compatible variant of 'defaultSupported'.
+--
+-- The security-driven changes made in version 2.0.0 (and the cipher default in
+-- 2.0.6) can break handshakes with older peers.  This fork restores the earlier
+-- behaviour, while inheriting groups and the other fields from
+-- 'defaultSupported'.  It is __insecure by modern standards__ and should be
+-- used only where legacy interoperability is required, not as a global default.
+--
+--   * 'supportedVersions' is floored at TLS 1.0: @[TLS13, TLS12, TLS11, TLS10]@.
+--     TLS 1.0 is listed last, so it is chosen only when nothing better is
+--     mutually supported.
+--   * 'supportedCiphers' is 'ciphersuite_backwardCompat', which adds the legacy
+--     CBC\/RC4\/3DES suites on top of 'ciphersuite_default'.  TLS 1.0 and 1.1
+--     have no AEAD ciphers, so these are required to negotiate them at all.
+--   * 'supportedExtendedMainSecret' is 'AllowEMS' instead of 'RequireEMS', so
+--     handshakes with peers that do not support the Extended Main Secret
+--     extension still succeed.
+--   * The legacy @(HashSHA1, SignatureDSA)@ pair is added back to
+--     'supportedHashSignatures'.
+defaultSupportedBackwardCompat :: Supported
+defaultSupportedBackwardCompat =
+    defaultSupported
+        { supportedVersions = [TLS13, TLS12, TLS11, TLS10]
+        , supportedCiphers = ciphersuite_backwardCompat
+        , supportedExtendedMainSecret = AllowEMS
+        , supportedHashSignatures =
+            supportedHashSignatures defaultSupported ++ [(Struct.HashSHA1, SignatureDSA)]
+        }
 
 -- | Parameters that are common to clients and servers.
 data Shared = Shared

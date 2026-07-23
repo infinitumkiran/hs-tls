@@ -255,7 +255,7 @@ getFinished ctx = usingState_ ctx getMyVerifyData
 getPeerFinished :: Context -> IO (Maybe VerifyData)
 getPeerFinished ctx = usingState_ ctx getPeerVerifyData
 
--- | Getting the "tls-unique" channel binding for TLS 1.2 (RFC5929).
+-- | Getting the "tls-unique" channel binding for TLS 1.0 - 1.2 (RFC5929).
 --   For TLS 1.3, 'Nothing' is returned.
 --   'supportedExtendedMainSecret' must be 'RequireEMS'
 --   But in general, it is highly recommended to upgrade to TLS 1.3
@@ -263,7 +263,7 @@ getPeerFinished ctx = usingState_ ctx getPeerVerifyData
 getTLSUnique :: Context -> IO (Maybe ByteString)
 getTLSUnique ctx = do
     ver <- liftIO $ usingState_ ctx getVersion
-    if ver == TLS12
+    if ver >= TLS10 && ver <= TLS12
         then do
             mx <- usingState_ ctx getFirstVerifyData
             case mx of

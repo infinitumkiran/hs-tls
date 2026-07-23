@@ -94,6 +94,8 @@ getDefaultParams flags host store sStorage certCredsRequest session earlyData =
                 { supportedVersions = supportedVers
                 , supportedCiphers = myCiphers
                 , supportedGroups = getGroups flags
+                , -- allow (don't require) EMS so old peers without it still connect
+                  supportedExtendedMainSecret = AllowEMS
                 }
         , clientWantSessionResume = session
         , clientUseServerNameIndication = NoSNI `notElem` flags
@@ -145,10 +147,12 @@ getDefaultParams flags host store sStorage certCredsRequest session earlyData =
                 Nothing -> acc
         f acc _ = acc
 
+    -- Use the backward-compat suite list so that legacy CBC/RC4/3DES ciphers
+    -- (needed for TLS 1.0/1.1 and old peers) can be offered and selected.
     getSelectedCiphers =
         case getUsedCipherIDs of
-            [] -> ciphersuite_all
-            l -> mapMaybe (\cid -> find ((== cid) . cipherID) ciphersuite_all) l
+            [] -> ciphersuite_backwardCompat
+            l -> mapMaybe (\cid -> find ((== cid) . cipherID) ciphersuite_backwardCompat) l
 
     getDebugSeed :: Maybe Seed -> Flag -> Maybe Seed
     getDebugSeed _ (DebugSeed seed) = seedFromInteger `fmap` readNumber seed

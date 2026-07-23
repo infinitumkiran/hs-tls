@@ -1,5 +1,21 @@
 # Change log for "tls"
 
+## Version 2.1.8.1
+
+* Backward-compatibility: restore TLS 1.0 / TLS 1.1 support and the legacy
+  CBC / RC4 / 3DES cipher suites removed in 2.0.0, behind the opt-in
+  `defaultSupportedBackwardCompat` and `ciphersuite_backwardCompat`.  The secure
+  `defaultSupported` is unchanged.  The opt-in variant also reverts
+  `RequireEMS` to `AllowEMS` and re-adds the legacy `(HashSHA1, SignatureDSA)`
+  hash/signature.
+* Fixes latent version-handling bugs surfaced by the above: the TLS 1.2 server
+  path hardcoded `TLS12` (version negotiation and cipher selection); the record
+  layer generated an explicit CBC IV regardless of version (breaking TLS 1.0's
+  implicit IV); `getTLSUnique` was gated to TLS 1.2 only; and the client
+  session-resumption key block was derived at `TLS12`.
+* Interop-tested against OpenSSL and badssl.com (TLS 1.0/1.1 + legacy ciphers)
+  in addition to the in-memory test suite.
+
 ## Version 2.1.8
 
 * Moving `Limit` to `Shared` to maintain backward compatibility
