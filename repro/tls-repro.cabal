@@ -1,0 +1,11 @@
+cabal-version:      2.4
+name:               tls-repro
+version:            0
+synopsis:           Live repro of the TLS 1.3 recvData-on-close HTTP 500
+build-type:         Simple
+
+executable tls-repro
+    main-is:          Repro.hs
+    build-depends:    base, bytestring, network, tls
+    default-language: Haskell2010
+    ghc-options:      -threaded -Wall -fno-warn-unused-imports

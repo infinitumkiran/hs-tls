@@ -1,0 +1,12 @@
+-- Builds the LOCAL tls fork from source (../tls), alongside the repro exe.
+-- active-repositories: none => solve only against the nix-provided package DB
+-- plus these local source packages (no hackage index needed, fully offline).
+--
+-- This project is standalone: it is NOT listed in the repo-root cabal.project,
+-- so it never affects the normal `tls` build or the euler-api-gateway pin
+-- (which consumes only the /tls subdirectory).
+packages:
+    ../tls
+    .
+
+active-repositories: none
