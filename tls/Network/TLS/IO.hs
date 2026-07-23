@@ -17,6 +17,7 @@ module Network.TLS.IO (
 ) where
 
 import Control.Exception (finally, throwIO)
+import System.IO.Error (eofErrorType, mkIOError)
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import qualified Data.ByteString as B
@@ -202,7 +203,12 @@ checkValid ctx = do
     established <- ctxEstablished ctx
     when (established == NotEstablished) $ throwIO ConnectionNotEstablished
     eofed <- ctxEOF ctx
-    when eofed $ throwIO $ PostHandshake Error_EOF
+    -- Throw a standard end-of-file IOException (as in tls < 2.0) rather than a
+    -- TLSException.  http-client and other consumers recognize an isEOFError
+    -- IOException as a normal closed connection; a TLSException is treated as a
+    -- request failure (e.g. HTTP 500) when a TLS 1.3 peer closes after its
+    -- response and the caller reads/sends once more.
+    when eofed $ throwIO $ mkIOError eofErrorType "data" Nothing Nothing
 
 ----------------------------------------------------------------
 
