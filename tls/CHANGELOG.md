@@ -15,12 +15,13 @@
   session-resumption key block was derived at `TLS12`.
 * Interop-tested against OpenSSL and badssl.com (TLS 1.0/1.1 + legacy ciphers)
   in addition to the in-memory test suite.
-* Restore the tls < 2.0 behaviour of throwing a standard end-of-file
-  `IOException` (instead of a `TLSException`) when an operation is attempted on a
-  closed connection.  `http-client` and similar consumers treat an `isEOFError`
-  `IOException` as a normal end-of-connection; the `TLSException` introduced in
-  2.0 was surfaced as a request failure (e.g. HTTP 500) when a TLS 1.3 peer
-  closes right after its response.
+* `recvData` now returns `""` (end of stream) on an already-closed connection
+  instead of throwing, mirroring the `""` it already returns on the first
+  CloseNotify.  `http-client` (and similar) treat an empty read as a normal
+  end-of-connection, whereas the exception thrown since 2.0 is wrapped as a
+  request failure (e.g. HTTP 500) when a TLS 1.3 peer closes right after its
+  response.  `checkValid` also throws a standard EOF `IOException` instead of a
+  `TLSException` for the send path.
 
 ## Version 2.1.8
 

@@ -200,15 +200,26 @@ recvData :: MonadIO m => Context -> m B.ByteString
 recvData ctx = liftIO $ do
     tls13 <- tls13orLater ctx
     withReadLock ctx $ do
-        checkValid ctx
-        -- We protect with a read lock both reception and processing of the
-        -- packet, because don't want another thread to receive a new packet
-        -- before this one has been fully processed.
-        --
-        -- Even when recvData12/recvData13 loops, we only need to call function
-        -- checkValid once.  Since we hold the read lock, no concurrent call
-        -- will impact the validity of the context.
-        if tls13 then recvData13 ctx else recvData12 ctx
+        -- On an already-closed connection, return "" (end of stream) instead of
+        -- throwing.  http-client and similar consumers treat an empty read as a
+        -- normal EOF; an exception here is otherwise surfaced as a request
+        -- failure (e.g. HTTP 500) when a TLS 1.3 peer closes after its response
+        -- and the caller reads once more.  This mirrors the "" already returned
+        -- on the first CloseNotify.  Genuine (non-EOF) errors still throw from
+        -- recvData12/recvData13 below.
+        eofed <- ctxEOF ctx
+        if eofed
+            then return B.empty
+            else do
+                checkValid ctx
+                -- We protect with a read lock both reception and processing of the
+                -- packet, because don't want another thread to receive a new packet
+                -- before this one has been fully processed.
+                --
+                -- Even when recvData12/recvData13 loops, we only need to call
+                -- function checkValid once.  Since we hold the read lock, no
+                -- concurrent call will impact the validity of the context.
+                if tls13 then recvData13 ctx else recvData12 ctx
 
 recvData12 :: Context -> IO B.ByteString
 recvData12 ctx = do
