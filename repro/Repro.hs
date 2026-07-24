@@ -22,6 +22,7 @@ import Control.Exception (SomeException (..), bracket, try)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as L
+import Data.Maybe (isJust)
 import Network.Socket
 import System.Environment (getArgs, lookupEnv)
 import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
@@ -34,21 +35,25 @@ main = do
     hSetBuffering stdout LineBuffering
     (host, port, vers) <- parseArgs <$> getArgs
     legacy <- (== Just "1") <$> lookupEnv "REPRO_LEGACY"
+    mcred <- loadClientCred
     putStrLn $
         "== tls-repro " ++ host ++ ":" ++ port ++ " offering " ++ show vers
-            ++ (if legacy then " [legacy fingerprint]" else "") ++ " =="
+            ++ (if legacy then " [legacy fingerprint]" else "")
+            ++ (if isJust mcred then " [client cert]" else "") ++ " =="
     bracket (connectTo host port) close $ \sock -> do
-        ctx <- contextNew sock (mkParams host vers legacy)
+        ctx <- contextNew sock (mkParams host vers legacy mcred)
         handshake ctx
         minfo <- contextGetInformation ctx
         putStrLn $ "handshake OK; negotiated " ++ maybe "?" (show . infoVersion) minfo
+        path <- maybe "/" id <$> lookupEnv "REPRO_PATH"
         let req =
-                "GET / HTTP/1.1\r\nHost: " <> BC.pack host
+                "GET " <> BC.pack path <> " HTTP/1.1\r\nHost: " <> BC.pack host
                     <> "\r\nConnection: close\r\nUser-Agent: tls-repro\r\n\r\n"
         sendData ctx (L.fromStrict req)
-        n <- drainResponse ctx 0
+        body <- drainResponse ctx B.empty
         putStrLn $
-            "drained response (~" ++ show n ++ " bytes); recvData returned \"\" (server closed)"
+            "drained response (" ++ show (B.length body) ++ " bytes); recvData returned \"\" (server closed)"
+        BC.putStrLn body
         putStrLn "-- extra read on the closed context (what crypton-connection does) --"
         r <- try (recvData ctx)
         case r of
@@ -62,10 +67,10 @@ main = do
                     "RESULT: recvData THREW: " ++ show e
                         ++ "  =>  http-client InternalException => HTTP 500   [BROKEN]"
 
-drainResponse :: Context -> Int -> IO Int
-drainResponse ctx !n = do
+drainResponse :: Context -> B.ByteString -> IO B.ByteString
+drainResponse ctx !acc = do
     b <- recvData ctx
-    if B.null b then pure n else drainResponse ctx (n + B.length b)
+    if B.null b then pure acc else drainResponse ctx (acc <> b)
 
 connectTo :: HostName -> ServiceName -> IO Socket
 connectTo host port = do
@@ -75,8 +80,26 @@ connectTo host port = do
     connect sock (addrAddress ai)
     pure sock
 
-mkParams :: HostName -> [Version] -> Bool -> ClientParams
-mkParams host vers legacy =
+-- | Load a client certificate + key (PEM) from $REPRO_CERT / $REPRO_KEY, to send
+-- the same mTLS credential euler presents to netcetera.  Absent => no client cert.
+loadClientCred :: IO (Maybe Credential)
+loadClientCred = do
+    mc <- lookupEnv "REPRO_CERT"
+    mk <- lookupEnv "REPRO_KEY"
+    case (mc, mk) of
+        (Just c, Just k) -> do
+            r <- credentialLoadX509 c k
+            case r of
+                Right cred -> do
+                    putStrLn $ "loaded client cert " ++ c ++ " (key " ++ k ++ ")"
+                    pure (Just cred)
+                Left e -> do
+                    putStrLn $ "WARNING: client cert load failed: " ++ e
+                    pure Nothing
+        _ -> pure Nothing
+
+mkParams :: HostName -> [Version] -> Bool -> Maybe Credential -> ClientParams
+mkParams host vers legacy mcred =
     let base = defaultParamsClient host BC.empty
      in base
             { clientSupported =
@@ -100,6 +123,8 @@ mkParams host vers legacy =
                     , -- http-client advertises ALPN; a fingerprinting WAF may
                       -- reset a ClientHello without it
                       onSuggestALPN = pure (Just ["http/1.1"])
+                    , -- present euler's netcetera mTLS cert when provided
+                      onCertificateRequest = \_ -> pure mcred
                     }
             }
 
