@@ -2,7 +2,7 @@
 -- connection failures (e.g. a peer that closes right after the handshake with
 -- no application data, surfacing to http-client as @NoResponseDataReceived@).
 --
--- All output is a single stderr line prefixed with @[TLS-DBG]@ and is emitted
+-- All output is a single stdout line prefixed with @[TLS-DBG]@ and is emitted
 -- ONLY when the environment variable @TLS_DEBUG@ is set to a truthy value
 -- (@1@/@true@/@yes@/@on@). When unset there is zero overhead beyond a memoized
 -- Bool read, so this is safe to leave compiled into the library.
@@ -21,7 +21,7 @@ import Control.Exception (SomeException, try)
 import Control.Monad (when)
 import Data.List (isInfixOf)
 import System.Environment (lookupEnv)
-import System.IO (hFlush, hPutStrLn, stderr)
+import System.IO (hFlush, stdout)
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | Whether @TLS_DEBUG@ enables tracing. Read once and memoized.
@@ -51,7 +51,7 @@ tlsDebug :: String -> IO ()
 tlsDebug msg =
     when tlsDebugEnabled $ do
         _ <-
-            try (hPutStrLn stderr ("[TLS-DBG] " ++ msg) >> hFlush stderr)
+            try (print ("[TLS-DBG] " ++ msg) >> hFlush stdout)
                 :: IO (Either SomeException ())
         pure ()
 
