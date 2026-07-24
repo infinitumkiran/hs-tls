@@ -1,5 +1,18 @@
 # Change log for "tls"
 
+## Version 2.1.8.3
+
+* The `Default Supported` instance now returns `defaultSupportedBackwardCompat`
+  instead of `defaultSupported`.  Every consumer that builds parameters via
+  `defaultParamsClient` / `defaultParamsServer` (which take their `Supported`
+  from `def`) therefore gets the pre-2.0 behaviour — TLS 1.0/1.1, the legacy
+  cipher suites, `AllowEMS`, and the tls-1.6.0 ClientHello wire shape (JA3/JA4)
+  — without any call-site change.  The secure `defaultSupported` value is
+  unchanged and still available by name for callers that want it.
+* `defaultSupportedBackwardCompat` also sets `supportedLegacyClientHello` and
+  `legacyClientHelloGroups`, so it now restores the pre-2.0 ClientHello
+  fingerprint in addition to the negotiation behaviour.
+
 ## Version 2.1.8.2
 
 * Legacy ClientHello fingerprint (opt-in): new `supportedLegacyClientHello`

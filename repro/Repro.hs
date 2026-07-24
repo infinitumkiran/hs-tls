@@ -35,13 +35,19 @@ main = do
     hSetBuffering stdout LineBuffering
     (host, port, vers) <- parseArgs <$> getArgs
     legacy <- (== Just "1") <$> lookupEnv "REPRO_LEGACY"
+    eulerMode <- (== Just "1") <$> lookupEnv "REPRO_EULER"
     mcred <- loadClientCred
     putStrLn $
         "== tls-repro " ++ host ++ ":" ++ port ++ " offering " ++ show vers
             ++ (if legacy then " [legacy fingerprint]" else "")
+            ++ (if eulerMode then " [euler-exact]" else "")
             ++ (if isJust mcred then " [client cert]" else "") ++ " =="
     bracket (connectTo host port) close $ \sock -> do
-        ctx <- contextNew sock (mkParams host vers legacy mcred)
+        let params =
+                if eulerMode
+                    then eulerParams host mcred
+                    else mkParams host vers legacy mcred
+        ctx <- contextNew sock params
         handshake ctx
         minfo <- contextGetInformation ctx
         putStrLn $ "handshake OK; negotiated " ++ maybe "?" (show . infoVersion) minfo
@@ -97,6 +103,27 @@ loadClientCred = do
                     putStrLn $ "WARNING: client cert load failed: " ++ e
                     pure Nothing
         _ -> pure Nothing
+
+-- | EXACTLY what euler-hs mkClientParams does: take defaultParamsClient (whose
+-- clientSupported = def) and override only supportedCiphers + AllowEMS.  With the
+-- fork's `def = defaultSupportedBackwardCompat`, this shows the real ClientHello
+-- euler now emits (no euler-hs change).
+eulerParams :: HostName -> Maybe Credential -> ClientParams
+eulerParams host mcred =
+    let base = defaultParamsClient host BC.empty
+     in base
+            { clientSupported =
+                (clientSupported base)
+                    { supportedCiphers = ciphersuite_default
+                    , supportedExtendedMainSecret = AllowEMS
+                    }
+            , clientHooks =
+                (clientHooks base)
+                    { onServerCertificate = \_ _ _ _ -> pure []
+                    , onSuggestALPN = pure (Just ["http/1.1"])
+                    , onCertificateRequest = \_ -> pure mcred
+                    }
+            }
 
 mkParams :: HostName -> [Version] -> Bool -> Maybe Credential -> ClientParams
 mkParams host vers legacy mcred =

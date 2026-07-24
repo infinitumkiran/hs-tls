@@ -382,8 +382,14 @@ defaultSupported =
         , supportedLegacyClientHello = False
         }
 
+-- (fork) The library default is the backward-compatible variant, so every
+-- consumer that builds params via 'defaultParamsClient' / 'defaultParamsServer'
+-- (which take 'clientSupported'/'serverSupported' from 'def') gets the pre-2.0
+-- behaviour -- TLS 1.0/1.1, the legacy cipher suites, AllowEMS, and the
+-- tls-1.6.0 ClientHello wire shape -- without any call-site change.  The secure
+-- 'defaultSupported' value itself is unchanged and still available by name.
 instance Default Supported where
-    def = defaultSupported
+    def = defaultSupportedBackwardCompat
 
 -- | A backward-compatible variant of 'defaultSupported'.
 --
@@ -404,12 +410,19 @@ instance Default Supported where
 --     extension still succeed.
 --   * The legacy @(HashSHA1, SignatureDSA)@ pair is added back to
 --     'supportedHashSignatures'.
+--   * 'supportedLegacyClientHello' is 'True' and 'supportedGroups' is
+--     'legacyClientHelloGroups', so the ClientHello is emitted with the pre-2.0.0
+--     wire shape (tls-1.6.0 extension order and group list, without the
+--     @compress_certificate@ / @session_ticket@ extensions).  This restores the
+--     old JA3\/JA4 fingerprint in addition to the old negotiation behaviour.
 defaultSupportedBackwardCompat :: Supported
 defaultSupportedBackwardCompat =
     defaultSupported
         { supportedVersions = [TLS13, TLS12, TLS11, TLS10]
         , supportedCiphers = ciphersuite_backwardCompat
+        , supportedGroups = legacyClientHelloGroups
         , supportedExtendedMainSecret = AllowEMS
+        , supportedLegacyClientHello = True
         , supportedHashSignatures =
             supportedHashSignatures defaultSupported ++ [(Struct.HashSHA1, SignatureDSA)]
         }
