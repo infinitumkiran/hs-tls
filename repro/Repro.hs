@@ -23,19 +23,22 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as L
 import Network.Socket
-import System.Environment (getArgs)
+import System.Environment (getArgs, lookupEnv)
 import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
 
 import Network.TLS
-import Network.TLS.Extra.Cipher (ciphersuite_default)
+import Network.TLS.Extra.Cipher (ciphersuite_default, ciphersuite_legacyDefault)
 
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
-    (host, port, ver) <- parseArgs <$> getArgs
-    putStrLn $ "== tls-repro " ++ host ++ ":" ++ port ++ " forcing " ++ show ver ++ " =="
+    (host, port, vers) <- parseArgs <$> getArgs
+    legacy <- (== Just "1") <$> lookupEnv "REPRO_LEGACY"
+    putStrLn $
+        "== tls-repro " ++ host ++ ":" ++ port ++ " offering " ++ show vers
+            ++ (if legacy then " [legacy fingerprint]" else "") ++ " =="
     bracket (connectTo host port) close $ \sock -> do
-        ctx <- contextNew sock (mkParams host ver)
+        ctx <- contextNew sock (mkParams host vers legacy)
         handshake ctx
         minfo <- contextGetInformation ctx
         putStrLn $ "handshake OK; negotiated " ++ maybe "?" (show . infoVersion) minfo
@@ -72,28 +75,43 @@ connectTo host port = do
     connect sock (addrAddress ai)
     pure sock
 
-mkParams :: HostName -> Version -> ClientParams
-mkParams host ver =
+mkParams :: HostName -> [Version] -> Bool -> ClientParams
+mkParams host vers legacy =
     let base = defaultParamsClient host BC.empty
      in base
             { clientSupported =
                 (clientSupported base)
-                    { supportedVersions = [ver]
-                    , supportedCiphers = ciphersuite_default
+                    { supportedVersions = vers
+                    , supportedCiphers =
+                        if legacy then ciphersuite_legacyDefault else ciphersuite_default
+                    , supportedGroups =
+                        if legacy
+                            then legacyClientHelloGroups
+                            else supportedGroups (clientSupported base)
+                    , -- emit the tls-1.6.0-shaped ClientHello when in legacy mode
+                      supportedLegacyClientHello = legacy
+                    , -- match euler-hs mkClientParams
+                      supportedExtendedMainSecret = AllowEMS
                     }
-            , -- repro only: accept any certificate so we need no system cert store
-              clientHooks =
-                (clientHooks base){onServerCertificate = \_ _ _ _ -> pure []}
+            , clientHooks =
+                (clientHooks base)
+                    { -- repro only: accept any certificate (no system cert store)
+                      onServerCertificate = \_ _ _ _ -> pure []
+                    , -- http-client advertises ALPN; a fingerprinting WAF may
+                      -- reset a ClientHello without it
+                      onSuggestALPN = pure (Just ["http/1.1"])
+                    }
             }
 
-parseArgs :: [String] -> (HostName, ServiceName, Version)
-parseArgs (h : p : v : _) = (h, p, readVer v)
-parseArgs (h : p : _) = (h, p, TLS13)
-parseArgs (h : _) = (h, "443", TLS13)
-parseArgs _ = ("www.google.com", "443", TLS13)
+parseArgs :: [String] -> (HostName, ServiceName, [Version])
+parseArgs (h : p : v : _) = (h, p, readVers v)
+parseArgs (h : p : _) = (h, p, [TLS13, TLS12])
+parseArgs (h : _) = (h, "443", [TLS13, TLS12])
+parseArgs _ = ("www.google.com", "443", [TLS13, TLS12])
 
-readVer :: String -> Version
-readVer "1.2" = TLS12
-readVer "1.1" = TLS11
-readVer "1.0" = TLS10
-readVer _ = TLS13
+readVers :: String -> [Version]
+readVers "1.3" = [TLS13]
+readVers "1.2" = [TLS12]
+readVers "1.1" = [TLS11]
+readVers "1.0" = [TLS10]
+readVers _ = [TLS13, TLS12]

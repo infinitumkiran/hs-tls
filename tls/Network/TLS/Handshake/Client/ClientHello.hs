@@ -107,6 +107,8 @@ sendClientHello' cparams ctx groups crand (pskInfo, rtt0info, rtt0) = do
     tls13 = highestVer >= TLS13
     ems = supportedExtendedMainSecret $ ctxSupported ctx
     groupToSend = listToMaybe groups
+    -- (fork) Emit a pre-2.0.0 (tls-1.6.0-shaped) ClientHello when requested.
+    legacyCH = supportedLegacyClientHello $ ctxSupported ctx
 
     -- List of extensions to send in ClientHello, ordered such that we never
     -- terminate with a zero-length extension.  Some buggy implementations
@@ -116,26 +118,49 @@ sendClientHello' cparams ctx groups crand (pskInfo, rtt0info, rtt0) = do
     -- with length >= 2 bytes.  When TLS 1.3 is enabled, extensions
     -- "psk_key_exchange_modes" (currently always sent) and "pre_shared_key"
     -- (not always present) have length > 0.
-    getExtensions =
-        sequence
-            [ {- 0x00 -} sniExt
-            , {- 0x0a -} groupExt
-            , {- 0x0b -} ecPointExt
-            , {- 0x0d -} signatureAlgExt
-            , {- 0x10 -} alpnExt
-            , {- 0x17 -} emsExt
-            , {- 0x1b -} compCertExt
-            , {- 0x1c -} recordSizeLimitExt
-            , {- 0x23 -} sessionTicketExt
-            , {- 0x2a -} earlyDataExt
-            , {- 0x2b -} versionExt
-            , {- 0x2c -} cookieExt
-            , {- 0x2d -} pskExchangeModeExt
-            , {- 0x31 -} postHandshakeAuthExt
-            , {- 0x33 -} keyShareExt
-            , {- 0xff01 -} secureRenegExt
-            , {- 0x29 -} preSharedKeyExt -- MUST be last (RFC 8446)
-            ]
+    getExtensions
+        -- (fork) tls-1.6.0 extension order, without the compress_certificate,
+        -- record_size_limit and session_ticket extensions that tls 2.x added or
+        -- enabled.  Reproduces the pre-2.0.0 JA3 extension field.  Still ends on
+        -- a non-empty extension (pskExchangeModeExt / signatureAlgExt) so no
+        -- buggy peer sees a zero-length final extension.
+        | legacyCH =
+            sequence
+                [ {- 0x00 -} sniExt
+                , {- 0xff01 -} secureRenegExt
+                , {- 0x10 -} alpnExt
+                , {- 0x17 -} emsExt
+                , {- 0x0a -} groupExt
+                , {- 0x0b -} ecPointExt
+                , {- 0x0d -} signatureAlgExt
+                , {- 0x2b -} versionExt
+                , {- 0x2a -} earlyDataExt
+                , {- 0x33 -} keyShareExt
+                , {- 0x2c -} cookieExt
+                , {- 0x31 -} postHandshakeAuthExt
+                , {- 0x2d -} pskExchangeModeExt
+                , {- 0x29 -} preSharedKeyExt -- MUST be last (RFC 8446)
+                ]
+        | otherwise =
+            sequence
+                [ {- 0x00 -} sniExt
+                , {- 0x0a -} groupExt
+                , {- 0x0b -} ecPointExt
+                , {- 0x0d -} signatureAlgExt
+                , {- 0x10 -} alpnExt
+                , {- 0x17 -} emsExt
+                , {- 0x1b -} compCertExt
+                , {- 0x1c -} recordSizeLimitExt
+                , {- 0x23 -} sessionTicketExt
+                , {- 0x2a -} earlyDataExt
+                , {- 0x2b -} versionExt
+                , {- 0x2c -} cookieExt
+                , {- 0x2d -} pskExchangeModeExt
+                , {- 0x31 -} postHandshakeAuthExt
+                , {- 0x33 -} keyShareExt
+                , {- 0xff01 -} secureRenegExt
+                , {- 0x29 -} preSharedKeyExt -- MUST be last (RFC 8446)
+                ]
 
     --------------------
 

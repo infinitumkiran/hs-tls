@@ -106,6 +106,7 @@ module Network.TLS (
     Supported,
     defaultSupported,
     defaultSupportedBackwardCompat,
+    defaultSupportedLegacyFingerprint,
     supportedVersions,
     supportedCiphers,
     supportedCompressions,
@@ -117,6 +118,7 @@ module Network.TLS (
     supportedFallbackScsv,
     supportedEmptyPacket,
     supportedGroups,
+    supportedLegacyClientHello,
 
     -- ** Debug parameters
     DebugParams,
@@ -190,6 +192,7 @@ module Network.TLS (
     SignatureAlgorithm (..),
     Group (..),
     supportedNamedGroups,
+    legacyClientHelloGroups,
     EMSMode (..),
 
     -- ** For parameters and hooks
@@ -315,6 +318,7 @@ import Network.TLS.Crypto (
     Group (..),
     KxError (..),
     supportedNamedGroups,
+    legacyClientHelloGroups,
  )
 import Network.TLS.Handshake.State (HandshakeMode13 (..))
 import Network.TLS.Hooks

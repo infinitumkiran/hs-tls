@@ -24,6 +24,7 @@ module Network.TLS.Crypto.Types (
     availableFFGroups,
     availableECGroups,
     supportedNamedGroups,
+    legacyClientHelloGroups,
     KeyExchangeSignatureAlg (..),
 ) where
 
@@ -89,6 +90,13 @@ supportedNamedGroups =
     , FFDHE8192
     , P521
     ]
+
+-- | (fork) The 'supportedNamedGroups' order as sent by tls-1.6.0 -- i.e.
+-- 'supportedNamedGroups' without FFDHE2048, which tls 2.x added.  Used with
+-- 'Network.TLS.supportedLegacyClientHello' to reproduce the pre-2.0.0 JA3
+-- supported_groups field.
+legacyClientHelloGroups :: [Group]
+legacyClientHelloGroups = filter (/= FFDHE2048) supportedNamedGroups
 
 -- Key-exchange signature algorithm, in close relation to ciphers
 -- (before TLS 1.3).

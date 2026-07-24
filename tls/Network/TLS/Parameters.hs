@@ -15,6 +15,7 @@ module Network.TLS.Parameters (
     Supported (..),
     defaultSupported,
     defaultSupportedBackwardCompat,
+    defaultSupportedLegacyFingerprint,
     Shared (..),
     defaultShared,
     Limit (..),
@@ -341,6 +342,16 @@ data Supported = Supported
     --   bits or more.
     --
     --   Default: @[X25519,X448,P256,FFDHE2048,FFDHE3072,FFDHE4096,P384,FFDHE6144,FFDHE8192,P521]@
+    , supportedLegacyClientHello :: Bool
+    -- ^ (fork) Emit a pre-2.0.0 (tls-1.6.0-shaped) ClientHello: order the
+    --   extensions as tls-1.6.0 did and omit the @compress_certificate@ and
+    --   @session_ticket@ extensions that were added/enabled in tls 2.x.  This
+    --   changes only the wire fingerprint (JA3/JA4), not what is negotiated, and
+    --   exists to interoperate with TLS-fingerprinting middleboxes that
+    --   allowlisted the old client.  Pair with 'ciphersuite_legacyDefault' and
+    --   the tls-1.6.0 'supportedGroups' order for a full fingerprint match.
+    --
+    --   Default: 'False' (standard tls 2.x ClientHello).
     }
     deriving (Show, Eq)
 
@@ -368,6 +379,7 @@ defaultSupported =
         , supportedFallbackScsv = True
         , supportedEmptyPacket = True
         , supportedGroups = supportedNamedGroups
+        , supportedLegacyClientHello = False
         }
 
 instance Default Supported where
@@ -400,6 +412,23 @@ defaultSupportedBackwardCompat =
         , supportedExtendedMainSecret = AllowEMS
         , supportedHashSignatures =
             supportedHashSignatures defaultSupported ++ [(Struct.HashSHA1, SignatureDSA)]
+        }
+
+-- | 'defaultSupported' tuned to reproduce the tls-1.6.0 ClientHello wire
+-- fingerprint (JA3\/JA4): the pre-2.0.0 cipher list ('ciphersuite_legacyDefault'),
+-- group order ('legacyClientHelloGroups') and extension shape
+-- ('supportedLegacyClientHello').  The modern version floor @[TLS13, TLS12]@ and
+-- the signature algorithms are unchanged, so this alters only the fingerprint,
+-- not the negotiated security.  'AllowEMS' matches the pre-2.0.0 Extended Main
+-- Secret behaviour.  Intended for peers behind TLS-fingerprinting middleboxes
+-- that allowlisted the old (tls-1.6.0) client.
+defaultSupportedLegacyFingerprint :: Supported
+defaultSupportedLegacyFingerprint =
+    defaultSupported
+        { supportedCiphers = ciphersuite_legacyDefault
+        , supportedGroups = legacyClientHelloGroups
+        , supportedExtendedMainSecret = AllowEMS
+        , supportedLegacyClientHello = True
         }
 
 -- | Parameters that are common to clients and servers.

@@ -10,6 +10,7 @@ module Network.TLS.Extra.Cipher (
 
     -- ** Backward compatibility (legacy, pre-2.0.0)
     ciphersuite_backwardCompat,
+    ciphersuite_legacyDefault,
 
     -- * Individual ciphers
 
@@ -249,6 +250,145 @@ complement_backwardCompat =
     , cipher_RSA_3DES_EDE_CBC_SHA1
     , cipher_RC4_128_SHA1
     , cipher_RC4_128_MD5
+    ]
+
+----------------------------------------------------------------
+-- Legacy ClientHello fingerprint (tls-1.6.0 parity)
+--
+-- 'ciphersuite_legacyDefault' reconstructs tls-1.6.0's 'ciphersuite_default'
+-- suite-for-suite.  Because it reuses the same 'sortOptimized' ordering, a
+-- ClientHello built with it advertises the identical cipher list (same suites,
+-- same wire order on a given CPU) as pre-2.0.0 tls -- i.e. the pre-2.0.0 JA3
+-- cipher field.  Together with 'supportedLegacyClientHello' this lets the
+-- client interoperate with TLS-fingerprinting middleboxes that allowlisted the
+-- old client.  The six non-PFS RSA-AEAD / DHE-CCM suites below exist only to
+-- complete that list; they are advertise-for-parity and stay behind the AEAD
+-- PFS suites in preference order.
+
+-- TLS_RSA_WITH_AES_128_GCM_SHA256 (RFC 5288) -- non-PFS, legacy parity only
+cipher_RSA_WITH_AES_128_GCM_SHA256 :: Cipher
+cipher_RSA_WITH_AES_128_GCM_SHA256 =
+    Cipher
+        { cipherID = 0x009C
+        , cipherName = "RSA-AES128GCM-SHA256"
+        , cipherBulk = bulk_aes128gcm
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- TLS_RSA_WITH_AES_256_GCM_SHA384 (RFC 5288) -- non-PFS, legacy parity only
+cipher_RSA_WITH_AES_256_GCM_SHA384 :: Cipher
+cipher_RSA_WITH_AES_256_GCM_SHA384 =
+    Cipher
+        { cipherID = 0x009D
+        , cipherName = "RSA-AES256GCM-SHA384"
+        , cipherBulk = bulk_aes256gcm
+        , cipherHash = SHA384
+        , cipherPRFHash = Just SHA384
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- TLS_RSA_WITH_AES_128_CCM (RFC 6655) -- non-PFS, legacy parity only
+cipher_RSA_WITH_AES_128_CCM :: Cipher
+cipher_RSA_WITH_AES_128_CCM =
+    Cipher
+        { cipherID = 0xC09C
+        , cipherName = "RSA-AES128CCM"
+        , cipherBulk = bulk_aes128ccm
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- TLS_RSA_WITH_AES_256_CCM (RFC 6655) -- non-PFS, legacy parity only
+cipher_RSA_WITH_AES_256_CCM :: Cipher
+cipher_RSA_WITH_AES_256_CCM =
+    Cipher
+        { cipherID = 0xC09D
+        , cipherName = "RSA-AES256CCM"
+        , cipherBulk = bulk_aes256ccm
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- TLS_DHE_RSA_WITH_AES_128_CCM (RFC 6655)
+cipher_DHE_RSA_WITH_AES_128_CCM :: Cipher
+cipher_DHE_RSA_WITH_AES_128_CCM =
+    Cipher
+        { cipherID = 0xC09E
+        , cipherName = "TLS_DHE_RSA_WITH_AES_128_CCM"
+        , cipherBulk = bulk_aes128ccm
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_DHE_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- TLS_DHE_RSA_WITH_AES_256_CCM (RFC 6655)
+cipher_DHE_RSA_WITH_AES_256_CCM :: Cipher
+cipher_DHE_RSA_WITH_AES_256_CCM =
+    Cipher
+        { cipherID = 0xC09F
+        , cipherName = "TLS_DHE_RSA_WITH_AES_256_CCM"
+        , cipherBulk = bulk_aes256ccm
+        , cipherHash = SHA256
+        , cipherPRFHash = Just SHA256
+        , cipherKeyExchange = CipherKeyExchange_DHE_RSA
+        , cipherMinVer = Just TLS12
+        }
+
+-- | tls-1.6.0's @ciphersuite_default@, reconstructed suite-for-suite.  With
+-- 'sortOptimized' this yields the identical wire order on the same CPU, so the
+-- advertised cipher list (and thus the JA3 cipher field) matches pre-2.0.0.
+ciphersuite_legacyDefault :: [Cipher]
+ciphersuite_legacyDefault = sortOptimized sets_legacyDefault
+
+sets_legacyDefault :: [CipherSet]
+sets_legacyDefault =
+    [ SetAead
+        [cipher_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, cipher_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384]
+        [cipher_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256]
+        [cipher_ECDHE_ECDSA_WITH_AES_128_CCM, cipher_ECDHE_ECDSA_WITH_AES_256_CCM]
+    , SetAead
+        [cipher_ECDHE_RSA_WITH_AES_128_GCM_SHA256, cipher_ECDHE_RSA_WITH_AES_256_GCM_SHA384]
+        [cipher_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256]
+        []
+    , SetAead
+        [cipher_DHE_RSA_WITH_AES_128_GCM_SHA256, cipher_DHE_RSA_WITH_AES_256_GCM_SHA384]
+        [cipher_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256]
+        [cipher_DHE_RSA_WITH_AES_128_CCM, cipher_DHE_RSA_WITH_AES_256_CCM]
+    , SetOther
+        [ cipher_ECDHE_ECDSA_AES128CBC_SHA256
+        , cipher_ECDHE_ECDSA_AES256CBC_SHA384
+        , cipher_ECDHE_RSA_AES128CBC_SHA256
+        , cipher_ECDHE_RSA_AES256CBC_SHA384
+        , cipher_DHE_RSA_AES128_SHA256
+        , cipher_DHE_RSA_AES256_SHA256
+        ]
+    , SetOther
+        [ cipher_ECDHE_ECDSA_AES128CBC_SHA
+        , cipher_ECDHE_ECDSA_AES256CBC_SHA
+        , cipher_ECDHE_RSA_AES128CBC_SHA
+        , cipher_ECDHE_RSA_AES256CBC_SHA
+        , cipher_DHE_RSA_AES128_SHA1
+        , cipher_DHE_RSA_AES256_SHA1
+        ]
+    , SetAead
+        [cipher_RSA_WITH_AES_128_GCM_SHA256, cipher_RSA_WITH_AES_256_GCM_SHA384]
+        []
+        [cipher_RSA_WITH_AES_128_CCM, cipher_RSA_WITH_AES_256_CCM]
+    , SetOther [cipher_AES256_SHA256, cipher_AES128_SHA256]
+    , SetOther [cipher_AES256_SHA1, cipher_AES128_SHA1]
+    , SetAead
+        [cipher13_AES_128_GCM_SHA256, cipher13_AES_256_GCM_SHA384]
+        [cipher13_CHACHA20_POLY1305_SHA256]
+        [cipher13_AES_128_CCM_SHA256]
     ]
 
 -- RC4 cipher, RSA key exchange and MD5 for digest

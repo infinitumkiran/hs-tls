@@ -1,5 +1,19 @@
 # Change log for "tls"
 
+## Version 2.1.8.2
+
+* Legacy ClientHello fingerprint (opt-in): new `supportedLegacyClientHello`
+  flag on `Supported`, `ciphersuite_legacyDefault`, `legacyClientHelloGroups`
+  and the `defaultSupportedLegacyFingerprint` preset.  Together they make a
+  client emit a ClientHello whose JA3 matches tls-1.6.0 — the pre-2.0.0 cipher
+  list and order (via the ported `sets_default` + `sortOptimized`), the
+  pre-2.0.0 extension order, and without the `compress_certificate`,
+  `record_size_limit` and `session_ticket` extensions that 2.x added/enabled.
+  This changes only the wire fingerprint, not what is negotiated, and exists to
+  interoperate with TLS-fingerprinting middleboxes that allowlisted the old
+  client.  Default (`supportedLegacyClientHello = False`) behaviour and the
+  secure `defaultSupported` are unchanged.
+
 ## Version 2.1.8.1
 
 * Backward-compatibility: restore TLS 1.0 / TLS 1.1 support and the legacy
