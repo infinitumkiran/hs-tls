@@ -61,6 +61,32 @@ import Network.TLS.Types (
     Role (..),
  )
 import Network.TLS.Util (catchException, mapChunks_)
+import Network.TLS.DebugLog (tlsDebug, tlsDebugEnabled)
+
+-- | Emit a @[TLS-DBG]@ line annotated with the connection's currently-negotiated
+-- version/cipher.  No-op unless @TLS_DEBUG@ is set.
+tlsDebugConn :: Context -> String -> IO ()
+tlsDebugConn ctx label = when tlsDebugEnabled $ do
+    minfo <- contextGetInformation ctx
+    let vc = case minfo of
+            Just i -> show (infoVersion i) ++ "/" ++ cipherName (infoCipher i)
+            Nothing -> "no-negotiated-info"
+    tlsDebug (label ++ " {" ++ vc ++ "}")
+
+-- | Trace the outcome of a low-level packet receive.  The decisive signal for
+-- the @NoResponseDataReceived@ investigation: @Left Error_EOF@ means the peer
+-- closed the TCP connection with NO TLS alert (bare FIN) -- consistent with a
+-- middlebox drop or a silent app-layer reject, and distinct from a fatal alert
+-- (which names a reason, e.g. a client-cert rejection) or a graceful
+-- @close_notify@.
+logRecvPacket :: Context -> String -> Either TLSError p -> IO ()
+logRecvPacket ctx tag (Left Error_EOF) =
+    tlsDebugConn
+        ctx
+        (tag ++ ": recvPacket -> EOF (peer closed TCP with NO alert / bare FIN) -> this read returns \"\"")
+logRecvPacket ctx tag (Left err) =
+    tlsDebugConn ctx (tag ++ ": recvPacket -> error " ++ show err)
+logRecvPacket _ _ (Right _) = return ()
 
 -- | Handshake for a new TLS connection
 -- This is to be called at the beginning of a connection, and during renegotiation.
@@ -68,18 +94,41 @@ import Network.TLS.Util (catchException, mapChunks_)
 handshake :: MonadIO m => Context -> m ()
 handshake ctx = do
     handshake_ ctx
+    liftIO $ tlsDebugConn ctx "handshake: completed"
     -- Trying to receive an alert of client authentication failure
     liftIO $ do
         role <- usingState_ ctx getRole
         tls13 <- tls13orLater ctx
         sentClientCert <- tls13stSentClientCert <$> getTLS13State ctx
+        tlsDebug $
+            "handshake: post-handshake auth-failure check"
+                ++ " role="
+                ++ show role
+                ++ " tls13="
+                ++ show tls13
+                ++ " sentClientCert="
+                ++ show sentClientCert
         when (role == ClientRole && tls13 && sentClientCert) $ do
             rtt <- getRTT ctx
             -- This 'timeout' should work.
             mdat <- timeout rtt $ recvData13 ctx
             case mdat of
-                Nothing -> return ()
-                Just dat -> modifyTLS13State ctx $ \st -> st{tls13stPendingRecvData = Just dat}
+                Nothing ->
+                    -- Timed out waiting for an alert: server did NOT reject the
+                    -- client cert within the RTT window (normal / good path).
+                    tlsDebug "handshake: no client-auth-failure alert within RTT (client cert accepted so far)"
+                Just dat -> do
+                    -- Got something before we even sent a request.  If this is
+                    -- empty, the server closed the connection right after the
+                    -- TLS 1.3 handshake (typical mTLS client-cert rejection or a
+                    -- middlebox drop) -> the eventual read returns "" ->
+                    -- http-client raises NoResponseDataReceived.
+                    tlsDebug $
+                        "handshake: received "
+                            ++ show (B.length dat)
+                            ++ " bytes during post-handshake auth-failure window"
+                            ++ (if B.null dat then " (EMPTY => peer closed after handshake; likely client-cert rejected / dropped)" else "")
+                    modifyTLS13State ctx $ \st -> st{tls13stPendingRecvData = Just dat}
 
 rttFactor :: Int
 rttFactor = 3
@@ -208,8 +257,11 @@ recvData ctx = liftIO $ do
         -- on the first CloseNotify.  Genuine (non-EOF) errors still throw from
         -- recvData12/recvData13 below.
         eofed <- ctxEOF ctx
+        tlsDebugConn ctx ("recvData: entry tls13=" ++ show tls13 ++ " alreadyEOF=" ++ show eofed)
         if eofed
-            then return B.empty
+            then do
+                tlsDebug "recvData: connection already EOF -> returning \"\" (=> http-client NoResponseDataReceived if this is the response read)"
+                return B.empty
             else do
                 checkValid ctx
                 -- We protect with a read lock both reception and processing of the
@@ -224,6 +276,7 @@ recvData ctx = liftIO $ do
 recvData12 :: Context -> IO B.ByteString
 recvData12 ctx = do
     pkt <- recvPacket12 ctx
+    logRecvPacket ctx "recvData12" pkt
     either (onError terminate12) process pkt
   where
     process (Handshake [ch@ClientHello{}]) =
@@ -233,8 +286,11 @@ recvData12 ctx = do
     -- UserCanceled should be followed by a close_notify.
     -- fixme: is it safe to call recvData12?
     process (Alert [(AlertLevel_Warning, UserCanceled)]) = return B.empty
-    process (Alert [(AlertLevel_Warning, CloseNotify)]) = tryBye ctx >> setEOF ctx >> return B.empty
+    process (Alert [(AlertLevel_Warning, CloseNotify)]) = do
+        tlsDebugConn ctx "recvData12: received warning close_notify -> EOF, returning \"\""
+        tryBye ctx >> setEOF ctx >> return B.empty
     process (Alert [(AlertLevel_Fatal, desc)]) = do
+        tlsDebugConn ctx ("recvData12: received FATAL alert=" ++ show desc ++ " -> throwing Terminated")
         setEOF ctx
         E.throwIO
             ( Terminated
@@ -245,7 +301,9 @@ recvData12 ctx = do
 
     -- when receiving empty appdata, we just retry to get some data.
     process (AppData "") = recvData12 ctx
-    process (AppData x) = return x
+    process (AppData x) = do
+        tlsDebugConn ctx ("recvData12: received " ++ show (B.length x) ++ " bytes of application data")
+        return x
     process p =
         let reason = "unexpected message " ++ show p
          in terminate12 (Error_Misc reason) AlertLevel_Fatal UnexpectedMessage reason
@@ -258,15 +316,20 @@ recvData13 ctx = do
     case mdat of
         Nothing -> do
             pkt <- recvPacket13 ctx
+            logRecvPacket ctx "recvData13" pkt
             either (onError (terminate13 ctx)) process pkt
         Just dat -> do
+            tlsDebugConn ctx ("recvData13: replaying " ++ show (B.length dat) ++ " pending bytes buffered during post-handshake auth check")
             modifyTLS13State ctx $ \st -> st{tls13stPendingRecvData = Nothing}
             return dat
   where
     -- UserCanceled MUST be followed by a CloseNotify.
     process (Alert13 [(AlertLevel_Warning, UserCanceled)]) = return B.empty
-    process (Alert13 [(AlertLevel_Warning, CloseNotify)]) = tryBye ctx >> setEOF ctx >> return B.empty
+    process (Alert13 [(AlertLevel_Warning, CloseNotify)]) = do
+        tlsDebugConn ctx "recvData13: received warning close_notify -> EOF, returning \"\""
+        tryBye ctx >> setEOF ctx >> return B.empty
     process (Alert13 [(AlertLevel_Fatal, desc)]) = do
+        tlsDebugConn ctx ("recvData13: received FATAL alert=" ++ show desc ++ " -> throwing Terminated")
         setEOF ctx
         E.throwIO
             ( Terminated
@@ -281,6 +344,7 @@ recvData13 ctx = do
     process (AppData13 "") = recvData13 ctx
     process (AppData13 x) = do
         let chunkLen = C8.length x
+        tlsDebugConn ctx ("recvData13: received " ++ show chunkLen ++ " bytes of application data")
         established <- ctxEstablished ctx
         case established of
             EarlyDataAllowed maxSize

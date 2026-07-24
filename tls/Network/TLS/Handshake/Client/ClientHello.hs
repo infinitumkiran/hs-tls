@@ -25,6 +25,7 @@ import Network.TLS.Parameters
 import Network.TLS.State
 import Network.TLS.Struct
 import Network.TLS.Types
+import Network.TLS.DebugLog (tlsDebugHost)
 
 ----------------------------------------------------------------
 
@@ -94,6 +95,20 @@ sendClientHello' cparams ctx groups crand (pskInfo, rtt0info, rtt0) = do
     let extensions1 = sharedHelloExtensions (clientShared cparams) ++ extensions0
     extensions <- adjustExtentions extensions1 $ mkClientHello extensions1
     sendPacket12 ctx $ Handshake [mkClientHello extensions]
+    tlsDebugHost (fst (clientServerIdentification cparams)) $
+        "ClientHello sent:"
+            ++ " legacyVersion="
+            ++ show ver
+            ++ " offeredVersions="
+            ++ show (supportedVersions $ ctxSupported ctx)
+            ++ " nCiphers="
+            ++ show (length ciphers)
+            ++ " groups="
+            ++ show (supportedGroups $ ctxSupported ctx)
+            ++ " legacyClientHello="
+            ++ show (supportedLegacyClientHello $ ctxSupported ctx)
+            ++ " extIDs="
+            ++ show (map (\(ExtensionRaw i _) -> i) extensions)
     mEarlySecInfo <- case rtt0info of
         Nothing -> return Nothing
         Just info -> Just <$> getEarlySecretInfo info

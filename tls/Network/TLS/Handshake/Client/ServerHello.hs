@@ -24,6 +24,7 @@ import Network.TLS.State
 import Network.TLS.Struct
 import Network.TLS.Struct13
 import Network.TLS.Types
+import Network.TLS.DebugLog (tlsDebugHost)
 
 ----------------------------------------------------------------
 
@@ -116,6 +117,14 @@ processServerHello cparams ctx (ServerHello rver serverRan serverSession (Cipher
     setALPN ctx MsgTServerHello shExts
 
     ver <- usingState_ ctx getVersion
+
+    tlsDebugHost (fst (clientServerIdentification cparams)) $
+        "ServerHello: negotiatedVersion="
+            ++ show ver
+            ++ " legacyVersionField="
+            ++ show rver
+            ++ " cipher="
+            ++ cipherName cipherAlg
 
     -- TLS 1.2 and below (TLS 1.3 sets its version via the supported_versions
     -- extension above, so 'ver' is TLS13 there and this is skipped).

@@ -41,6 +41,7 @@ library
         Network.TLS.Struct
         Network.TLS.Struct13
         Network.TLS.Core
+        Network.TLS.DebugLog
         Network.TLS.Context
         Network.TLS.Context.Internal
         Network.TLS.Credentials
