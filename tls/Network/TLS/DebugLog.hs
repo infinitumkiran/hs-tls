@@ -38,6 +38,12 @@
 --   * It never hangs on a runaway renderer: the fully rendered line is
 --     truncated to 'forkLineCharCap' characters, and the truncation is
 --     performed lazily so an infinite string is cut rather than forced.
+--   * It stays cancellable when stdout backs up.  A single @write(2)@ larger
+--     than @PIPE_BUF@ blocks inside a @safe@ foreign call, where no
+--     asynchronous exception can reach it -- so one oversized trace line would
+--     wedge a request thread past the reach of @timeout@ and
+--     'Control.Concurrent.killThread'.  Long lines are therefore split into
+--     physical writes of at most 'forkWriteChunkChars' characters.
 --   * It never depends on the pod's locale: 'forkAsciiOnly' escapes every
 --     character outside printable ASCII before the write.
 --
@@ -216,6 +222,80 @@ forkRenderLine ~s =
 forkRenderFailedPrefix :: String
 forkRenderFailedPrefix = "[TLS-DBG] <trace line dropped: renderer failed: "
 
+----------------------------------------------------------------
+-- (fork) Bounded physical writes
+----------------------------------------------------------------
+
+-- | Largest number of characters handed to a single 'ForkLogIO.putStrLn'.
+--
+-- This is not a cosmetic limit; it is what keeps the logger cancellable.
+--
+-- In a container, stdout is a pipe to the log collector.  @PIPE_BUF@ is 4096
+-- bytes on Linux, and the kernel reports a pipe writable only once at least
+-- @PIPE_BUF@ bytes are free.  A @write(2)@ of no more than @PIPE_BUF@ bytes
+-- therefore never blocks once @poll@ says the fd is ready: GHC does the waiting
+-- in 'GHC.Conc.threadWaitWrite', which is an ordinary interruptible operation.
+--
+-- A larger write behaves completely differently.  On Linux a blocking write of
+-- @n > PIPE_BUF@ bytes to a pipe does not return until all @n@ bytes have been
+-- transferred, so it blocks /inside/ the @safe@ foreign call to @write(2)@ that
+-- GHC's threaded RTS uses for the (blocking) standard handles -- and a thread
+-- inside a safe foreign call cannot be delivered an asynchronous exception.
+-- Neither @System.Timeout.timeout@ nor 'ForkLogC.killThread' can rescue it.
+-- If the log collector ever stops draining, one oversized trace line wedges the
+-- emitting request thread permanently, still holding whatever TLS lock it was
+-- under, and every other thread that traces then queues behind it on the stdout
+-- handle: the process stops serving and only a restart recovers it.
+--
+-- The package emits lines far past that threshold by design (a
+-- @Certificate13@ packet dump is capped at 65536 characters in
+-- "Network.TLS.Hooks", 'forkLineCharCap' allows 262144), so long lines are
+-- split into several physical writes instead.  4000 leaves room for the
+-- newline and for 'forkContPrefix' within @PIPE_BUF@.
+--
+-- 'forkAsciiOnly' has already reduced the line to printable ASCII, so one
+-- character is exactly one byte here whatever encoding stdout carries.
+forkWriteChunkChars :: Int
+forkWriteChunkChars = 4000
+
+-- | Marks the continuation of a line that had to be split across several
+-- physical writes.  Keeping the @[TLS-DBG]@ prefix means a continuation is
+-- still picked up by a grep for the tag; reassembly is concatenation after
+-- dropping this prefix.
+forkContPrefix :: String
+forkContPrefix = "[TLS-DBG] (cont) "
+
+-- | Split a fully rendered, ASCII-only line into physical writes that each stay
+-- within @PIPE_BUF@.  Total and terminating: the chunk size is at least 1 and
+-- the input has already been capped and forced by 'forkRenderLine'.
+forkSplitForWrite :: String -> [String]
+forkSplitForWrite s0 = case splitAt forkWriteChunkChars s0 of
+    (hd, []) -> [hd]
+    (hd, tl) -> hd : goCont tl
+  where
+    contChunk = max 1 (forkWriteChunkChars - length forkContPrefix)
+    goCont [] = []
+    goCont s = case splitAt contChunk s of
+        (hd, []) -> [forkContPrefix ++ hd]
+        (hd, tl) -> (forkContPrefix ++ hd) : goCont tl
+
+-- | Serializes the chunks of one logical trace line.
+--
+-- Without it the continuations of two concurrent lines interleave.  (GHC
+-- already releases the stdout handle lock between the internal buffer commits
+-- of one long 'ForkLogIO.putStrLn', so long lines interleave today; this makes
+-- them contiguous.)
+--
+-- It cannot deadlock against the instrumented code: it is private to this
+-- module, no code outside 'forkSafeEmitLine' can take it, nothing but the
+-- stdout writes runs while it is held, it is never acquired reentrantly, and
+-- 'ForkLogC.withMVar' releases it on any exception including an asynchronous
+-- one.  A thread waiting here would otherwise be waiting on the stdout handle's
+-- own lock.
+forkWriteLock :: ForkLogC.MVar ()
+forkWriteLock = unsafePerformIO (ForkLogC.newMVar ())
+{-# NOINLINE forkWriteLock #-}
+
 -- | Write one already-prefixed line to stdout.  Never throws synchronously;
 -- re-throws asynchronous exceptions unchanged.
 --
@@ -231,6 +311,10 @@ forkRenderFailedPrefix = "[TLS-DBG] <trace line dropped: renderer failed: "
 -- until the whole line exists.  A failed render then falls back to a fixed,
 -- pure-ASCII marker carrying the failure, which is itself rendered through the
 -- same guarded path before it is trusted.
+--
+-- The write itself is chunked ('forkSplitForWrite'): see 'forkWriteChunkChars'
+-- for why a single oversized 'ForkLogIO.putStrLn' is the one thing in this
+-- module that can hang a request thread beyond the reach of @timeout@.
 forkSafeEmitLine :: String -> IO ()
 forkSafeEmitLine ~s = do
     r <- ForkLogE.try (ForkLogE.evaluate (forkRenderLine s))
@@ -241,7 +325,12 @@ forkSafeEmitLine ~s = do
             | otherwise -> emitRenderFailure e
   where
     emitRaw t =
-        forkSwallowSync (ForkLogIO.putStrLn t >> ForkLogIO.hFlush ForkLogIO.stdout)
+        forkSwallowSync $
+            ForkLogC.withMVar forkWriteLock $ \_ ->
+                mapM_ putChunk (forkSplitForWrite t)
+    -- The 'hFlush' per chunk is what keeps the handle's own buffer from
+    -- coalescing two chunks into one oversized write(2).
+    putChunk c = ForkLogIO.putStrLn c >> ForkLogIO.hFlush ForkLogIO.stdout
     emitRenderFailure e = do
         r2 <-
             ForkLogE.try
