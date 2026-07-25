@@ -25,8 +25,11 @@ data Logging = Logging
     }
 
 -- | (fork) Cap a trace line so one large message cannot flood the log.
+--
+-- @splitAt@ walks at most @n@ elements of @s@ before 'null' answers, so this is
+-- bounded even when handed an unbounded rendering.
 truncateTrace :: Int -> String -> String
-truncateTrace n s =
+truncateTrace n ~s =
     let (hd, tl) = splitAt n s
      in if null tl then hd else hd ++ "...<truncated>"
 
@@ -49,9 +52,16 @@ largeTraceMessages =
 -- packet ("Handshake13 [CertVerify13 ..."), so look for it in the head of the
 -- string rather than at position 0; 64 characters is well past any wrapper.
 traceCap :: String -> Int
-traceCap s
+traceCap ~s
     | any (`isInfixOf` take 64 s) largeTraceMessages = 65536
     | otherwise = 1500
+
+-- | (fork) Longest constructor name 'sanitizePacket' will echo for a redacted
+-- @AppData@ packet.  @takeWhile (not . isSpace)@ is only bounded if the payload
+-- rendering happens to contain a space, which is a property of a 'Show'
+-- instance rather than a guarantee; the cap makes it one.
+appDataTagCap :: Int
+appDataTagCap = 32
 
 -- | (fork) Redact application data before tracing.  This library is deployed in
 -- a payments path, so @AppData@ packets carry cardholder data and request
@@ -59,8 +69,9 @@ traceCap s
 -- redaction is unconditional and must stay that way.
 -- Handshake packets are safe to show and are merely truncated.
 sanitizePacket :: String -> String
-sanitizePacket s
-    | "AppData" `isPrefixOf` s = takeWhile (not . isSpace) s ++ " <payload redacted>"
+sanitizePacket ~s
+    | "AppData" `isPrefixOf` s =
+        take appDataTagCap (takeWhile (not . isSpace) s) ++ " <payload redacted>"
     | otherwise = truncateTrace (traceCap s) s
 
 -- | (fork) Trace every packet and record-layer read\/write when @TLS_DEBUG@ is
@@ -103,12 +114,17 @@ data Hooks = Hooks
     -- ^ hooks on IO and packets, receiving and sending.
     }
 
+-- | The @~@ lazy patterns here are load-bearing for the same reason as in
+-- 'defaultLogging': upstream these hooks are @return@ \/ @return . const ()@,
+-- which force nothing.  Under @Strict@ a plain @\\hs -> ...@ would force the
+-- handshake message and the certificate chain to WHNF at a point where upstream
+-- does not, i.e. the instrumentation would have changed evaluation order.
 defaultHooks :: Hooks
 defaultHooks =
     Hooks
-        { hookRecvHandshake = \hs -> traceHandshake "recv handshake12" (show hs) >> return hs
-        , hookRecvHandshake13 = \hs -> traceHandshake "recv handshake13" (show hs) >> return hs
-        , hookRecvCertificates = \cc ->
+        { hookRecvHandshake = \(~hs) -> traceHandshake "recv handshake12" (show hs) >> return hs
+        , hookRecvHandshake13 = \(~hs) -> traceHandshake "recv handshake13" (show hs) >> return hs
+        , hookRecvCertificates = \(~cc) ->
             tlsDebug ("peer certificate chain received: " ++ describeCertChain cc)
         , hookLogging = def
         }

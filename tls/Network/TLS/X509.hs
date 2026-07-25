@@ -54,6 +54,11 @@ encodePubKeyDER = encodeASN1Object
 encodeDNDER :: DistinguishedName -> ByteString
 encodeDNDER = encodeASN1Object
 
+-- | (fork) Most certificates 'describeCertChain' will render.  A real chain is
+-- three or four deep; anything past this is a peer being awkward.
+describeCertChainCap :: Int
+describeCertChainCap = 12
+
 -- | (fork) One-line diagnostic summary of a certificate chain, for tracing an
 -- mTLS handshake.  Subject and issuer are rendered with 'show' on the raw
 -- 'DistinguishedName', which is for human reading only: 'show' is lossy, so do
@@ -65,12 +70,21 @@ encodeDNDER = encodeASN1Object
 -- The empty case is called out explicitly: a client that declines a
 -- CertificateRequest still sends a well-formed (but empty) Certificate message,
 -- which looks like a successful handshake locally and is rejected by the peer.
+-- Peer-controlled input: a chain is whatever the other end chose to send, so the
+-- number of certificates rendered is capped ('describeCertChainCap') rather than
+-- trusted.  The emitter caps the resulting line as well, but a renderer that can
+-- be made to do unbounded work is a hazard in its own right.
 describeCertChain :: CertificateChain -> String
 describeCertChain (CertificateChain []) =
     "<EMPTY: no certificate in chain - peer will see this as 'no certificate supplied'>"
 describeCertChain (CertificateChain cs) =
-    "n=" ++ show (length cs) ++ " " ++ intercalate " | " (zipWith describe [(0 :: Int) ..] cs)
+    "n="
+        ++ show n
+        ++ " "
+        ++ intercalate " | " (zipWith describe [(0 :: Int) ..] (take describeCertChainCap cs))
+        ++ (if n > describeCertChainCap then " | ...<" ++ show (n - describeCertChainCap) ++ " more certificates not shown>" else "")
   where
+    n = length cs
     describe i sc =
         let c = getCertificate sc
             (notBefore, notAfter) = certValidity c

@@ -108,7 +108,12 @@ sendClientHello' cparams ctx groups crand (pskInfo, rtt0info, rtt0) = do
     -- The first 4 bytes are the handshake header (0x01 + 24-bit length); the
     -- 32-byte random that follows differs per connection by design.
     -- No secret material: everything here went out on the wire in clear.
-    let chEncoded = encodeHandshake $ mkClientHello extensions
+    --
+    -- The @~@ is load-bearing under @Strict@: a plain @let@ would re-encode the
+    -- ClientHello eagerly, outside the logger's exception guard, purely so a
+    -- trace line can exist.  Lazy, the re-encode happens while 'tlsDebugHost' is
+    -- rendering, where nothing it does can reach the handshake.
+    let ~chEncoded = encodeHandshake $ mkClientHello extensions
     tlsDebugHost (fst (clientServerIdentification cparams)) $
         "ClientHello bytes: len="
             ++ show (B.length chEncoded)

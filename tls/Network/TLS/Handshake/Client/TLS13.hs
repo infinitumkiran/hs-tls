@@ -218,13 +218,13 @@ processCertRequest13 ctx token exts = do
                 ++ " clientCertCompression="
                 ++ show zlib
                 ++ " serverSigAlgs="
-                ++ show hsAlgs
+                ++ maybe "<none>" (showCapped acceptableCACap) hsAlgs
                 ++ " derivedCertTypes="
-                ++ show cTypes
+                ++ showCapped acceptableCACap cTypes
                 ++ " acceptableCAs(n="
                 ++ show (length dNames)
                 ++ ")="
-                ++ show dNames
+                ++ showCapped acceptableCACap dNames
     usingHState ctx $ do
         setCertReqToken $ Just token
         setCertReqCBdata $ Just (cTypes, hsAlgs, dNames)
@@ -386,6 +386,24 @@ uncertsig (SignatureAlgorithmsCert a) = Just a
 --
 -- An empty list is not a failure: @certificate_authorities@ is optional, and
 -- when it is absent the server has told us nothing to violate.
+--
+-- Bounded on purpose.  @certificate_authorities@ is peer-controlled and its
+-- wire encoding allows tens of thousands of entries; both the DER re-encoding
+-- done for the membership test and the rendering are therefore limited to
+-- 'acceptableCACap' entries, so a hostile or merely misconfigured server cannot
+-- turn a log line into a long, allocation-heavy computation on the handshake
+-- thread.
+acceptableCACap :: Int
+acceptableCACap = 64
+
+-- | (fork) 'show' a peer-controlled list without letting its length decide how
+-- much rendering work a trace line costs.  @drop n@ walks at most @n+1@ cells,
+-- so the overflow test is bounded too.
+showCapped :: Show a => Int -> [a] -> String
+showCapped n ~xs =
+    show (take n xs)
+        ++ (if null (drop n xs) then "" else "...<truncated to " ++ show n ++ " entries>")
+
 acceptableCAVerdict
     :: Maybe CertificateChain
     -> Maybe
@@ -394,13 +412,15 @@ acceptableCAVerdict
         , [DistinguishedName]
         )
     -> String
-acceptableCAVerdict mcc mcbdata =
+acceptableCAVerdict ~mcc ~mcbdata =
     "sendClientFlight13: acceptableCAs check:"
         ++ leafPart
         ++ " nAcceptableCAs="
-        ++ show (length dNames)
+        ++ show nDNames
+        ++ " nAcceptableCAsExamined="
+        ++ show (length shownDNames)
         ++ " acceptableCA_DER_SHA256s=["
-        ++ intercalate "," (map (hexOf . sha256 . encodeDNDER) dNames)
+        ++ intercalate "," (map (hexOf . sha256 . encodeDNDER) shownDNames)
         ++ "]"
         ++ if null dNames
             then " (server advertised no certificate_authorities: no constraint)"
@@ -410,10 +430,12 @@ acceptableCAVerdict mcc mcbdata =
     dNames = case mcbdata of
         Just (_, _, dns) -> dns
         Nothing -> []
+    nDNames = length dNames
+    shownDNames = take acceptableCACap dNames
     leafPart = case mcc of
         Just (CertificateChain (leaf : _)) ->
             let issuerDER = encodeDNDER $ certIssuerDN $ getCertificate leaf
-                midx = elemIndex issuerDER $ map encodeDNDER dNames
+                midx = elemIndex issuerDER $ map encodeDNDER shownDNames
              in " leafIssuerInAcceptableCAs="
                     ++ show (isJust midx)
                     ++ " matchIndex="
@@ -435,9 +457,13 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
                 describeCertChain
                 mcc
     -- 'clientChain' has just read the same field, so this cannot fail where it
-    -- would not already have failed.
-    mcbdata <- usingHState ctx getCertReqCBdata
-    tlsDebug $ acceptableCAVerdict mcc mcbdata
+    -- would not already have failed -- but "cannot" is not a guarantee, and
+    -- 'usingHState' throws 'MissingHandshake' when the handshake state is gone.
+    -- Instrumentation-only I/O, so it is fenced: synchronous failure vanishes,
+    -- an asynchronous exception still propagates.
+    tlsDebugSafeIO $ do
+        mcbdata <- usingHState ctx getCertReqCBdata
+        tlsDebug $ acceptableCAVerdict mcc mcbdata
     runPacketFlight ctx $ do
         case mcc of
             Nothing -> return ()
@@ -464,20 +490,27 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
         -- stream; a peer that expects raw deflate (RFC 1951) rather than zlib
         -- would choke on exactly these two bytes.  Computed with the encoder's
         -- own function, so the numbers cannot drift from the wire.
-        let compInfo
-                | certComp =
-                    let (rawB, zB) = compressCertificate13 token chain certExts
-                        rawLen = B.length rawB
-                        zlibLen = B.length zB
-                     in " rawLen="
-                            ++ show rawLen
-                            ++ " zlibLen="
-                            ++ show zlibLen
-                            ++ " ratio="
-                            ++ show (fromIntegral zlibLen / fromIntegral (max 1 rawLen) :: Double)
-                            ++ " zlibHdrCMF_FLG="
-                            ++ hexOf (B.take 2 zB)
-                | otherwise = ""
+        --
+        -- The @~@ is load-bearing under @Strict@: without it this binding runs
+        -- 'compressCertificate13' -- a second full encode plus a second zlib
+        -- pass over the certificate chain -- eagerly and outside the logger's
+        -- exception guard.  Lazy, the work happens only while the line is being
+        -- rendered inside 'tlsDebug', where a failure cannot escape.
+        let ~compInfo =
+                if certComp
+                    then
+                        let (rawB, zB) = compressCertificate13 token chain certExts
+                            rawLen = B.length rawB
+                            zlibLen = B.length zB
+                         in " rawLen="
+                                ++ show rawLen
+                                ++ " zlibLen="
+                                ++ show zlibLen
+                                ++ " ratio="
+                                ++ show (fromIntegral zlibLen / fromIntegral (max 1 rawLen) :: Double)
+                                ++ " zlibHdrCMF_FLG="
+                                ++ hexOf (B.take 2 zB)
+                    else ""
         -- Which of the two Certificate encodings actually goes on the wire.
         -- tls-1.6.0 had no RFC 8879 support and so could only ever send
         -- 'Certificate13'; a peer that accepted the old client but rejects this
@@ -519,7 +552,14 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
                 -- valid for our own key.  This is the one check that separates
                 -- "our signing path is broken" from "the peer rejects a
                 -- perfectly good signature on policy grounds".
-                liftIO $ case vfy of
+                --
+                -- Wholly instrumentation: 'selfCheckCertVerify' is an extra
+                -- public-key verification that upstream never performs, and it
+                -- reads the role through 'usingState_', which throws on a
+                -- 'TLSError'.  'tlsDebugSafeIO' guarantees the CertificateVerify
+                -- we are about to send is unaffected by anything that happens in
+                -- here, while still letting an asynchronous exception through.
+                liftIO $ tlsDebugSafeIO $ case vfy of
                     CertVerify13 (DigitallySigned _ sig) -> do
                         ok <- selfCheckCertVerify ctx pubKey sigAlg sig hChSc
                         tlsDebug $

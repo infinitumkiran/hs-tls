@@ -61,12 +61,25 @@ import Network.TLS.Types (
     Role (..),
  )
 import Network.TLS.Util (catchException, mapChunks_)
-import Network.TLS.DebugLog (tlsDebug, tlsDebugEnabled)
+import Network.TLS.DebugLog (tlsDebug, tlsDebugSafeIO)
 
 -- | Emit a @[TLS-DBG]@ line annotated with the connection's currently-negotiated
--- version/cipher.  No-op unless @TLS_DEBUG@ is set.
+-- version/cipher.
+--
+-- 'contextGetInformation' is real I\/O that the instrumentation adds: it takes
+-- 'ctxTLSState', 'ctxHandshakeState' and 'ctxRxRecordState' in turn (never
+-- nested, so it cannot introduce a lock cycle) and it can throw, because
+-- 'usingState_' turns a 'TLSError' into an exception.  'tlsDebugSafeIO' makes
+-- the whole thing inert: a synchronous failure disappears, an asynchronous one
+-- -- the 'System.Timeout.Timeout' from the post-handshake check in 'handshake',
+-- or a 'Control.Concurrent.killThread' -- is re-thrown so the host's
+-- cancellation still works.
+--
+-- Reentrancy: none of the call sites below holds any of those three MVars.
+-- 'logRecvPacket' runs after @recvPacket12@\/@recvPacket13@ have returned, and
+-- the @process@ cases run outside the state lock as well.
 tlsDebugConn :: Context -> String -> IO ()
-tlsDebugConn ctx label = when tlsDebugEnabled $ do
+tlsDebugConn ctx ~label = tlsDebugSafeIO $ do
     minfo <- contextGetInformation ctx
     let vc = case minfo of
             Just i -> show (infoVersion i) ++ "/" ++ cipherName (infoCipher i)
@@ -79,6 +92,10 @@ tlsDebugConn ctx label = when tlsDebugEnabled $ do
 -- middlebox drop or a silent app-layer reject, and distinct from a fatal alert
 -- (which names a reason, e.g. a client-cert rejection) or a graceful
 -- @close_notify@.
+--
+-- The 'Either' argument is matched, so it is forced to WHNF here -- but every
+-- caller binds it from @recvPacket*@ in a @do@ block under @Strict@, which has
+-- already forced it, so no evaluation order changes.
 logRecvPacket :: Context -> String -> Either TLSError p -> IO ()
 logRecvPacket ctx tag (Left Error_EOF) =
     tlsDebugConn

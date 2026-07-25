@@ -370,25 +370,32 @@ setALPN ctx msgt exts = do
     --
     -- selected=<none> with peerSentALPNExt=True means the peer offered a
     -- protocol we never suggested, which is a handshake bug on their side.
-    (offered, selected, alpnUsed) <- usingState_ ctx $ do
-        o <- getClientALPNSuggest
-        s <- getNegotiatedProtocol
-        u <- getExtensionALPN
-        return (o, s, u)
-    tlsDebug $
-        "setALPN: msgType="
-            ++ show msgt
-            ++ " peerSentALPNExt="
-            ++ show
-                (isJust (extensionLookup EID_ApplicationLayerProtocolNegotiation exts))
-            -- Protocol names are short ASCII tokens ("h2", "http/1.1"), so the
-            -- ByteString Show instance keeps the line readable.  Not secret.
-            ++ " offered="
-            ++ maybe "<none>" show offered
-            ++ " selected="
-            ++ maybe "<none>" show selected
-            ++ " alpnNegotiated="
-            ++ show alpnUsed
+    --
+    -- The 'usingState_' read is I/O the instrumentation adds -- it takes
+    -- 'ctxTLSState', the same MVar 'setAlpn' above takes, but strictly after it
+    -- has been released, so there is no reentrancy -- and 'usingState_' throws
+    -- on a 'TLSError'.  'tlsDebugSafeIO' keeps that failure from reaching the
+    -- handshake while still letting an asynchronous exception through.
+    tlsDebugSafeIO $ do
+        (offered, selected, alpnUsed) <- usingState_ ctx $ do
+            o <- getClientALPNSuggest
+            s <- getNegotiatedProtocol
+            u <- getExtensionALPN
+            return (o, s, u)
+        tlsDebug $
+            "setALPN: msgType="
+                ++ show msgt
+                ++ " peerSentALPNExt="
+                ++ show
+                    (isJust (extensionLookup EID_ApplicationLayerProtocolNegotiation exts))
+                -- Protocol names are short ASCII tokens ("h2", "http/1.1"), so the
+                -- ByteString Show instance keeps the line readable.  Not secret.
+                ++ " offered="
+                ++ maybe "<none>" show offered
+                ++ " selected="
+                ++ maybe "<none>" show selected
+                ++ " alpnNegotiated="
+                ++ show alpnUsed
   where
     setAlpn (ApplicationLayerProtocolNegotiation [proto]) = usingState_ ctx $ do
         mprotos <- getClientALPNSuggest
