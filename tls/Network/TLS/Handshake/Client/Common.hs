@@ -21,6 +21,7 @@ import Network.TLS.Cipher
 import Network.TLS.Context.Internal
 import Network.TLS.Credentials
 import Network.TLS.Crypto
+import Network.TLS.DebugLog
 import Network.TLS.Extension
 import Network.TLS.Handshake.Certificate
 import Network.TLS.Handshake.Common
@@ -270,14 +271,33 @@ clientChain cparams ctx =
                 liftIO $
                     callback cbdata
                         `catchException` throwMiscErrorOnException "certificate request callback failed"
+            -- Both "declined" cases below still put an empty Certificate on the
+            -- wire, which the peer reads as "client supplied no certificate".
+            -- Distinguish them here: an mTLS failure that starts at the
+            -- application callback looks identical, from the handshake onward,
+            -- to one caused by the certificate itself.
             case chain of
-                Nothing ->
+                Nothing -> do
+                    liftIO $
+                        tlsDebug
+                            "clientChain: onCertificateRequest returned Nothing -> sending EMPTY client certificate"
                     return $ Just $ CertificateChain []
-                Just (CertificateChain [], _) ->
+                Just (CertificateChain [], _) -> do
+                    liftIO $
+                        tlsDebug
+                            "clientChain: onCertificateRequest returned an EMPTY chain -> sending EMPTY client certificate"
                     return $ Just $ CertificateChain []
                 Just cred@(cc, _) ->
                     do
                         let (cTypes, _, _) = cbdata
+                        liftIO $
+                            tlsDebug $
+                                "clientChain: onCertificateRequest supplied a credential: "
+                                    ++ describeCertChain cc
+                                    ++ " serverCertTypes="
+                                    ++ show cTypes
+                        -- Throws if the key is incompatible with the negotiated
+                        -- version or the server's certificate types.
                         storePrivInfoClient ctx cTypes cred
                         return $ Just cc
 

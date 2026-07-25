@@ -15,6 +15,7 @@ import Data.IORef
 import Network.TLS.Cipher
 import Network.TLS.Context.Internal
 import Network.TLS.Crypto
+import Network.TLS.DebugLog
 import Network.TLS.Extension
 import Network.TLS.Handshake.Client.Common
 import Network.TLS.Handshake.Client.ServerHello
@@ -177,13 +178,52 @@ processCertRequest13 ctx token exts = do
         Nothing -> throwCore $ Error_Protocol "invalid certificate request" HandshakeFailure
     -- Unused:
     -- caAlgs <- extalgs caextID uncertsig
-    let zlib =
-            lookupAndDecode
-                EID_CompressCertificate
-                MsgTClientHello
-                exts
-                False
-                (\(CompressCertificate ccas) -> CCA_Zlib `elem` ccas)
+    -- (fork) Whether to compress OUR client certificate (RFC 8879).  This is
+    -- driven by the @compress_certificate@ extension in the server's
+    -- CertificateRequest, which is a separate direction from the extension we
+    -- send in ClientHello (that one only governs the server's certificate).
+    --
+    -- We additionally require that we advertised support ourselves: a client
+    -- that omitted @compress_certificate@ from its ClientHello has no business
+    -- emitting a CompressedCertificate message.  'supportedLegacyClientHello'
+    -- drops that extension (see 'Network.TLS.Handshake.Client.ClientHello'), so
+    -- without this gate the legacy profile produces an inconsistent client:
+    -- a tls-1.6.0-shaped ClientHello that nevertheless compresses its client
+    -- certificate, which tls-1.6.0 could never do (it has no RFC 8879 support
+    -- at all).  Peers that accepted the old client then reject the compressed
+    -- Certificate and close with a bare FIN right after the handshake --
+    -- surfacing to http-client as @NoResponseDataReceived@.
+    let advertised = not $ supportedLegacyClientHello $ ctxSupported ctx
+        zlib =
+            advertised
+                && lookupAndDecode
+                    EID_CompressCertificate
+                    MsgTCertificateRequest
+                    exts
+                    False
+                    (\(CompressCertificate ccas) -> CCA_Zlib `elem` ccas)
+    -- Everything the server told us it will accept.  If the client certificate
+    -- is being rejected, the answer is usually visible by comparing our leaf's
+    -- issuer (traced in 'sendClientFlight13') against @acceptableCAs@ here, or
+    -- our CertificateVerify algorithm against @serverSigAlgs@.
+    liftIO $
+        tlsDebug $
+            "processCertRequest13: CertReq ctxTokenLen="
+                ++ show (B.length token)
+                ++ " extIDs="
+                ++ show [eid | ExtensionRaw eid _ <- exts]
+                ++ " advertisedCompressCertificate="
+                ++ show advertised
+                ++ " clientCertCompression="
+                ++ show zlib
+                ++ " serverSigAlgs="
+                ++ show hsAlgs
+                ++ " derivedCertTypes="
+                ++ show cTypes
+                ++ " acceptableCAs(n="
+                ++ show (length dNames)
+                ++ ")="
+                ++ show dNames
     usingHState ctx $ do
         setCertReqToken $ Just token
         setCertReqCBdata $ Just (cTypes, hsAlgs, dNames)
@@ -331,6 +371,12 @@ sendClientFlight13
     :: ClientParams -> Context -> Hash -> ClientTrafficSecret a -> IO ()
 sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
     mcc <- clientChain cparams ctx
+    tlsDebug $
+        "sendClientFlight13: clientCertificate="
+            ++ maybe
+                "<none: server sent no CertificateRequest>"
+                describeCertChain
+                mcc
     runPacketFlight ctx $ do
         case mcc of
             Nothing -> return ()
@@ -349,15 +395,41 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
             certExts = replicate (length certs) []
             cHashSigs = filter isHashSignatureValid13 $ supportedHashSignatures $ ctxSupported ctx
         let certtag = if certComp then CompressedCertificate13 else Certificate13
+        -- Which of the two Certificate encodings actually goes on the wire.
+        -- tls-1.6.0 had no RFC 8879 support and so could only ever send
+        -- 'Certificate13'; a peer that accepted the old client but rejects this
+        -- handshake is the signature of a CompressedCertificate it cannot read.
+        liftIO $
+            tlsDebug $
+                "sendClientFlight13: sending "
+                    ++ (if certComp then "CompressedCertificate13 (zlib, RFC 8879)" else "Certificate13 (uncompressed)")
+                    ++ " nCerts="
+                    ++ show (length certs)
+                    ++ " reqCtxLen="
+                    ++ show (B.length token)
         loadPacket13 ctx $
             Handshake13 [certtag token (TLSCertificateChain chain) certExts]
         case certs of
-            [] -> return ()
+            [] -> do
+                liftIO $
+                    tlsDebug
+                        "sendClientFlight13: chain is EMPTY -> no CertificateVerify sent; peer sees an unauthenticated client"
+                return ()
             _ -> do
                 hChSc <- transcriptHash ctx
                 pubKey <- getLocalPublicKey ctx
                 sigAlg <-
                     liftIO $ getLocalHashSigAlg ctx signatureCompatible13 cHashSigs pubKey
+                -- Compare this against @serverSigAlgs@ from processCertRequest13:
+                -- a signature scheme the server did not offer is a silent reject.
+                liftIO $
+                    tlsDebug $
+                        "sendClientFlight13: CertificateVerify sigAlg="
+                            ++ show sigAlg
+                            ++ " pubkey="
+                            ++ pubkeyType pubKey
+                            ++ " clientOfferedSigAlgs="
+                            ++ show cHashSigs
                 vfy <- makeCertVerify ctx pubKey sigAlg hChSc
                 loadPacket13 ctx $ Handshake13 [vfy]
     --

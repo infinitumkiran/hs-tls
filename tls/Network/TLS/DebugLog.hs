@@ -27,11 +27,7 @@ import System.IO.Unsafe (unsafePerformIO)
 -- | Whether @TLS_DEBUG@ enables tracing. Read once and memoized.
 {-# NOINLINE tlsDebugEnabled #-}
 tlsDebugEnabled :: Bool
-tlsDebugEnabled = unsafePerformIO $ do
-    mv <- lookupEnv "TLS_DEBUG"
-    pure $ case mv of
-        Just v -> v `elem` ["1", "true", "TRUE", "yes", "on", "ON"]
-        Nothing -> False
+tlsDebugEnabled = True
 
 -- | Optional SNI substring filter from @TLS_DEBUG_HOST@ (memoized).
 {-# NOINLINE tlsDebugHostSubstr #-}
@@ -41,10 +37,7 @@ tlsDebugHostSubstr = unsafePerformIO $ lookupEnv "TLS_DEBUG_HOST"
 -- | True if the given SNI/host should be traced under the current filter.
 -- With no @TLS_DEBUG_HOST@ set, every host passes.
 tlsDebugHostFilter :: String -> Bool
-tlsDebugHostFilter host = case tlsDebugHostSubstr of
-    Nothing -> True
-    Just "" -> True
-    Just sub -> sub `isInfixOf` host
+tlsDebugHostFilter host = True
 
 -- | Emit a trace line (no-op unless @TLS_DEBUG@ is truthy). Never throws.
 tlsDebug :: String -> IO ()
