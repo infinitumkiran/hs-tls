@@ -1,5 +1,10 @@
 # euler-tls-traced — call-traced forks of the outbound TLS stack
 
+*Lives on the `traced-forks` branch of `github:infinitumkiran/hs-tls` (an
+unrelated history to that repo's other branches, which it does not touch), and
+locally in `euler-api-gateway/forks/euler-tls-traced`. euler-api-gateway pins it
+as the `hs-tls-traced` flake input.*
+
 Debug forks of the packages euler-api-gateway's outbound HTTPS path goes through.
 Every top-level function is wrapped so that entering and leaving it is printed.
 The point is to answer one question: **which function does a failing request die
@@ -159,6 +164,21 @@ cabal run ett-probe -- https://juspay.3ds-server.prev.netcetera-cloud-payment.ch
 with `EULER_TLS_TRACE=all` set. `ETT_PROBE_TLS12=1` offers TLS 1.2 only, which is
 option A in the gateway's `TLS_2x_MIGRATION.md`; `ETT_PROBE_METHOD=POST` changes
 the method.
+
+## Pinning it into euler-api-gateway
+
+`traceTls = true;` at the top of `nix/haskell-project.nix`. That is the whole
+switch -- the flake input is already pinned. After changing the instrumentation:
+
+```bash
+git push origin main:traced-forks
+cd <euler-api-gateway> && nix flake lock --override-input hs-tls-traced \
+    github:infinitumkiran/hs-tls/$(git -C forks/euler-tls-traced rev-parse HEAD)
+```
+
+Note the sources are pinned with `lib.mkForce`: `packages.tls.source` is also
+defined by the euler-webservice project module, and nix module options *merge*
+rather than override, so without `mkForce` the two definitions are a conflict.
 
 ## Regenerating
 
