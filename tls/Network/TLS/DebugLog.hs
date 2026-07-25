@@ -1,45 +1,49 @@
--- | Lightweight, env-var-gated wire/handshake tracing used to diagnose
--- connection failures (e.g. a peer that closes right after the handshake with
--- no application data, surfacing to http-client as @NoResponseDataReceived@).
+-- | Lightweight wire/handshake tracing used to diagnose connection failures
+-- (e.g. a peer that closes right after the handshake with no application data,
+-- surfacing to http-client as @NoResponseDataReceived@).
 --
--- All output is a single stdout line prefixed with @[TLS-DBG]@ and is emitted
--- ONLY when the environment variable @TLS_DEBUG@ is set to a truthy value
--- (@1@/@true@/@yes@/@on@). When unset there is zero overhead beyond a memoized
--- Bool read, so this is safe to leave compiled into the library.
+-- All output is a single stdout line prefixed with @[TLS-DBG]@.
 --
--- Optionally, @TLS_DEBUG_HOST@ restricts host-aware call sites to connections
--- whose SNI contains that substring (e.g. @netcetera@), keeping the trace quiet
--- in a process that opens many unrelated TLS connections.
+-- Tracing is unconditionally ON in this fork: it reads no environment
+-- variables, so a deployment gets the full trace with no configuration.  This
+-- is a debugging build -- expect a high log volume, including a per-packet
+-- trace for every TLS connection the process opens (unrelated AWS/KMS traffic
+-- included).  To quieten it later, flip 'tlsDebugEnabled' (all tracing) or
+-- 'tlsDebugVerbose' (just the per-packet/record firehose, keeping the targeted
+-- handshake lines) to 'False' and rebuild.
 module Network.TLS.DebugLog (
     tlsDebugEnabled,
     tlsDebug,
+    tlsDebugVerbose,
+    tlsDebugV,
     tlsDebugHost,
     tlsDebugHostFilter,
 ) where
 
 import Control.Exception (SomeException, try)
 import Control.Monad (when)
-import Data.List (isInfixOf)
-import System.Environment (lookupEnv)
 import System.IO (hFlush, stdout)
-import System.IO.Unsafe (unsafePerformIO)
 
--- | Whether @TLS_DEBUG@ enables tracing. Read once and memoized.
-{-# NOINLINE tlsDebugEnabled #-}
+-- | Whether tracing is emitted at all.  Always on in this fork.
 tlsDebugEnabled :: Bool
 tlsDebugEnabled = True
 
--- | Optional SNI substring filter from @TLS_DEBUG_HOST@ (memoized).
-{-# NOINLINE tlsDebugHostSubstr #-}
-tlsDebugHostSubstr :: Maybe String
-tlsDebugHostSubstr = unsafePerformIO $ lookupEnv "TLS_DEBUG_HOST"
-
--- | True if the given SNI/host should be traced under the current filter.
--- With no @TLS_DEBUG_HOST@ set, every host passes.
+-- | True if the given SNI/host should be traced.  Every host passes.
 tlsDebugHostFilter :: String -> Bool
-tlsDebugHostFilter host = True
+tlsDebugHostFilter _ = True
 
--- | Emit a trace line (no-op unless @TLS_DEBUG@ is truthy). Never throws.
+-- | Whether the high-volume packet\/record trace is emitted.  Kept as a
+-- separate switch from 'tlsDebugEnabled' so the firehose can be turned off
+-- independently of the targeted handshake traces, which are only a handful of
+-- lines per connection.  Always on in this fork.
+tlsDebugVerbose :: Bool
+tlsDebugVerbose = True
+
+-- | Emit a high-volume trace line, gated on 'tlsDebugVerbose'.
+tlsDebugV :: String -> IO ()
+tlsDebugV msg = when tlsDebugVerbose $ tlsDebug msg
+
+-- | Emit a trace line. Never throws.
 tlsDebug :: String -> IO ()
 tlsDebug msg =
     when tlsDebugEnabled $ do
@@ -48,7 +52,7 @@ tlsDebug msg =
                 :: IO (Either SomeException ())
         pure ()
 
--- | Host-aware variant: only traces when the host passes 'tlsDebugHostFilter'.
+-- | Host-aware variant: prefixes the line with the SNI host.
 tlsDebugHost :: String -> String -> IO ()
 tlsDebugHost host msg =
     when (tlsDebugHostFilter host) $ tlsDebug ("host=" ++ show host ++ " " ++ msg)

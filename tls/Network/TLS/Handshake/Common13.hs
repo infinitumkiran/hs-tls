@@ -11,6 +11,7 @@ module Network.TLS.Handshake.Common13 (
     fromServerKeyShare,
     makeCertVerify,
     checkCertVerify,
+    selfCheckCertVerify,
     makePSKBinder,
     replacePSKBinder,
     sendChangeCipherSpec13,
@@ -154,6 +155,42 @@ makeCertVerify ctx pub hs hashValue = do
             | otherwise = serverContextString
         target = makeTarget ctxStr hashValue
     CertVerify13 . DigitallySigned hs <$> sign ctx pub hs target
+
+-- | (fork) Verify a CertificateVerify we just produced ourselves, against the
+-- public key of our own certificate.  Unlike 'checkCertVerify' this uses the
+-- SAME context string that 'makeCertVerify' signed with, rather than the peer's.
+--
+-- Purely diagnostic.  When a peer accepts our handshake but drops the
+-- connection immediately after our client-auth flight, this separates the two
+-- explanations that look identical from the outside:
+--
+--   * 'True'  -- the signature is cryptographically valid for our key and
+--     algorithm, so the crypto backend is sound and the peer is rejecting us on
+--     policy grounds (unknown CA, expired certificate, source not allowlisted).
+--   * 'False' -- we are emitting a signature that cannot verify against our own
+--     public key, i.e. the fault is local (key\/algorithm mismatch or a broken
+--     signing path) and no peer could ever accept it.
+-- Note: this must NOT go through 'verifyPublic', which ignores its 'PubKey'
+-- argument and verifies against 'getRemotePublicKey' -- the peer's key.  That
+-- is right for 'checkCertVerify' but would make a self-check always fail.
+selfCheckCertVerify
+    :: MonadIO m
+    => Context
+    -> PubKey
+    -> HashAndSignatureAlgorithm
+    -> Signature
+    -> ByteString
+    -> m Bool
+selfCheckCertVerify ctx pub hs signature hashValue
+    | pub `signatureCompatible13` hs = liftIO $ do
+        role <- usingState_ ctx getRole
+        let ctxStr
+                | role == ClientRole = clientContextString -- same context we signed with
+                | otherwise = serverContextString
+            target = makeTarget ctxStr hashValue
+            sigParams = signatureParams pub hs
+        return $ kxVerify pub sigParams target signature
+    | otherwise = return False
 
 checkCertVerify
     :: MonadIO m

@@ -431,6 +431,18 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
                             ++ " clientOfferedSigAlgs="
                             ++ show cHashSigs
                 vfy <- makeCertVerify ctx pubKey sigAlg hChSc
+                -- Prove locally whether the signature we are about to send is
+                -- valid for our own key.  This is the one check that separates
+                -- "our signing path is broken" from "the peer rejects a
+                -- perfectly good signature on policy grounds".
+                liftIO $ case vfy of
+                    CertVerify13 (DigitallySigned _ sig) -> do
+                        ok <- selfCheckCertVerify ctx pubKey sigAlg sig hChSc
+                        tlsDebug $
+                            "sendClientFlight13: CertificateVerify self-check="
+                                ++ show ok
+                                ++ (if ok then " (signature valid for our own public key)" else " (INVALID LOCALLY -- signing path is broken, no peer can accept this)")
+                    _ -> return ()
                 loadPacket13 ctx $ Handshake13 [vfy]
     --
     loadClientData13 _ _ _ =

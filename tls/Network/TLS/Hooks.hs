@@ -9,7 +9,7 @@ import qualified Data.ByteString as B
 import Data.Char (isSpace)
 import Data.Default (Default (def))
 import Data.List (isPrefixOf)
-import Network.TLS.DebugLog (tlsDebug)
+import Network.TLS.DebugLog (tlsDebug, tlsDebugV)
 import Network.TLS.Struct (Handshake, Header)
 import Network.TLS.Struct13 (Handshake13)
 import Network.TLS.X509 (CertificateChain, describeCertChain)
@@ -51,11 +51,11 @@ sanitizePacket s
 defaultLogging :: Logging
 defaultLogging =
     Logging
-        { loggingPacketSent = \(~s) -> tlsDebug ("packet sent: " ++ sanitizePacket s)
-        , loggingPacketRecv = \(~s) -> tlsDebug ("packet recv: " ++ sanitizePacket s)
-        , loggingIOSent = \(~bs) -> tlsDebug ("io sent: " ++ show (B.length bs) ++ " bytes")
+        { loggingPacketSent = \(~s) -> tlsDebugV ("packet sent: " ++ sanitizePacket s)
+        , loggingPacketRecv = \(~s) -> tlsDebugV ("packet recv: " ++ sanitizePacket s)
+        , loggingIOSent = \(~bs) -> tlsDebugV ("io sent: " ++ show (B.length bs) ++ " bytes")
         , loggingIORecv = \(~hdr) (~bs) ->
-            tlsDebug
+            tlsDebugV
                 ( "io recv: header="
                     ++ show hdr
                     ++ " payload="
@@ -89,7 +89,7 @@ defaultHooks =
         , hookLogging = def
         }
   where
-    traceHandshake tag (~s) = tlsDebug (tag ++ ": " ++ sanitizePacket s)
+    traceHandshake tag (~s) = tlsDebugV (tag ++ ": " ++ sanitizePacket s)
 
 instance Default Hooks where
     def = defaultHooks
