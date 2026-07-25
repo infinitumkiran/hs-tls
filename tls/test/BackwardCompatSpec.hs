@@ -14,7 +14,10 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromJust, isJust)
-import Data.X509 (ExtKeyUsageFlag (..), PubKey (..))
+-- 'PubKey' and its constructors already come in via "Network.TLS.Internal"
+-- (which re-exports "Network.TLS.X509"); importing them here as well is what
+-- -Wunused-imports flags.
+import Data.X509 (ExtKeyUsageFlag (..))
 import Network.TLS
 import Network.TLS.Extra.Cipher
 import Network.TLS.Internal
