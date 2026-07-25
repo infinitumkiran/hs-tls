@@ -41,6 +41,8 @@ import Data.IORef (IORef, atomicModifyIORef', newIORef)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.IO (hFlush, stdout)
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Control.Exception as ForkLogE
+import qualified System.IO as ForkLogIO
 
 -- | Whether tracing is emitted at all.  Always on in this fork.
 tlsDebugEnabled :: Bool
@@ -81,7 +83,7 @@ tlsDebugBanner :: IO ()
 tlsDebugBanner = do
     firstTime <- atomicModifyIORef' tlsDebugBannerRef (\done -> (True, not done))
     when firstTime $ do
-        putStrLn
+        forkSafeEmitLine
             "[TLS-DBG] BUILD-PROVENANCE: tls-2.1.8.2 INSTRUMENTED FORK (branch tls-check)"
         hFlush stdout
 {-# NOINLINE tlsDebugBanner #-}
@@ -107,7 +109,7 @@ tlsDebug msg =
         tlsDebugBanner
         t <- getMonotonicTimeNSec
         tid <- myThreadId
-        putStrLn
+        forkSafeEmitLine
             ( "[TLS-DBG] t="
                 ++ show t
                 ++ " tid="
@@ -126,3 +128,55 @@ hexOf bs = C8.unpack (convertToBase Base16 bs :: ByteString)
 tlsDebugHost :: String -> String -> IO ()
 tlsDebugHost host msg =
     when (tlsDebugHostFilter host) $ tlsDebug ("host=" ++ show host ++ " " ++ msg)
+
+
+--------------------------------------------------------------------------------
+-- (fork) Total, encoding-safe line emitter.
+--
+-- Two faults took the application down in production; both are fixed here.
+--
+--   * A container with no LANG set gives stdout an ASCII encoding.  A
+--     certificate subject holding a non-ASCII character -- e.g. the Hungarian
+--     NetLock CA in \/etc\/ssl\/certs\/ca-bundle.crt -- then makes 'putStrLn'
+--     fail /mid-write/ with @commitBuffer: invalid argument@, leaving a
+--     truncated line.  'forkAsciiOnly' escapes everything outside printable
+--     ASCII, so the write no longer depends on the pod's locale.
+--
+--   * That exception escaped the logger and propagated through the very code
+--     being instrumented, killing the process.  A logger must never change the
+--     behaviour of the program it observes, so every failure is swallowed here.
+--
+-- The rendered message is forced before any output, so a bottom inside an
+-- interpolated value cannot produce a half-written line either.
+--------------------------------------------------------------------------------
+
+forkAsciiOnly :: String -> String
+forkAsciiOnly = concatMap esc
+  where
+    esc c
+        | c == '\n' || c == '\r' || c == '\t' = " "
+        | c >= ' ' && c <= '~' = [c]
+        | otherwise =
+            let n = fromEnum c
+             in if n <= 0xFF
+                    then ['\\', 'x', hx (n `div` 16), hx (n `mod` 16)]
+                    else
+                        [ '\\'
+                        , 'u'
+                        , hx ((n `div` 4096) `mod` 16)
+                        , hx ((n `div` 256) `mod` 16)
+                        , hx ((n `div` 16) `mod` 16)
+                        , hx (n `mod` 16)
+                        ]
+    hx k = "0123456789abcdef" !! k
+
+forkSafeEmitLine :: String -> IO ()
+forkSafeEmitLine s = do
+    r <-
+        ForkLogE.try
+            ( let t = forkAsciiOnly s
+               in length t `seq` (putStrLn t >> ForkLogIO.hFlush ForkLogIO.stdout)
+            )
+    case (r :: Either ForkLogE.SomeException ()) of
+        Left _ -> return ()
+        Right _ -> return ()
