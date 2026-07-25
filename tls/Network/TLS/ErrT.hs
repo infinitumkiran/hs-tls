@@ -15,7 +15,8 @@ module Network.TLS.ErrT
 
 import Control.Monad.Except (MonadError(..))
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 runErrT :: ExceptT e m a -> m (Either e a)
-runErrT = runExceptT
+runErrT = ETT__.t "Network.TLS.ErrT.runErrT" ETT__.$ runExceptT
 type ErrT = ExceptT

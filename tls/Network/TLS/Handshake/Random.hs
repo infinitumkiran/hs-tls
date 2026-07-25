@@ -17,6 +17,7 @@ module Network.TLS.Handshake.Random (
 import qualified Data.ByteString as B
 import Network.TLS.Context.Internal
 import Network.TLS.Struct
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | Generate a server random suitable for the version selected by the server
 -- and its supported versions.  We use an 8-byte downgrade suffix when the
@@ -28,15 +29,15 @@ import Network.TLS.Struct
 -- consequence of our debug API allowing this).
 serverRandom :: Context -> Version -> [Version] -> IO ServerRandom
 serverRandom ctx chosenVer suppVers
-  | TLS13 `elem` suppVers = case chosenVer of
+  | TLS13 `elem` suppVers = ETT__.t "Network.TLS.Handshake.Random.serverRandom" ETT__.$ case chosenVer of
       TLS13  -> ServerRandom <$> getStateRNG ctx 32
       TLS12  -> ServerRandom <$> genServRand suffix12
       _      -> ServerRandom <$> genServRand suffix11
-  | TLS12 `elem` suppVers = case chosenVer of
+  | TLS12 `elem` suppVers = ETT__.t "Network.TLS.Handshake.Random.serverRandom" ETT__.$ case chosenVer of
       TLS13  -> ServerRandom <$> getStateRNG ctx 32
       TLS12  -> ServerRandom <$> getStateRNG ctx 32
       _      -> ServerRandom <$> genServRand suffix11
-  | otherwise = ServerRandom <$> getStateRNG ctx 32
+  | otherwise = ETT__.t "Network.TLS.Handshake.Random.serverRandom" ETT__.$ ServerRandom <$> getStateRNG ctx 32
   where
     genServRand suff = do
         pref <- getStateRNG ctx 24
@@ -47,23 +48,23 @@ serverRandom ctx chosenVer suppVers
 isDowngraded :: Version -> [Version] -> ServerRandom -> Bool
 isDowngraded ver suppVers (ServerRandom sr)
   | ver <= TLS12
-  , TLS13 `elem` suppVers = suffix12 `B.isSuffixOf` sr
+  , TLS13 `elem` suppVers = ETT__.t "Network.TLS.Handshake.Random.isDowngraded" ETT__.$ suffix12 `B.isSuffixOf` sr
                          || suffix11 `B.isSuffixOf` sr
   | ver <= TLS11
-  , TLS12 `elem` suppVers = suffix11 `B.isSuffixOf` sr
-  | otherwise             = False
+  , TLS12 `elem` suppVers = ETT__.t "Network.TLS.Handshake.Random.isDowngraded" ETT__.$ suffix11 `B.isSuffixOf` sr
+  | otherwise             = ETT__.t "Network.TLS.Handshake.Random.isDowngraded" ETT__.$ False
 
 suffix12 :: B.ByteString
-suffix12 = B.pack [0x44, 0x4F, 0x57, 0x4E, 0x47, 0x52, 0x44, 0x01]
+suffix12 = ETT__.t "Network.TLS.Handshake.Random.suffix12" ETT__.$ B.pack [0x44, 0x4F, 0x57, 0x4E, 0x47, 0x52, 0x44, 0x01]
 
 suffix11 :: B.ByteString
-suffix11 = B.pack [0x44, 0x4F, 0x57, 0x4E, 0x47, 0x52, 0x44, 0x00]
+suffix11 = ETT__.t "Network.TLS.Handshake.Random.suffix11" ETT__.$ B.pack [0x44, 0x4F, 0x57, 0x4E, 0x47, 0x52, 0x44, 0x00]
 
 clientRandom :: Context -> IO ClientRandom
-clientRandom ctx = ClientRandom <$> getStateRNG ctx 32
+clientRandom ctx = ETT__.tio "Network.TLS.Handshake.Random.clientRandom" ETT__.$ ClientRandom <$> getStateRNG ctx 32
 
 hrrRandom :: ServerRandom
-hrrRandom = ServerRandom $ B.pack [
+hrrRandom = ETT__.t "Network.TLS.Handshake.Random.hrrRandom" ETT__.$ ServerRandom $ B.pack [
     0xCF, 0x21, 0xAD, 0x74, 0xE5, 0x9A, 0x61, 0x11
   , 0xBE, 0x1D, 0x8C, 0x02, 0x1E, 0x65, 0xB8, 0x91
   , 0xC2, 0xA2, 0x11, 0x16, 0x7A, 0xBB, 0x8C, 0x5E
@@ -71,4 +72,4 @@ hrrRandom = ServerRandom $ B.pack [
   ]
 
 isHelloRetryRequest :: ServerRandom -> Bool
-isHelloRetryRequest = (== hrrRandom)
+isHelloRetryRequest = ETT__.t "Network.TLS.Handshake.Random.isHelloRetryRequest" ETT__.$ (== hrrRandom)

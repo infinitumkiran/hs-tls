@@ -31,20 +31,21 @@ import Network.TLS.Wire
 
 import Control.Concurrent.MVar
 import Control.Monad.State.Strict
+import qualified Debug.EulerTrace.Tls as ETT__
 
 processPacket :: Context -> Record Plaintext -> IO (Either TLSError Packet)
 
-processPacket _ (Record ProtocolType_AppData _ fragment) = return $ Right $ AppData $ fragmentGetBytes fragment
+processPacket _ (Record ProtocolType_AppData _ fragment) = ETT__.tio "Network.TLS.Receiving.processPacket" ETT__.$ return $ Right $ AppData $ fragmentGetBytes fragment
 
-processPacket _ (Record ProtocolType_Alert _ fragment) = return (Alert `fmapEither` decodeAlerts (fragmentGetBytes fragment))
+processPacket _ (Record ProtocolType_Alert _ fragment) = ETT__.tio "Network.TLS.Receiving.processPacket" ETT__.$ return (Alert `fmapEither` decodeAlerts (fragmentGetBytes fragment))
 
-processPacket ctx (Record ProtocolType_ChangeCipherSpec _ fragment) =
+processPacket ctx (Record ProtocolType_ChangeCipherSpec _ fragment) = ETT__.tio "Network.TLS.Receiving.processPacket" ETT__.$
     case decodeChangeCipherSpec $ fragmentGetBytes fragment of
         Left err -> return $ Left err
         Right _  -> do switchRxEncryption ctx
                        return $ Right ChangeCipherSpec
 
-processPacket ctx (Record ProtocolType_Handshake ver fragment) = do
+processPacket ctx (Record ProtocolType_Handshake ver fragment) = ETT__.tio "Network.TLS.Receiving.processPacket" ETT__.$ do
     keyxchg <- getHState ctx >>= \hs -> return (hs >>= hstPendingCipher >>= Just . cipherKeyExchange)
     usingState ctx $ do
         let currentParams = CurrentParams
@@ -67,23 +68,23 @@ processPacket ctx (Record ProtocolType_Handshake ver fragment) = do
                         Left err -> throwError err
                         Right hh -> (hh:) <$> parseMany currentParams Nothing left
 
-processPacket _ (Record ProtocolType_DeprecatedHandshake _ fragment) =
+processPacket _ (Record ProtocolType_DeprecatedHandshake _ fragment) = ETT__.tio "Network.TLS.Receiving.processPacket" ETT__.$
     case decodeDeprecatedHandshake $ fragmentGetBytes fragment of
         Left err -> return $ Left err
         Right hs -> return $ Right $ Handshake [hs]
 
 switchRxEncryption :: Context -> IO ()
-switchRxEncryption ctx =
+switchRxEncryption ctx = ETT__.tio "Network.TLS.Receiving.switchRxEncryption" ETT__.$
     usingHState ctx (gets hstPendingRxState) >>= \rx ->
     liftIO $ modifyMVar_ (ctxRxState ctx) (\_ -> return $ fromJust "rx-state" rx)
 
 ----------------------------------------------------------------
 
 processPacket13 :: Context -> Record Plaintext -> IO (Either TLSError Packet13)
-processPacket13 _ (Record ProtocolType_ChangeCipherSpec _ _) = return $ Right ChangeCipherSpec13
-processPacket13 _ (Record ProtocolType_AppData _ fragment) = return $ Right $ AppData13 $ fragmentGetBytes fragment
-processPacket13 _ (Record ProtocolType_Alert _ fragment) = return (Alert13 `fmapEither` decodeAlerts (fragmentGetBytes fragment))
-processPacket13 ctx (Record ProtocolType_Handshake _ fragment) = usingState ctx $ do
+processPacket13 _ (Record ProtocolType_ChangeCipherSpec _ _) = ETT__.tio "Network.TLS.Receiving.processPacket13" ETT__.$ return $ Right ChangeCipherSpec13
+processPacket13 _ (Record ProtocolType_AppData _ fragment) = ETT__.tio "Network.TLS.Receiving.processPacket13" ETT__.$ return $ Right $ AppData13 $ fragmentGetBytes fragment
+processPacket13 _ (Record ProtocolType_Alert _ fragment) = ETT__.tio "Network.TLS.Receiving.processPacket13" ETT__.$ return (Alert13 `fmapEither` decodeAlerts (fragmentGetBytes fragment))
+processPacket13 ctx (Record ProtocolType_Handshake _ fragment) = ETT__.tio "Network.TLS.Receiving.processPacket13" ETT__.$ usingState ctx $ do
     mCont <- gets stHandshakeRecordCont13
     modify (\st -> st { stHandshakeRecordCont13 = Nothing })
     hss <- parseMany mCont (fragmentGetBytes fragment)
@@ -98,5 +99,5 @@ processPacket13 ctx (Record ProtocolType_Handshake _ fragment) = usingState ctx 
                     case decodeHandshake13 ty content of
                         Left err -> throwError err
                         Right hh -> (hh:) <$> parseMany Nothing left
-processPacket13 _ (Record ProtocolType_DeprecatedHandshake _ _) =
+processPacket13 _ (Record ProtocolType_DeprecatedHandshake _ _) = ETT__.tio "Network.TLS.Receiving.processPacket13" ETT__.$
     return (Left $ Error_Packet "deprecated handshake packet 1.3")

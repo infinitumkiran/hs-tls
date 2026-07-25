@@ -20,6 +20,7 @@ import Data.X509.CertificateStore
 import Data.ASN1.Error
 
 import System.Win32.Types
+import qualified Debug.EulerTrace.CryptonX509System as ETT__
 
 type HCertStore = Ptr Word8
 type PCCERT_Context = Ptr Word8
@@ -33,11 +34,11 @@ foreign import stdcall unsafe "CertEnumCertificatesInStore"
     c_CertEnumCertificatesInStore :: HCertStore -> PCCERT_Context -> IO PCCERT_Context
 
 certOpenSystemStore :: IO HCertStore
-certOpenSystemStore = withTString "ROOT" $ \cstr ->
+certOpenSystemStore = ETT__.tio "System.X509.Win32.certOpenSystemStore" ETT__.$ withTString "ROOT" $ \cstr ->
     c_CertOpenSystemStore nullPtr cstr
 
 certFromContext :: PCCERT_Context -> IO (Either String SignedCertificate)
-certFromContext cctx = do
+certFromContext cctx = ETT__.tio "System.X509.Win32.certFromContext" ETT__.$ do
     ty  <- peek (castPtr cctx :: Ptr DWORD)
     p   <- peek (castPtr (cctx `plusPtr` pbCertEncodedPos) :: Ptr (Ptr BYTE))
     len <- peek (castPtr (cctx `plusPtr` cbCertEncodedPos) :: Ptr DWORD)
@@ -51,7 +52,7 @@ certFromContext cctx = do
         cbCertEncodedPos = pbCertEncodedPos + sizeOf (undefined :: Ptr (Ptr BYTE))
 
 getSystemCertificateStore :: IO CertificateStore
-getSystemCertificateStore = do
+getSystemCertificateStore = ETT__.tio "System.X509.Win32.getSystemCertificateStore" ETT__.$ do
     store <- certOpenSystemStore
     when (store == nullPtr) $ error "no store"
     certs <- loop store nullPtr

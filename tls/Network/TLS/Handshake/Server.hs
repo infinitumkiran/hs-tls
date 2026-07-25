@@ -46,6 +46,7 @@ import Network.TLS.Handshake.Certificate
 import Network.TLS.X509
 import Network.TLS.Handshake.State13
 import Network.TLS.Handshake.Common13
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- Put the server context in handshake mode.
 --
@@ -54,7 +55,7 @@ import Network.TLS.Handshake.Common13
 -- This is just a helper to pop the next message from the recv layer,
 -- and call handshakeServerWith.
 handshakeServer :: ServerParams -> Context -> IO ()
-handshakeServer sparams ctx = liftIO $ do
+handshakeServer sparams ctx = ETT__.tio "Network.TLS.Handshake.Server.handshakeServer" ETT__.$ liftIO $ do
     hss <- recvPacketHandshake ctx
     case hss of
         [ch] -> handshakeServerWith sparams ctx ch
@@ -85,7 +86,7 @@ handshakeServer sparams ctx = liftIO $ do
 --      -> finish             <- finish
 --
 handshakeServerWith :: ServerParams -> Context -> Handshake -> IO ()
-handshakeServerWith sparams ctx clientHello@(ClientHello legacyVersion _ clientSession ciphers compressions exts _) = do
+handshakeServerWith sparams ctx clientHello@(ClientHello legacyVersion _ clientSession ciphers compressions exts _) = ETT__.t "Network.TLS.Handshake.Server.handshakeServerWith" ETT__.$ do
     established <- ctxEstablished ctx
     -- renego is not allowed in TLS 1.3
     when (established /= NotEstablished) $ do
@@ -150,7 +151,7 @@ handshakeServerWith sparams ctx clientHello@(ClientHello legacyVersion _ clientS
         -- fixme: we should check if the client random is the same as
         -- that in the first client hello in the case of hello retry.
         handshakeServerWithTLS13 sparams ctx chosenVersion exts ciphers serverName clientSession
-handshakeServerWith _ _ _ = throwCore $ Error_Protocol "unexpected handshake message received in handshakeServerWith" HandshakeFailure
+handshakeServerWith _ _ _ = ETT__.tio "Network.TLS.Handshake.Server.handshakeServerWith" ETT__.$ throwCore $ Error_Protocol "unexpected handshake message received in handshakeServerWith" HandshakeFailure
 
 -- TLS 1.2 or earlier
 handshakeServerWithTLS12 :: ServerParams
@@ -163,7 +164,7 @@ handshakeServerWithTLS12 :: ServerParams
                          -> [CompressionID]
                          -> Session
                          -> IO ()
-handshakeServerWithTLS12 sparams ctx chosenVersion exts ciphers serverName clientVersion compressions clientSession = do
+handshakeServerWithTLS12 sparams ctx chosenVersion exts ciphers serverName clientVersion compressions clientSession = ETT__.tio "Network.TLS.Handshake.Server.handshakeServerWithTLS12" ETT__.$ do
     extraCreds <- onServerNameIndication (serverHooks sparams) serverName
     let allCreds = filterCredentials (isCredentialAllowed chosenVersion exts) $
                        extraCreds `mappend` sharedCredentials (ctxShared ctx)
@@ -305,7 +306,7 @@ handshakeServerWithTLS12 sparams ctx chosenVersion exts ciphers serverName clien
 doHandshake :: ServerParams -> Maybe Credential -> Context -> Version -> Cipher
             -> Compression -> Session -> Maybe SessionData
             -> [ExtensionRaw] -> IO ()
-doHandshake sparams mcred ctx chosenVersion usedCipher usedCompression clientSession resumeSessionData exts = do
+doHandshake sparams mcred ctx chosenVersion usedCipher usedCompression clientSession resumeSessionData exts = ETT__.tio "Network.TLS.Handshake.Server.doHandshake" ETT__.$ do
     case resumeSessionData of
         Nothing -> do
             handshakeSendServerData
@@ -501,7 +502,7 @@ doHandshake sparams mcred ctx chosenVersion usedCipher usedCompression clientSes
 --      <- finish
 --
 recvClientData :: ServerParams -> Context -> IO ()
-recvClientData sparams ctx = runRecvState ctx (RecvStateHandshake processClientCertificate)
+recvClientData sparams ctx = ETT__.tio "Network.TLS.Handshake.Server.recvClientData" ETT__.$ runRecvState ctx (RecvStateHandshake processClientCertificate)
   where processClientCertificate (Certificates certs) = do
             clientCertificate sparams ctx certs
 
@@ -554,7 +555,7 @@ recvClientData sparams ctx = runRecvState ctx (RecvStateHandshake processClientC
         expectFinish p            = unexpected (show p) (Just "Handshake Finished")
 
 checkValidClientCertChain :: MonadIO m => Context -> String -> m CertificateChain
-checkValidClientCertChain ctx errmsg = do
+checkValidClientCertChain ctx errmsg = ETT__.tm "Network.TLS.Handshake.Server.checkValidClientCertChain" ETT__.$ do
     chain <- usingHState ctx getClientCertChain
     let throwerror = Error_Protocol errmsg UnexpectedMessage
     case chain of
@@ -563,7 +564,7 @@ checkValidClientCertChain ctx errmsg = do
                 | otherwise                 -> return cc
 
 hashAndSignaturesInCommon :: Context -> [ExtensionRaw] -> [HashAndSignatureAlgorithm]
-hashAndSignaturesInCommon ctx exts =
+hashAndSignaturesInCommon ctx exts = ETT__.t "Network.TLS.Handshake.Server.hashAndSignaturesInCommon" ETT__.$
     let cHashSigs = case extensionLookup extensionID_SignatureAlgorithms exts >>= extensionDecode MsgTClientHello of
             -- See Section 7.4.1.4.1 of RFC 5246.
             Nothing -> [(HashSHA1, SignatureECDSA)
@@ -578,7 +579,7 @@ hashAndSignaturesInCommon ctx exts =
      in sHashSigs `intersect` cHashSigs
 
 negotiatedGroupsInCommon :: Context -> [ExtensionRaw] -> [Group]
-negotiatedGroupsInCommon ctx exts = case extensionLookup extensionID_NegotiatedGroups exts >>= extensionDecode MsgTClientHello of
+negotiatedGroupsInCommon ctx exts = ETT__.t "Network.TLS.Handshake.Server.negotiatedGroupsInCommon" ETT__.$ case extensionLookup extensionID_NegotiatedGroups exts >>= extensionDecode MsgTClientHello of
     Just (NegotiatedGroups clientGroups) ->
         let serverGroups = supportedGroups (ctxSupported ctx)
         in serverGroups `intersect` clientGroups
@@ -586,20 +587,20 @@ negotiatedGroupsInCommon ctx exts = case extensionLookup extensionID_NegotiatedG
 
 credentialDigitalSignatureKey :: Credential -> Maybe PubKey
 credentialDigitalSignatureKey cred
-    | isDigitalSignaturePair keys = Just pubkey
-    | otherwise = Nothing
+    | isDigitalSignaturePair keys = ETT__.t "Network.TLS.Handshake.Server.credentialDigitalSignatureKey" ETT__.$ Just pubkey
+    | otherwise = ETT__.t "Network.TLS.Handshake.Server.credentialDigitalSignatureKey" ETT__.$ Nothing
   where keys@(pubkey, _) = credentialPublicPrivateKeys cred
 
 filterCredentials :: (Credential -> Bool) -> Credentials -> Credentials
-filterCredentials p (Credentials l) = Credentials (filter p l)
+filterCredentials p (Credentials l) = ETT__.t "Network.TLS.Handshake.Server.filterCredentials" ETT__.$ Credentials (filter p l)
 
 filterSortCredentials :: Ord a => (Credential -> Maybe a) -> Credentials -> Credentials
-filterSortCredentials rankFun (Credentials creds) =
+filterSortCredentials rankFun (Credentials creds) = ETT__.t "Network.TLS.Handshake.Server.filterSortCredentials" ETT__.$
     let orderedPairs = sortOn fst [ (rankFun cred, cred) | cred <- creds ]
      in Credentials [ cred | (Just _, cred) <- orderedPairs ]
 
 isCredentialAllowed :: Version -> [ExtensionRaw] -> Credential -> Bool
-isCredentialAllowed ver exts cred =
+isCredentialAllowed ver exts cred = ETT__.t "Network.TLS.Handshake.Server.isCredentialAllowed" ETT__.$
     pubkey `versionCompatible` ver && satisfiesEcPredicate p pubkey
   where
     (pubkey, _) = credentialPublicPrivateKeys cred
@@ -630,7 +631,7 @@ isCredentialAllowed ver exts cred =
 -- output credentials.  Respecting client constraints on KX signatures is
 -- mandatory but not implemented by this function.
 filterCredentialsWithHashSignatures :: [ExtensionRaw] -> Credentials -> Credentials
-filterCredentialsWithHashSignatures exts =
+filterCredentialsWithHashSignatures exts = ETT__.t "Network.TLS.Handshake.Server.filterCredentialsWithHashSignatures" ETT__.$
     case withExt extensionID_SignatureAlgorithmsCert of
         Just (SignatureAlgorithmsCert sas) -> withAlgs sas
         Nothing ->
@@ -645,7 +646,7 @@ filterCredentialsWithHashSignatures exts =
 -- "signature_algorithms" produced no ephemeral D-H nor TLS13 cipher (so
 -- handshake with lower security)
 cipherListCredentialFallback :: [Cipher] -> Bool
-cipherListCredentialFallback = all nonDH
+cipherListCredentialFallback = ETT__.t "Network.TLS.Handshake.Server.cipherListCredentialFallback" ETT__.$ all nonDH
   where
     nonDH x = case cipherKeyExchange x of
         CipherKeyExchange_DHE_RSA     -> False
@@ -656,7 +657,7 @@ cipherListCredentialFallback = all nonDH
         _                             -> True
 
 storePrivInfoServer :: MonadIO m => Context -> Credential -> m ()
-storePrivInfoServer ctx (cc, privkey) = void (storePrivInfo ctx cc privkey)
+storePrivInfoServer ctx (cc, privkey) = ETT__.tm "Network.TLS.Handshake.Server.storePrivInfoServer" ETT__.$ void (storePrivInfo ctx cc privkey)
 
 -- TLS 1.3 or later
 handshakeServerWithTLS13 :: ServerParams
@@ -667,7 +668,7 @@ handshakeServerWithTLS13 :: ServerParams
                          -> Maybe String
                          -> Session
                          -> IO ()
-handshakeServerWithTLS13 sparams ctx chosenVersion exts clientCiphers _serverName clientSession = do
+handshakeServerWithTLS13 sparams ctx chosenVersion exts clientCiphers _serverName clientSession = ETT__.tio "Network.TLS.Handshake.Server.handshakeServerWithTLS13" ETT__.$ do
     when (any (\(ExtensionRaw eid _) -> eid == extensionID_PreSharedKey) $ init exts) $
         throwCore $ Error_Protocol "extension pre_shared_key must be last" IllegalParameter
     -- Deciding cipher.
@@ -702,7 +703,7 @@ handshakeServerWithTLS13 sparams ctx chosenVersion exts clientCiphers _serverNam
     serverGroups = supportedGroups (ctxSupported ctx)
 
 findKeyShare :: [KeyShareEntry] -> [Group] -> IO (Maybe KeyShareEntry)
-findKeyShare ks ggs = go ggs
+findKeyShare ks ggs = ETT__.tio "Network.TLS.Handshake.Server.findKeyShare" ETT__.$ go ggs
   where
     go []     = return Nothing
     go (g:gs) = case filter (grpEq g) ks of
@@ -719,7 +720,7 @@ doHandshake13 :: ServerParams -> Context -> Version
               -> Hash -> KeyShareEntry
               -> Session -> Bool
               -> IO ()
-doHandshake13 sparams ctx chosenVersion usedCipher exts usedHash clientKeyShare clientSession rtt0 = do
+doHandshake13 sparams ctx chosenVersion usedCipher exts usedHash clientKeyShare clientSession rtt0 = ETT__.tio "Network.TLS.Handshake.Server.doHandshake13" ETT__.$ do
     newSession ctx >>= \ss -> usingState_ ctx $ do
         setSession ss False
         setClientSupportsPHA supportsPHA
@@ -1003,7 +1004,7 @@ doHandshake13 sparams ctx chosenVersion usedCipher exts usedHash clientKeyShare 
     zero = B.replicate hashSize 0
 
 expectCertVerify :: MonadIO m => ServerParams -> Context -> ByteString -> Handshake13 -> m ()
-expectCertVerify sparams ctx hChCc (CertVerify13 sigAlg sig) = liftIO $ do
+expectCertVerify sparams ctx hChCc (CertVerify13 sigAlg sig) = ETT__.tm "Network.TLS.Handshake.Server.expectCertVerify" ETT__.$ liftIO $ do
     certs@(CertificateChain cc) <- checkValidClientCertChain ctx "finished 13 message expected"
     pubkey <- case cc of
                 [] -> throwCore $ Error_Protocol "client certificate missing" HandshakeFailure
@@ -1013,10 +1014,10 @@ expectCertVerify sparams ctx hChCc (CertVerify13 sigAlg sig) = liftIO $ do
     usingHState ctx $ setPublicKey pubkey
     verif <- checkCertVerify ctx pubkey sigAlg sig hChCc
     clientCertVerify sparams ctx certs verif
-expectCertVerify _ _ _ hs = unexpected (show hs) (Just "certificate verify 13")
+expectCertVerify _ _ _ hs = ETT__.tm "Network.TLS.Handshake.Server.expectCertVerify" ETT__.$ unexpected (show hs) (Just "certificate verify 13")
 
 helloRetryRequest :: ServerParams -> Context -> Version -> Cipher -> [ExtensionRaw] -> [Group] -> Session -> IO ()
-helloRetryRequest sparams ctx chosenVersion usedCipher exts serverGroups clientSession = do
+helloRetryRequest sparams ctx chosenVersion usedCipher exts serverGroups clientSession = ETT__.tio "Network.TLS.Handshake.Server.helloRetryRequest" ETT__.$ do
     twice <- usingState_ ctx getTLS13HRR
     when twice $
         throwCore $ Error_Protocol "Hello retry not allowed again" HandshakeFailure
@@ -1041,7 +1042,7 @@ helloRetryRequest sparams ctx chosenVersion usedCipher exts serverGroups clientS
           handshakeServer sparams ctx
 
 findHighestVersionFrom :: Version -> [Version] -> Maybe Version
-findHighestVersionFrom clientVersion allowedVersions =
+findHighestVersionFrom clientVersion allowedVersions = ETT__.t "Network.TLS.Handshake.Server.findHighestVersionFrom" ETT__.$
     case filter (clientVersion >=) $ sortOn Down allowedVersions of
         []  -> Nothing
         v:_ -> Just v
@@ -1053,7 +1054,7 @@ findHighestVersionFrom clientVersion allowedVersions =
 -- to remove certificates that are not compatible with hash/signature
 -- restrictions (TLS 1.2).
 getCiphers :: ServerParams -> Credentials -> Credentials -> [Cipher]
-getCiphers sparams creds sigCreds = filter authorizedCKE (supportedCiphers $ serverSupported sparams)
+getCiphers sparams creds sigCreds = ETT__.t "Network.TLS.Handshake.Server.getCiphers" ETT__.$ filter authorizedCKE (supportedCiphers $ serverSupported sparams)
       where authorizedCKE cipher =
                 case cipherKeyExchange cipher of
                     CipherKeyExchange_RSA         -> canEncryptRSA
@@ -1079,7 +1080,7 @@ getCiphers sparams creds sigCreds = filter authorizedCKE (supportedCiphers $ ser
             signingAlgs   = credentialsListSigningAlgorithms sigCreds
 
 findHighestVersionFrom13 :: [Version] -> [Version] -> Maybe Version
-findHighestVersionFrom13 clientVersions serverVersions = case svs `intersect` cvs of
+findHighestVersionFrom13 clientVersions serverVersions = ETT__.t "Network.TLS.Handshake.Server.findHighestVersionFrom13" ETT__.$ case svs `intersect` cvs of
         []  -> Nothing
         v:_ -> Just v
   where
@@ -1087,7 +1088,7 @@ findHighestVersionFrom13 clientVersions serverVersions = case svs `intersect` cv
     cvs = sortOn Down $ filter (> SSL3) clientVersions
 
 applicationProtocol :: Context -> [ExtensionRaw] -> ServerParams -> IO [ExtensionRaw]
-applicationProtocol ctx exts sparams = do
+applicationProtocol ctx exts sparams = ETT__.tio "Network.TLS.Handshake.Server.applicationProtocol" ETT__.$ do
     -- ALPN (Application Layer Protocol Negotiation)
     case extensionLookup extensionID_ApplicationLayerProtocolNegotiation exts >>= extensionDecode MsgTClientHello of
         Nothing -> return []
@@ -1105,7 +1106,7 @@ applicationProtocol ctx exts sparams = do
                 _ -> return []
 
 credentialsFindForSigning13 :: [HashAndSignatureAlgorithm] -> Credentials -> Maybe (Credential, HashAndSignatureAlgorithm)
-credentialsFindForSigning13 hss0 creds = loop hss0
+credentialsFindForSigning13 hss0 creds = ETT__.t "Network.TLS.Handshake.Server.credentialsFindForSigning13" ETT__.$ loop hss0
   where
     loop  []       = Nothing
     loop  (hs:hss) = case credentialsFindForSigning13' hs creds of
@@ -1114,14 +1115,14 @@ credentialsFindForSigning13 hss0 creds = loop hss0
 
 -- See credentialsFindForSigning.
 credentialsFindForSigning13' :: HashAndSignatureAlgorithm -> Credentials -> Maybe Credential
-credentialsFindForSigning13' sigAlg (Credentials l) = find forSigning l
+credentialsFindForSigning13' sigAlg (Credentials l) = ETT__.t "Network.TLS.Handshake.Server.credentialsFindForSigning13'" ETT__.$ find forSigning l
   where
     forSigning cred = case credentialDigitalSignatureKey cred of
         Nothing  -> False
         Just pub -> pub `signatureCompatible13` sigAlg
 
 clientCertificate :: ServerParams -> Context -> CertificateChain -> IO ()
-clientCertificate sparams ctx certs = do
+clientCertificate sparams ctx certs = ETT__.tio "Network.TLS.Handshake.Server.clientCertificate" ETT__.$ do
     -- run certificate recv hook
     ctxWithHooks ctx (`hookRecvCertificates` certs)
     -- Call application callback to see whether the
@@ -1137,7 +1138,7 @@ clientCertificate sparams ctx certs = do
     usingHState ctx $ setClientCertChain certs
 
 clientCertVerify :: ServerParams -> Context -> CertificateChain -> Bool -> IO ()
-clientCertVerify sparams ctx certs verif = do
+clientCertVerify sparams ctx certs verif = ETT__.tio "Network.TLS.Handshake.Server.clientCertVerify" ETT__.$ do
     if verif then do
         -- When verification succeeds, commit the
         -- client certificate chain to the context.
@@ -1160,10 +1161,10 @@ clientCertVerify sparams ctx certs verif = do
                 else decryptError "verification failed"
 
 newCertReqContext :: Context -> IO CertReqContext
-newCertReqContext ctx = getStateRNG ctx 32
+newCertReqContext ctx = ETT__.tio "Network.TLS.Handshake.Server.newCertReqContext" ETT__.$ getStateRNG ctx 32
 
 requestCertificateServer :: ServerParams -> Context -> IO Bool
-requestCertificateServer sparams ctx = do
+requestCertificateServer sparams ctx = ETT__.tio "Network.TLS.Handshake.Server.requestCertificateServer" ETT__.$ do
     tls13 <- tls13orLater ctx
     supportsPHA <- usingState_ ctx getClientSupportsPHA
     let ok = tls13 && supportsPHA
@@ -1176,7 +1177,7 @@ requestCertificateServer sparams ctx = do
     return ok
 
 postHandshakeAuthServerWith :: ServerParams -> Context -> Handshake13 -> IO ()
-postHandshakeAuthServerWith sparams ctx h@(Certificate13 certCtx certs _ext) = do
+postHandshakeAuthServerWith sparams ctx h@(Certificate13 certCtx certs _ext) = ETT__.t "Network.TLS.Handshake.Server.postHandshakeAuthServerWith" ETT__.$ do
     mCertReq <- getCertRequest13 ctx certCtx
     when (isNothing mCertReq) $ throwCore $ Error_Protocol "unknown certificate request context" DecodeError
     let certReq = fromJust "certReq" mCertReq
@@ -1206,9 +1207,9 @@ postHandshakeAuthServerWith sparams ctx h@(Certificate13 certCtx certs _ext) = d
                                    , PendingActionHash False expectFinished
                                    ]
 
-postHandshakeAuthServerWith _ _ _ =
+postHandshakeAuthServerWith _ _ _ = ETT__.tio "Network.TLS.Handshake.Server.postHandshakeAuthServerWith" ETT__.$
     throwCore $ Error_Protocol "unexpected handshake message received in postHandshakeAuthServerWith" UnexpectedMessage
 
 contextSync :: Context -> ServerState -> IO ()
-contextSync ctx ctl = case ctxHandshakeSync ctx of
+contextSync ctx ctl = ETT__.tio "Network.TLS.Handshake.Server.contextSync" ETT__.$ case ctxHandshakeSync ctx of
     HandshakeSync _ sync -> sync ctx ctl

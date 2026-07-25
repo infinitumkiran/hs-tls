@@ -69,6 +69,7 @@ import Data.Data
 
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (peekByteOff, pokeByteOff)
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Represent a ECDSA signature namely R and S.
 data Signature curve = Signature
@@ -140,7 +141,7 @@ instance EllipticCurveECDSA Curve_P521R1 where
 signatureFromIntegers
     :: EllipticCurveECDSA curve
     => proxy curve -> (Integer, Integer) -> CryptoFailable (Signature curve)
-signatureFromIntegers prx (r, s) =
+signatureFromIntegers prx (r, s) = ETT__.t "Crypto.PubKey.ECDSA.signatureFromIntegers" ETT__.$
     liftA2 Signature (scalarFromInteger prx r) (scalarFromInteger prx s)
 
 -- | Get integers (R, S) from a signature.
@@ -150,7 +151,7 @@ signatureFromIntegers prx (r, s) =
 signatureToIntegers
     :: EllipticCurveECDSA curve
     => proxy curve -> Signature curve -> (Integer, Integer)
-signatureToIntegers prx sig =
+signatureToIntegers prx sig = ETT__.t "Crypto.PubKey.ECDSA.signatureToIntegers" ETT__.$
     (scalarToInteger prx $ sign_r sig, scalarToInteger prx $ sign_s sig)
 
 -- | Encode a public key into binary form, i.e. the uncompressed encoding
@@ -158,32 +159,32 @@ signatureToIntegers prx sig =
 encodePublic
     :: (EllipticCurve curve, ByteArray bs)
     => proxy curve -> PublicKey curve -> bs
-encodePublic = encodePoint
+encodePublic = ETT__.t "Crypto.PubKey.ECDSA.encodePublic" ETT__.$ encodePoint
 
 -- | Try to decode the binary form of a public key.
 decodePublic
     :: (EllipticCurve curve, ByteArray bs)
     => proxy curve -> bs -> CryptoFailable (PublicKey curve)
-decodePublic = decodePoint
+decodePublic = ETT__.t "Crypto.PubKey.ECDSA.decodePublic" ETT__.$ decodePoint
 
 -- | Encode a private key into binary form, i.e. the @privateKey@ field
 -- described in <https://tools.ietf.org/html/rfc5915 RFC 5915>.
 encodePrivate
     :: (EllipticCurveECDSA curve, ByteArray bs)
     => proxy curve -> PrivateKey curve -> bs
-encodePrivate = encodeScalar
+encodePrivate = ETT__.t "Crypto.PubKey.ECDSA.encodePrivate" ETT__.$ encodeScalar
 
 -- | Try to decode the binary form of a private key.
 decodePrivate
     :: (EllipticCurveECDSA curve, ByteArray bs)
     => proxy curve -> bs -> CryptoFailable (PrivateKey curve)
-decodePrivate = decodeScalar
+decodePrivate = ETT__.t "Crypto.PubKey.ECDSA.decodePrivate" ETT__.$ decodeScalar
 
 -- | Create a public key from a private key.
 toPublic
     :: EllipticCurveECDSA curve
     => proxy curve -> PrivateKey curve -> PublicKey curve
-toPublic = pointBaseSmul
+toPublic = ETT__.t "Crypto.PubKey.ECDSA.toPublic" ETT__.$ pointBaseSmul
 
 -- | Sign digest using the private key and an explicit k scalar.
 signDigestWith
@@ -193,7 +194,7 @@ signDigestWith
     -> PrivateKey curve
     -> Digest hash
     -> Maybe (Signature curve)
-signDigestWith prx k d digest = do
+signDigestWith prx k d digest = ETT__.t "Crypto.PubKey.ECDSA.signDigestWith" ETT__.$ do
     let z = tHashDigest prx digest
         point = pointBaseSmul prx k
     r <- pointX prx point
@@ -211,13 +212,13 @@ signWith
     -> hash
     -> msg
     -> Maybe (Signature curve)
-signWith prx k d hashAlg msg = signDigestWith prx k d (hashWith hashAlg msg)
+signWith prx k d hashAlg msg = ETT__.t "Crypto.PubKey.ECDSA.signWith" ETT__.$ signDigestWith prx k d (hashWith hashAlg msg)
 
 -- | Sign a digest using hash and private key.
 signDigest
     :: (EllipticCurveECDSA curve, MonadRandom m, HashAlgorithm hash)
     => proxy curve -> PrivateKey curve -> Digest hash -> m (Signature curve)
-signDigest prx pk digest = do
+signDigest prx pk digest = ETT__.tm "Crypto.PubKey.ECDSA.signDigest" ETT__.$ do
     k <- curveGenerateScalar prx
     case signDigestWith prx k pk digest of
         Nothing -> signDigest prx pk digest
@@ -231,16 +232,16 @@ sign
        , HashAlgorithm hash
        )
     => proxy curve -> PrivateKey curve -> hash -> msg -> m (Signature curve)
-sign prx pk hashAlg msg = signDigest prx pk (hashWith hashAlg msg)
+sign prx pk hashAlg msg = ETT__.tm "Crypto.PubKey.ECDSA.sign" ETT__.$ signDigest prx pk (hashWith hashAlg msg)
 
 -- | Verify a digest using hash and public key.
 verifyDigest
     :: (EllipticCurveECDSA curve, HashAlgorithm hash)
     => proxy curve -> PublicKey curve -> Signature curve -> Digest hash -> Bool
 verifyDigest prx q (Signature r s) digest
-    | not (scalarIsValid prx r) = False
-    | not (scalarIsValid prx s) = False
-    | otherwise = maybe False (r ==) $ do
+    | not (scalarIsValid prx r) = ETT__.t "Crypto.PubKey.ECDSA.verifyDigest" ETT__.$ False
+    | not (scalarIsValid prx s) = ETT__.t "Crypto.PubKey.ECDSA.verifyDigest" ETT__.$ False
+    | otherwise = ETT__.t "Crypto.PubKey.ECDSA.verifyDigest" ETT__.$ maybe False (r ==) $ do
         w <- scalarInv prx s
         let z = tHashDigest prx digest
             u1 = scalarMul prx z w
@@ -255,13 +256,13 @@ verifyDigest prx q (Signature r s) digest
 verify
     :: (EllipticCurveECDSA curve, ByteArrayAccess msg, HashAlgorithm hash)
     => proxy curve -> hash -> PublicKey curve -> Signature curve -> msg -> Bool
-verify prx hashAlg q sig msg = verifyDigest prx q sig (hashWith hashAlg msg)
+verify prx hashAlg q sig msg = ETT__.t "Crypto.PubKey.ECDSA.verify" ETT__.$ verifyDigest prx q sig (hashWith hashAlg msg)
 
 -- | Truncate a digest based on curve order size.
 tHashDigest
     :: (EllipticCurveECDSA curve, HashAlgorithm hash)
     => proxy curve -> Digest hash -> Scalar curve
-tHashDigest prx (Digest digest) = throwCryptoError $ decodeScalar prx encoded
+tHashDigest prx (Digest digest) = ETT__.t "Crypto.PubKey.ECDSA.tHashDigest" ETT__.$ throwCryptoError $ decodeScalar prx encoded
   where
     m = curveOrderBits prx
     d = m - B.length digest * 8
@@ -286,7 +287,7 @@ tHashDigest prx (Digest digest) = throwCryptoError $ decodeScalar prx encoded
             go dst src b (succ i)
 
 ecScalarIsValid :: Simple.Curve c => proxy c -> Simple.Scalar c -> Bool
-ecScalarIsValid prx (Simple.Scalar s) = s > 0 && s < n
+ecScalarIsValid prx (Simple.Scalar s) = ETT__.t "Crypto.PubKey.ECDSA.ecScalarIsValid" ETT__.$ s > 0 && s < n
   where
     n = Simple.curveEccN $ Simple.curveParameters prx
 
@@ -294,14 +295,14 @@ ecScalarIsZero
     :: forall curve
      . Simple.Curve curve
     => Simple.Scalar curve -> Bool
-ecScalarIsZero (Simple.Scalar a) = a == 0
+ecScalarIsZero (Simple.Scalar a) = ETT__.t "Crypto.PubKey.ECDSA.ecScalarIsZero" ETT__.$ a == 0
 
 ecScalarInv
     :: Simple.Curve c
     => proxy c -> Simple.Scalar c -> Maybe (Simple.Scalar c)
 ecScalarInv prx (Simple.Scalar s)
-    | i == 0 = Nothing
-    | otherwise = Just $ Simple.Scalar i
+    | i == 0 = ETT__.t "Crypto.PubKey.ECDSA.ecScalarInv" ETT__.$ Nothing
+    | otherwise = ETT__.t "Crypto.PubKey.ECDSA.ecScalarInv" ETT__.$ Just $ Simple.Scalar i
   where
     n = Simple.curveEccN $ Simple.curveParameters prx
     i = inverseFermat s n
@@ -309,7 +310,7 @@ ecScalarInv prx (Simple.Scalar s)
 ecPointX
     :: Simple.Curve c
     => proxy c -> Simple.Point c -> Maybe (Simple.Scalar c)
-ecPointX _ Simple.PointO = Nothing
-ecPointX prx (Simple.Point x _) = Just (Simple.Scalar $ x `mod` n)
+ecPointX _ Simple.PointO = ETT__.t "Crypto.PubKey.ECDSA.ecPointX" ETT__.$ Nothing
+ecPointX prx (Simple.Point x _) = ETT__.t "Crypto.PubKey.ECDSA.ecPointX" ETT__.$ Just (Simple.Scalar $ x `mod` n)
   where
     n = Simple.curveEccN $ Simple.curveParameters prx

@@ -94,6 +94,7 @@ import Control.Monad.State.Strict
 import qualified Data.ByteString as B
 import Data.IORef
 import Data.Tuple
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | Information related to a running context, e.g. current cipher
 data Information = Information
@@ -149,7 +150,7 @@ data HandshakeSync = HandshakeSync (Context -> ClientState -> IO ())
                                    (Context -> ServerState -> IO ())
 
 updateRecordLayer :: Monoid bytes => RecordLayer bytes -> Context -> Context
-updateRecordLayer recordLayer Context{..} =
+updateRecordLayer recordLayer Context{..} = ETT__.t "Network.TLS.Context.Internal.updateRecordLayer" ETT__.$
     Context { ctxRecordLayer = recordLayer, .. }
 
 data Established = NotEstablished
@@ -165,22 +166,22 @@ data PendingAction
       -- ^ pending action taking transcript hash up to preceding message
 
 updateMeasure :: Context -> (Measurement -> Measurement) -> IO ()
-updateMeasure ctx = modifyIORef' (ctxMeasurement ctx)
+updateMeasure ctx = ETT__.t "Network.TLS.Context.Internal.updateMeasure" ETT__.$ modifyIORef' (ctxMeasurement ctx)
 
 withMeasure :: Context -> (Measurement -> IO a) -> IO a
-withMeasure ctx f = readIORef (ctxMeasurement ctx) >>= f
+withMeasure ctx f = ETT__.tio "Network.TLS.Context.Internal.withMeasure" ETT__.$ readIORef (ctxMeasurement ctx) >>= f
 
 -- | A shortcut for 'backendFlush . ctxConnection'.
 contextFlush :: Context -> IO ()
-contextFlush = backendFlush . ctxConnection
+contextFlush = ETT__.t "Network.TLS.Context.Internal.contextFlush" ETT__.$ backendFlush . ctxConnection
 
 -- | A shortcut for 'backendClose . ctxConnection'.
 contextClose :: Context -> IO ()
-contextClose = backendClose . ctxConnection
+contextClose = ETT__.t "Network.TLS.Context.Internal.contextClose" ETT__.$ backendClose . ctxConnection
 
 -- | Information about the current context
 contextGetInformation :: Context -> IO (Maybe Information)
-contextGetInformation ctx = do
+contextGetInformation ctx = ETT__.tio "Network.TLS.Context.Internal.contextGetInformation" ETT__.$ do
     ver    <- usingState_ ctx $ gets stVersion
     hstate <- getHState ctx
     let (ms, ems, cr, sr, hm13, grp) =
@@ -201,76 +202,76 @@ contextGetInformation ctx = do
         _                -> return Nothing
 
 contextSend :: Context -> ByteString -> IO ()
-contextSend c b = updateMeasure c (addBytesSent $ B.length b) >> (backendSend $ ctxConnection c) b
+contextSend c b = ETT__.tio "Network.TLS.Context.Internal.contextSend" ETT__.$ updateMeasure c (addBytesSent $ B.length b) >> (backendSend $ ctxConnection c) b
 
 contextRecv :: Context -> Int -> IO ByteString
-contextRecv c sz = updateMeasure c (addBytesReceived sz) >> (backendRecv $ ctxConnection c) sz
+contextRecv c sz = ETT__.tio "Network.TLS.Context.Internal.contextRecv" ETT__.$ updateMeasure c (addBytesReceived sz) >> (backendRecv $ ctxConnection c) sz
 
 ctxEOF :: Context -> IO Bool
-ctxEOF ctx = readIORef $ ctxEOF_ ctx
+ctxEOF ctx = ETT__.tio "Network.TLS.Context.Internal.ctxEOF" ETT__.$ readIORef $ ctxEOF_ ctx
 
 ctxHasSSLv2ClientHello :: Context -> IO Bool
-ctxHasSSLv2ClientHello ctx = readIORef $ ctxSSLv2ClientHello ctx
+ctxHasSSLv2ClientHello ctx = ETT__.tio "Network.TLS.Context.Internal.ctxHasSSLv2ClientHello" ETT__.$ readIORef $ ctxSSLv2ClientHello ctx
 
 ctxDisableSSLv2ClientHello :: Context -> IO ()
-ctxDisableSSLv2ClientHello ctx = writeIORef (ctxSSLv2ClientHello ctx) False
+ctxDisableSSLv2ClientHello ctx = ETT__.tio "Network.TLS.Context.Internal.ctxDisableSSLv2ClientHello" ETT__.$ writeIORef (ctxSSLv2ClientHello ctx) False
 
 setEOF :: Context -> IO ()
-setEOF ctx = writeIORef (ctxEOF_ ctx) True
+setEOF ctx = ETT__.tio "Network.TLS.Context.Internal.setEOF" ETT__.$ writeIORef (ctxEOF_ ctx) True
 
 ctxEstablished :: Context -> IO Established
-ctxEstablished ctx = readIORef $ ctxEstablished_ ctx
+ctxEstablished ctx = ETT__.tio "Network.TLS.Context.Internal.ctxEstablished" ETT__.$ readIORef $ ctxEstablished_ ctx
 
 ctxWithHooks :: Context -> (Hooks -> IO a) -> IO a
-ctxWithHooks ctx f = readIORef (ctxHooks ctx) >>= f
+ctxWithHooks ctx f = ETT__.tio "Network.TLS.Context.Internal.ctxWithHooks" ETT__.$ readIORef (ctxHooks ctx) >>= f
 
 contextModifyHooks :: Context -> (Hooks -> Hooks) -> IO ()
-contextModifyHooks ctx = modifyIORef (ctxHooks ctx)
+contextModifyHooks ctx = ETT__.t "Network.TLS.Context.Internal.contextModifyHooks" ETT__.$ modifyIORef (ctxHooks ctx)
 
 setEstablished :: Context -> Established -> IO ()
-setEstablished ctx = writeIORef (ctxEstablished_ ctx)
+setEstablished ctx = ETT__.t "Network.TLS.Context.Internal.setEstablished" ETT__.$ writeIORef (ctxEstablished_ ctx)
 
 withLog :: Context -> (Logging -> IO ()) -> IO ()
-withLog ctx f = ctxWithHooks ctx (f . hookLogging)
+withLog ctx f = ETT__.tio "Network.TLS.Context.Internal.withLog" ETT__.$ ctxWithHooks ctx (f . hookLogging)
 
 throwCore :: MonadIO m => TLSError -> m a
-throwCore = liftIO . throwIO . Uncontextualized
+throwCore = ETT__.t "Network.TLS.Context.Internal.throwCore" ETT__.$ liftIO . throwIO . Uncontextualized
 
 failOnEitherError :: MonadIO m => m (Either TLSError a) -> m a
-failOnEitherError f = do
+failOnEitherError f = ETT__.tm "Network.TLS.Context.Internal.failOnEitherError" ETT__.$ do
     ret <- f
     case ret of
         Left err -> throwCore err
         Right r  -> return r
 
 usingState :: Context -> TLSSt a -> IO (Either TLSError a)
-usingState ctx f =
+usingState ctx f = ETT__.tio "Network.TLS.Context.Internal.usingState" ETT__.$
     modifyMVar (ctxState ctx) $ \st ->
             let (a, newst) = runTLSState f st
              in newst `seq` return (newst, a)
 
 usingState_ :: Context -> TLSSt a -> IO a
-usingState_ ctx f = failOnEitherError $ usingState ctx f
+usingState_ ctx f = ETT__.tio "Network.TLS.Context.Internal.usingState_" ETT__.$ failOnEitherError $ usingState ctx f
 
 usingHState :: MonadIO m => Context -> HandshakeM a -> m a
-usingHState ctx f = liftIO $ modifyMVar (ctxHandshake ctx) $ \mst ->
+usingHState ctx f = ETT__.tm "Network.TLS.Context.Internal.usingHState" ETT__.$ liftIO $ modifyMVar (ctxHandshake ctx) $ \mst ->
     case mst of
         Nothing -> liftIO $ throwIO $ MissingHandshake
         Just st -> return $ swap (Just <$> runHandshake st f)
 
 getHState :: MonadIO m => Context -> m (Maybe HandshakeState)
-getHState ctx = liftIO $ readMVar (ctxHandshake ctx)
+getHState ctx = ETT__.tm "Network.TLS.Context.Internal.getHState" ETT__.$ liftIO $ readMVar (ctxHandshake ctx)
 
 saveHState :: Context -> IO (Saved (Maybe HandshakeState))
-saveHState ctx = saveMVar (ctxHandshake ctx)
+saveHState ctx = ETT__.tio "Network.TLS.Context.Internal.saveHState" ETT__.$ saveMVar (ctxHandshake ctx)
 
 restoreHState :: Context
               -> Saved (Maybe HandshakeState)
               -> IO (Saved (Maybe HandshakeState))
-restoreHState ctx = restoreMVar (ctxHandshake ctx)
+restoreHState ctx = ETT__.t "Network.TLS.Context.Internal.restoreHState" ETT__.$ restoreMVar (ctxHandshake ctx)
 
 decideRecordVersion :: Context -> IO (Version, Bool)
-decideRecordVersion ctx = usingState_ ctx $ do
+decideRecordVersion ctx = ETT__.tio "Network.TLS.Context.Internal.decideRecordVersion" ETT__.$ usingState_ ctx $ do
     ver <- getVersionWithDefault (maximum $ supportedVersions $ ctxSupported ctx)
     hrr <- getTLS13HRR
     -- For TLS 1.3, ver' is only used in ClientHello.
@@ -282,7 +283,7 @@ decideRecordVersion ctx = usingState_ ctx $ do
     return (ver', ver >= TLS13)
 
 runTxState :: Context -> RecordM a -> IO (Either TLSError a)
-runTxState ctx f = do
+runTxState ctx f = ETT__.tio "Network.TLS.Context.Internal.runTxState" ETT__.$ do
     (ver, tls13) <- decideRecordVersion ctx
     let opt = RecordOptions { recordVersion = ver
                             , recordTLS13   = tls13
@@ -293,7 +294,7 @@ runTxState ctx f = do
             Right (a, newSt) -> return (newSt, Right a)
 
 runRxState :: Context -> RecordM a -> IO (Either TLSError a)
-runRxState ctx f = do
+runRxState ctx f = ETT__.tio "Network.TLS.Context.Internal.runRxState" ETT__.$ do
     ver <- usingState_ ctx getVersion
     -- For 1.3, ver is just ignored. So, it is not necessary to convert ver.
     let opt = RecordOptions { recordVersion = ver
@@ -305,32 +306,32 @@ runRxState ctx f = do
             Right (a, newSt) -> return (newSt, Right a)
 
 getStateRNG :: Context -> Int -> IO ByteString
-getStateRNG ctx n = usingState_ ctx $ genRandom n
+getStateRNG ctx n = ETT__.tio "Network.TLS.Context.Internal.getStateRNG" ETT__.$ usingState_ ctx $ genRandom n
 
 withReadLock :: Context -> IO a -> IO a
-withReadLock ctx f = withMVar (ctxLockRead ctx) (const f)
+withReadLock ctx f = ETT__.tio "Network.TLS.Context.Internal.withReadLock" ETT__.$ withMVar (ctxLockRead ctx) (const f)
 
 withWriteLock :: Context -> IO a -> IO a
-withWriteLock ctx f = withMVar (ctxLockWrite ctx) (const f)
+withWriteLock ctx f = ETT__.tio "Network.TLS.Context.Internal.withWriteLock" ETT__.$ withMVar (ctxLockWrite ctx) (const f)
 
 withRWLock :: Context -> IO a -> IO a
-withRWLock ctx f = withReadLock ctx $ withWriteLock ctx f
+withRWLock ctx f = ETT__.tio "Network.TLS.Context.Internal.withRWLock" ETT__.$ withReadLock ctx $ withWriteLock ctx f
 
 withStateLock :: Context -> IO a -> IO a
-withStateLock ctx f = withMVar (ctxLockState ctx) (const f)
+withStateLock ctx f = ETT__.tio "Network.TLS.Context.Internal.withStateLock" ETT__.$ withMVar (ctxLockState ctx) (const f)
 
 tls13orLater :: MonadIO m => Context -> m Bool
-tls13orLater ctx = do
+tls13orLater ctx = ETT__.tm "Network.TLS.Context.Internal.tls13orLater" ETT__.$ do
     ev <- liftIO $ usingState ctx $ getVersionWithDefault TLS10 -- fixme
     return $ case ev of
                Left  _ -> False
                Right v -> v >= TLS13
 
 addCertRequest13 :: Context -> Handshake13 -> IO ()
-addCertRequest13 ctx certReq = modifyIORef (ctxCertRequests ctx) (certReq:)
+addCertRequest13 ctx certReq = ETT__.tio "Network.TLS.Context.Internal.addCertRequest13" ETT__.$ modifyIORef (ctxCertRequests ctx) (certReq:)
 
 getCertRequest13 :: Context -> CertReqContext -> IO (Maybe Handshake13)
-getCertRequest13 ctx context = do
+getCertRequest13 ctx context = ETT__.tio "Network.TLS.Context.Internal.getCertRequest13" ETT__.$ do
     let ref = ctxCertRequests ctx
     l <- readIORef ref
     let (matched, others) = partition (\(CertRequest13 c _) -> context == c) l

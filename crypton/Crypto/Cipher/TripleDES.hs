@@ -17,6 +17,7 @@ import Crypto.Internal.ByteArray (ByteArrayAccess)
 import qualified Crypto.Internal.ByteArray as B
 import Data.Memory.Endian
 import Data.Word
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | 3DES with 3 different keys used all in the same direction
 data DES_EEE3 = DES_EEE3 Word64 Word64 Word64
@@ -78,8 +79,8 @@ init3DES
     :: ByteArrayAccess key
     => (Word64 -> Word64 -> Word64 -> a) -> key -> CryptoFailable a
 init3DES constr k
-    | len == 24 = CryptoPassed $ constr k1 k2 k3
-    | otherwise = CryptoFailed CryptoError_KeySizeInvalid
+    | len == 24 = ETT__.t "Crypto.Cipher.TripleDES.init3DES" ETT__.$ CryptoPassed $ constr k1 k2 k3
+    | otherwise = ETT__.t "Crypto.Cipher.TripleDES.init3DES" ETT__.$ CryptoFailed CryptoError_KeySizeInvalid
   where
     len = B.length k
     (k1, k2, k3) = (fromBE $ B.toW64BE k 0, fromBE $ B.toW64BE k 8, fromBE $ B.toW64BE k 16)
@@ -87,8 +88,8 @@ init3DES constr k
 init2DES
     :: ByteArrayAccess key => (Word64 -> Word64 -> a) -> key -> CryptoFailable a
 init2DES constr k
-    | len == 16 = CryptoPassed $ constr k1 k2
-    | otherwise = CryptoFailed CryptoError_KeySizeInvalid
+    | len == 16 = ETT__.t "Crypto.Cipher.TripleDES.init2DES" ETT__.$ CryptoPassed $ constr k1 k2
+    | otherwise = ETT__.t "Crypto.Cipher.TripleDES.init2DES" ETT__.$ CryptoFailed CryptoError_KeySizeInvalid
   where
     len = B.length k
     (k1, k2) = (fromBE $ B.toW64BE k 0, fromBE $ B.toW64BE k 8)

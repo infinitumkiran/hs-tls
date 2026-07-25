@@ -75,13 +75,14 @@ import Control.Monad.Catch (MonadThrow, throwM)
 
 import System.IO (withBinaryFile, hTell, hFileSize, Handle, IOMode (ReadMode))
 import Control.Monad (liftM)
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 -- | Deprecated synonym for 'parseUrlThrow'. You probably want
 -- 'parseRequest' or 'parseRequest_' instead.
 --
 -- @since 0.1.0
 parseUrl :: MonadThrow m => String -> m Request
-parseUrl = parseUrlThrow
+parseUrl = ETT__.t "Network.HTTP.Client.Request.parseUrl" ETT__.$ parseUrlThrow
 {-# DEPRECATED parseUrl "Please use parseUrlThrow, parseRequest, or parseRequest_ instead" #-}
 
 -- | Same as 'parseRequest', except will throw an 'HttpException' in the
@@ -90,7 +91,7 @@ parseUrl = parseUrlThrow
 --
 -- @since 0.4.30
 parseUrlThrow :: MonadThrow m => String -> m Request
-parseUrlThrow =
+parseUrlThrow = ETT__.t "Network.HTTP.Client.Request.parseUrlThrow" ETT__.$
     liftM yesThrow . parseRequest
   where
     yesThrow req = req { checkResponse = throwErrorStatusCodes }
@@ -101,7 +102,7 @@ parseUrlThrow =
 --
 -- @since 0.5.13
 throwErrorStatusCodes :: MonadIO m => Request -> Response BodyReader -> m ()
-throwErrorStatusCodes req res = do
+throwErrorStatusCodes req res = ETT__.tm "Network.HTTP.Client.Request.throwErrorStatusCodes" ETT__.$ do
     let W.Status sci _ = responseStatus res
     if 200 <= sci && sci < 300
         then return ()
@@ -135,7 +136,7 @@ throwErrorStatusCodes req res = do
 --
 -- @since 0.4.30
 parseRequest :: MonadThrow m => String -> m Request
-parseRequest s' =
+parseRequest s' = ETT__.tm "Network.HTTP.Client.Request.parseRequest" ETT__.$
     case parseURI (encode s) of
         Just uri -> liftM setMethod (setUri defaultRequest uri)
         Nothing  -> throwM $ InvalidUrlException s "Invalid URL"
@@ -155,7 +156,7 @@ parseRequest s' =
 -- Mostly useful for static strings which are known to be correctly
 -- formatted.
 parseRequest_ :: String -> Request
-parseRequest_ = either throw id . parseRequest
+parseRequest_ = ETT__.t "Network.HTTP.Client.Request.parseRequest_" ETT__.$ either throw id . parseRequest
 
 -- | Convert a 'URI' into a 'Request'.
 --
@@ -171,25 +172,25 @@ parseRequest_ = either throw id . parseRequest
 --
 -- @since 0.5.12
 requestFromURI :: MonadThrow m => URI -> m Request
-requestFromURI = setUri defaultRequest
+requestFromURI = ETT__.t "Network.HTTP.Client.Request.requestFromURI" ETT__.$ setUri defaultRequest
 
 -- | Same as 'requestFromURI', but if the conversion would fail,
 -- throws an impure exception.
 --
 -- @since 0.5.12
 requestFromURI_ :: URI -> Request
-requestFromURI_ = either throw id . requestFromURI
+requestFromURI_ = ETT__.t "Network.HTTP.Client.Request.requestFromURI_" ETT__.$ either throw id . requestFromURI
 
 -- | Add a 'URI' to the request. If it is absolute (includes a host name), add
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
 setUriRelative :: MonadThrow m => Request -> URI -> m Request
-setUriRelative req uri = setUri req $ uri `relativeTo` getUri req
+setUriRelative req uri = ETT__.tm "Network.HTTP.Client.Request.setUriRelative" ETT__.$ setUri req $ uri `relativeTo` getUri req
 
 -- | Extract a 'URI' from the request.
 --
 -- Since 0.1.0
 getUri :: Request -> URI
-getUri req = URI
+getUri req = ETT__.t "Network.HTTP.Client.Request.getUri" ETT__.$ URI
     { uriScheme = if secure req
                     then "https:"
                     else "http:"
@@ -212,7 +213,7 @@ getUri req = URI
       | otherwise = ':' : show (port req)
 
 applyAnyUriBasedAuth :: URI -> Request -> Request
-applyAnyUriBasedAuth uri req =
+applyAnyUriBasedAuth uri req = ETT__.t "Network.HTTP.Client.Request.applyAnyUriBasedAuth" ETT__.$
     case extractBasicAuthInfo uri of
         Just auth -> uncurry applyBasicAuth auth req
         Nothing -> req
@@ -220,7 +221,7 @@ applyAnyUriBasedAuth uri req =
 -- | Extract basic access authentication info in URI.
 -- Return Nothing when there is no auth info in URI.
 extractBasicAuthInfo :: URI -> Maybe (S8.ByteString, S8.ByteString)
-extractBasicAuthInfo uri = do
+extractBasicAuthInfo uri = ETT__.t "Network.HTTP.Client.Request.extractBasicAuthInfo" ETT__.$ do
     userInfo <- uriUserInfo A.<$> uriAuthority uri
     guard (':' `elem` userInfo)
     let (username, ':':password) = break (==':') . takeWhile (/='@') $ userInfo
@@ -230,7 +231,7 @@ extractBasicAuthInfo uri = do
 
 -- | Validate a 'URI', then add it to the request.
 setUri :: MonadThrow m => Request -> URI -> m Request
-setUri req uri = either throwInvalidUrlException return (setUriEither req uri)
+setUri req uri = ETT__.tm "Network.HTTP.Client.Request.setUri" ETT__.$ either throwInvalidUrlException return (setUriEither req uri)
   where
     throwInvalidUrlException = throwM . InvalidUrlException (show uri)
 
@@ -239,7 +240,7 @@ setUri req uri = either throwInvalidUrlException return (setUriEither req uri)
 --
 -- @since 0.6.1
 setUriEither :: Request -> URI -> Either String Request
-setUriEither req uri = do
+setUriEither req uri = ETT__.t "Network.HTTP.Client.Request.setUriEither" ETT__.$ do
     sec <- parseScheme uri
     auth <- maybe (Left "URL must be absolute") return $ uriAuthority uri
     port' <- parsePort sec auth
@@ -279,7 +280,7 @@ setUriEither req uri = do
 --
 -- @since 0.4.30
 defaultRequest :: Request
-defaultRequest = Request
+defaultRequest = ETT__.t "Network.HTTP.Client.Request.defaultRequest" ETT__.$ Request
         { host = "localhost"
         , port = 80
         , secure = False
@@ -319,18 +320,18 @@ instance IsString Request where
 
 -- | Always decompress a compressed stream.
 alwaysDecompress :: S.ByteString -> Bool
-alwaysDecompress = const True
+alwaysDecompress = ETT__.t "Network.HTTP.Client.Request.alwaysDecompress" ETT__.$ const True
 
 -- | Decompress a compressed stream unless the content-type is 'application/x-tar'.
 browserDecompress :: S.ByteString -> Bool
-browserDecompress = (/= "application/x-tar")
+browserDecompress = ETT__.t "Network.HTTP.Client.Request.browserDecompress" ETT__.$ (/= "application/x-tar")
 
 -- | Build a basic-auth header value
 buildBasicAuth ::
     S8.ByteString -- ^ Username
     -> S8.ByteString -- ^ Password
     -> S8.ByteString
-buildBasicAuth user passwd =
+buildBasicAuth user passwd = ETT__.t "Network.HTTP.Client.Request.buildBasicAuth" ETT__.$
     S8.append "Basic " (B64.encode (S8.concat [ user, ":", passwd ]))
 
 -- | Add a Basic Auth header (with the specified user name and password) to the
@@ -344,7 +345,7 @@ buildBasicAuth user passwd =
 --
 -- Since 0.1.0
 applyBasicAuth :: S.ByteString -> S.ByteString -> Request -> Request
-applyBasicAuth user passwd req =
+applyBasicAuth user passwd req = ETT__.t "Network.HTTP.Client.Request.applyBasicAuth" ETT__.$
     req { requestHeaders = authHeader : requestHeaders req }
   where
     authHeader = (CI.mk "Authorization", buildBasicAuth user passwd)
@@ -353,14 +354,14 @@ applyBasicAuth user passwd req =
 buildBearerAuth ::
     S8.ByteString -- ^ Token
     -> S8.ByteString
-buildBearerAuth token =
+buildBearerAuth token = ETT__.t "Network.HTTP.Client.Request.buildBearerAuth" ETT__.$
     S8.append "Bearer " token
 
 -- | Add a Bearer Auth header to the given 'Request'
 --
 -- @since 0.7.6
 applyBearerAuth :: S.ByteString -> Request -> Request
-applyBearerAuth bearerToken req =
+applyBearerAuth bearerToken req = ETT__.t "Network.HTTP.Client.Request.applyBearerAuth" ETT__.$
     req { requestHeaders = authHeader : requestHeaders req }
   where
     authHeader = (CI.mk "Authorization", buildBearerAuth bearerToken)
@@ -370,7 +371,7 @@ applyBearerAuth bearerToken req =
 --
 -- Since 0.1.0
 addProxy :: S.ByteString -> Int -> Request -> Request
-addProxy hst prt req =
+addProxy hst prt req = ETT__.t "Network.HTTP.Client.Request.addProxy" ETT__.$
     req { proxy = Just $ Proxy hst prt }
 
 
@@ -378,7 +379,7 @@ addProxy hst prt req =
 --
 -- @since 0.7.2
 addProxySecureWithoutConnect :: Request -> Request
-addProxySecureWithoutConnect req = req { proxySecureMode = ProxySecureWithoutConnect }
+addProxySecureWithoutConnect req = ETT__.t "Network.HTTP.Client.Request.addProxySecureWithoutConnect" ETT__.$ req { proxySecureMode = ProxySecureWithoutConnect }
 
 -- | Add a Proxy-Authorization header (with the specified username and
 -- password) to the given 'Request'. Ignore error handling:
@@ -388,7 +389,7 @@ addProxySecureWithoutConnect req = req { proxySecureMode = ProxySecureWithoutCon
 -- Since 0.3.4
 
 applyBasicProxyAuth :: S.ByteString -> S.ByteString -> Request -> Request
-applyBasicProxyAuth user passwd req =
+applyBasicProxyAuth user passwd req = ETT__.t "Network.HTTP.Client.Request.applyBasicProxyAuth" ETT__.$
     req { requestHeaders = authHeader : requestHeaders req }
   where
     authHeader = (CI.mk "Proxy-Authorization", buildBasicAuth user passwd)
@@ -400,7 +401,7 @@ applyBasicProxyAuth user passwd req =
 --
 -- Since 0.1.0
 urlEncodedBody :: [(S.ByteString, S.ByteString)] -> Request -> Request
-urlEncodedBody headers req = req
+urlEncodedBody headers req = ETT__.t "Network.HTTP.Client.Request.urlEncodedBody" ETT__.$ req
     { requestBody = RequestBodyLBS body
     , method = "POST"
     , requestHeaders =
@@ -414,7 +415,7 @@ urlEncodedBody headers req = req
 needsGunzip :: Request
             -> [W.Header] -- ^ response headers
             -> Bool
-needsGunzip req hs' =
+needsGunzip req hs' = ETT__.t "Network.HTTP.Client.Request.needsGunzip" ETT__.$
         not (rawBody req)
      && ("content-encoding", "gzip") `elem` hs'
      && decompress req (fromMaybe "" $ lookup "content-type" hs')
@@ -429,11 +430,11 @@ instance E.Exception EncapsulatedPopperException
 -- however, we don't want to route the Popper exceptions through onRequestBodyException.
 -- https://github.com/snoyberg/http-client/issues/469
 encapsulatePopperException :: IO a -> IO a
-encapsulatePopperException action =
+encapsulatePopperException action = ETT__.tio "Network.HTTP.Client.Request.encapsulatePopperException" ETT__.$
     action `E.catch` (\(ex :: E.SomeException) -> E.throwIO (EncapsulatedPopperException ex))
 
 requestBuilder :: Request -> Connection -> IO (Maybe (IO ()))
-requestBuilder req Connection {..} = do
+requestBuilder req Connection {..} = ETT__.t "Network.HTTP.Client.Request.requestBuilder" ETT__.$ do
     (contentLength, sendNow, sendLater) <- toTriple (requestBody req)
     if expectContinue
         then flushHeaders contentLength >> return (Just (checkBadSend sendLater))
@@ -582,27 +583,27 @@ requestBuilder req Connection {..} = do
 --
 -- @since 0.4.29
 setRequestIgnoreStatus :: Request -> Request
-setRequestIgnoreStatus req = req { checkResponse = \_ _ -> return () }
+setRequestIgnoreStatus req = ETT__.t "Network.HTTP.Client.Request.setRequestIgnoreStatus" ETT__.$ req { checkResponse = \_ _ -> return () }
 
 -- | Modify the request so that non-2XX status codes generate a runtime
 -- 'StatusCodeException', by using 'throwErrorStatusCodes'
 --
 -- @since 0.5.13
 setRequestCheckStatus :: Request -> Request
-setRequestCheckStatus req = req { checkResponse = throwErrorStatusCodes }
+setRequestCheckStatus req = ETT__.t "Network.HTTP.Client.Request.setRequestCheckStatus" ETT__.$ req { checkResponse = throwErrorStatusCodes }
 
 -- | Set the query string to the given key/value pairs.
 --
 -- Since 0.3.6
 setQueryString :: [(S.ByteString, Maybe S.ByteString)] -> Request -> Request
-setQueryString qs req = req { queryString = W.renderQuery True qs }
+setQueryString qs req = ETT__.t "Network.HTTP.Client.Request.setQueryString" ETT__.$ req { queryString = W.renderQuery True qs }
 
 #if MIN_VERSION_http_types(0,12,1)
 -- | Set the query string to the given key/value pairs.
 --
 -- @since 0.5.10
 setQueryStringPartialEscape :: [(S.ByteString, [W.EscapeItem])] -> Request -> Request
-setQueryStringPartialEscape qs req = req { queryString = W.renderQueryPartialEscape True qs }
+setQueryStringPartialEscape qs req = ETT__.t "Network.HTTP.Client.Request.setQueryStringPartialEscape" ETT__.$ req { queryString = W.renderQueryPartialEscape True qs }
 #endif
 
 -- | Send a file as the request body.
@@ -612,7 +613,7 @@ setQueryStringPartialEscape qs req = req { queryString = W.renderQueryPartialEsc
 --
 -- Since 0.4.9
 streamFile :: FilePath -> IO RequestBody
-streamFile = observedStreamFile (\_ -> return ())
+streamFile = ETT__.t "Network.HTTP.Client.Request.streamFile" ETT__.$ observedStreamFile (\_ -> return ())
 
 -- | Send a file as the request body, while observing streaming progress via
 -- a `PopObserver`. Observations are made between reading and sending a chunk.
@@ -622,7 +623,7 @@ streamFile = observedStreamFile (\_ -> return ())
 --
 -- Since 0.4.9
 observedStreamFile :: (StreamFileStatus -> IO ()) -> FilePath -> IO RequestBody
-observedStreamFile obs path = do
+observedStreamFile obs path = ETT__.tio "Network.HTTP.Client.Request.observedStreamFile" ETT__.$ do
     size <- fromIntegral <$> withBinaryFile path ReadMode hFileSize
 
     let filePopper :: Handle -> Popper

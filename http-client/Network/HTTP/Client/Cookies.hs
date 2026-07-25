@@ -34,12 +34,13 @@ import qualified Data.IP as IP
 import Text.Read (readMaybe)
 
 import Network.HTTP.Client.Types as Req
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 slash :: Integral a => a
-slash = 47 -- '/'
+slash = ETT__.t "Network.HTTP.Client.Cookies.slash" ETT__.$ 47 -- '/'
 
 isIpAddress :: BS.ByteString -> Bool
-isIpAddress =
+isIpAddress = ETT__.t "Network.HTTP.Client.Cookies.isIpAddress" ETT__.$
     go (4 :: Int)
   where
     go 0 bs = BS.null bs
@@ -57,10 +58,10 @@ domainMatches :: BS.ByteString -- ^ Domain to test
               -> BS.ByteString -- ^ Domain from a cookie
               -> Bool
 domainMatches string' domainString'
-  | string == domainString = True
-  | BS.length string < BS.length domainString + 1 = False
-  | domainString `BS.isSuffixOf` string && BS.singleton (BS.last difference) == "." && not (isIpAddress string) = True
-  | otherwise = False
+  | string == domainString = ETT__.t "Network.HTTP.Client.Cookies.domainMatches" ETT__.$ True
+  | BS.length string < BS.length domainString + 1 = ETT__.t "Network.HTTP.Client.Cookies.domainMatches" ETT__.$ False
+  | domainString `BS.isSuffixOf` string && BS.singleton (BS.last difference) == "." && not (isIpAddress string) = ETT__.t "Network.HTTP.Client.Cookies.domainMatches" ETT__.$ True
+  | otherwise = ETT__.t "Network.HTTP.Client.Cookies.domainMatches" ETT__.$ False
   where difference = BS.take (BS.length string - BS.length domainString) string
         string = CI.foldCase string'
         domainString = CI.foldCase domainString'
@@ -69,37 +70,37 @@ domainMatches string' domainString'
 -- in section 5.1.4
 defaultPath :: Req.Request   -> BS.ByteString
 defaultPath req
-  | BS.null uri_path = "/"
-  | BS.singleton (BS.head uri_path) /= "/" = "/"
-  | BS.count slash uri_path <= 1 = "/"
-  | otherwise = BS.reverse $ BS.tail $ BS.dropWhile (/= slash) $ BS.reverse uri_path
+  | BS.null uri_path = ETT__.t "Network.HTTP.Client.Cookies.defaultPath" ETT__.$ "/"
+  | BS.singleton (BS.head uri_path) /= "/" = ETT__.t "Network.HTTP.Client.Cookies.defaultPath" ETT__.$ "/"
+  | BS.count slash uri_path <= 1 = ETT__.t "Network.HTTP.Client.Cookies.defaultPath" ETT__.$ "/"
+  | otherwise = ETT__.t "Network.HTTP.Client.Cookies.defaultPath" ETT__.$ BS.reverse $ BS.tail $ BS.dropWhile (/= slash) $ BS.reverse uri_path
   where uri_path = Req.path req
 
 -- | This corresponds to the subcomponent algorithm entitled \"Path-Match\" detailed
 -- in section 5.1.4
 pathMatches :: BS.ByteString -> BS.ByteString -> Bool
 pathMatches requestPath cookiePath
-  | cookiePath == path' = True
-  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.last cookiePath) == "/" = True
-  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.head remainder)  == "/" = True
-  | otherwise = False
+  | cookiePath == path' = ETT__.t "Network.HTTP.Client.Cookies.pathMatches" ETT__.$ True
+  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.last cookiePath) == "/" = ETT__.t "Network.HTTP.Client.Cookies.pathMatches" ETT__.$ True
+  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.head remainder)  == "/" = ETT__.t "Network.HTTP.Client.Cookies.pathMatches" ETT__.$ True
+  | otherwise = ETT__.t "Network.HTTP.Client.Cookies.pathMatches" ETT__.$ False
   where remainder = BS.drop (BS.length cookiePath) requestPath
         path' = case S8.uncons requestPath of
                  Just ('/', _) -> requestPath
                  _             -> '/' `S8.cons` requestPath
 
 createCookieJar :: [Cookie] -> CookieJar
-createCookieJar = CJ
+createCookieJar = ETT__.t "Network.HTTP.Client.Cookies.createCookieJar" ETT__.$ CJ
 
 destroyCookieJar :: CookieJar -> [Cookie]
-destroyCookieJar = expose
+destroyCookieJar = ETT__.t "Network.HTTP.Client.Cookies.destroyCookieJar" ETT__.$ expose
 
 insertIntoCookieJar :: Cookie -> CookieJar -> CookieJar
-insertIntoCookieJar cookie cookie_jar' = CJ $ cookie : cookie_jar
+insertIntoCookieJar cookie cookie_jar' = ETT__.t "Network.HTTP.Client.Cookies.insertIntoCookieJar" ETT__.$ CJ $ cookie : cookie_jar
   where cookie_jar = expose cookie_jar'
 
 removeExistingCookieFromCookieJar :: Cookie -> CookieJar -> (Maybe Cookie, CookieJar)
-removeExistingCookieFromCookieJar cookie cookie_jar' = (mc, CJ lc)
+removeExistingCookieFromCookieJar cookie cookie_jar' = ETT__.t "Network.HTTP.Client.Cookies.removeExistingCookieFromCookieJar" ETT__.$ (mc, CJ lc)
   where (mc, lc) = removeExistingCookieFromCookieJarHelper cookie (expose cookie_jar')
         removeExistingCookieFromCookieJarHelper _ [] = (Nothing, [])
         removeExistingCookieFromCookieJarHelper c (c' : cs)
@@ -109,10 +110,10 @@ removeExistingCookieFromCookieJar cookie cookie_jar' = (mc, CJ lc)
 
 -- | Are we configured to reject cookies for domains such as \"com\"?
 rejectPublicSuffixes :: Bool
-rejectPublicSuffixes = True
+rejectPublicSuffixes = ETT__.t "Network.HTTP.Client.Cookies.rejectPublicSuffixes" ETT__.$ True
 
 isPublicSuffix :: BS.ByteString -> Bool
-isPublicSuffix = PSL.isSuffix . decodeUtf8With lenientDecode
+isPublicSuffix = ETT__.t "Network.HTTP.Client.Cookies.isPublicSuffix" ETT__.$ PSL.isSuffix . decodeUtf8With lenientDecode
 
 -- | Algorithm described in \"Secure Contexts\", Section 3.1, \"Is origin potentially trustworthy?\"
 --
@@ -124,11 +125,11 @@ isPotentiallyTrustworthyOrigin :: Bool          -- ^ True if HTTPS
                                -> BS.ByteString -- ^ Host
                                -> Bool          -- ^ Whether or not the origin is potentially trustworthy
 isPotentiallyTrustworthyOrigin secure host
-  | secure = True             -- step 3
-  | isLoopbackAddr4 = True    -- step 4, part 1
-  | isLoopbackAddr6 = True    -- step 4, part 2
-  | isLoopbackHostname = True -- step 5
-  | otherwise = False
+  | secure = ETT__.t "Network.HTTP.Client.Cookies.isPotentiallyTrustworthyOrigin" ETT__.$ True             -- step 3
+  | isLoopbackAddr4 = ETT__.t "Network.HTTP.Client.Cookies.isPotentiallyTrustworthyOrigin" ETT__.$ True    -- step 4, part 1
+  | isLoopbackAddr6 = ETT__.t "Network.HTTP.Client.Cookies.isPotentiallyTrustworthyOrigin" ETT__.$ True    -- step 4, part 2
+  | isLoopbackHostname = ETT__.t "Network.HTTP.Client.Cookies.isPotentiallyTrustworthyOrigin" ETT__.$ True -- step 5
+  | otherwise = ETT__.t "Network.HTTP.Client.Cookies.isPotentiallyTrustworthyOrigin" ETT__.$ False
   where isLoopbackHostname =
                host == "localhost"
             || host == "localhost."
@@ -149,7 +150,7 @@ isPotentiallyTrustworthyOrigin secure host
 evictExpiredCookies :: CookieJar  -- ^ Input cookie jar
                     -> UTCTime    -- ^ Value that should be used as \"now\"
                     -> CookieJar  -- ^ Filtered cookie jar
-evictExpiredCookies cookie_jar' now = CJ $ filter (\ cookie -> cookie_expiry_time cookie >= now) $ expose cookie_jar'
+evictExpiredCookies cookie_jar' now = ETT__.t "Network.HTTP.Client.Cookies.evictExpiredCookies" ETT__.$ CJ $ filter (\ cookie -> cookie_expiry_time cookie >= now) $ expose cookie_jar'
 
 -- | This applies the 'computeCookieString' to a given Request
 insertCookiesIntoRequest :: Req.Request                 -- ^ The request to insert into
@@ -157,8 +158,8 @@ insertCookiesIntoRequest :: Req.Request                 -- ^ The request to inse
                          -> UTCTime                     -- ^ Value that should be used as \"now\"
                          -> (Req.Request, CookieJar)    -- ^ (Output request, Updated cookie jar (last-access-time is updated))
 insertCookiesIntoRequest request cookie_jar now
-  | BS.null cookie_string = (request, cookie_jar')
-  | otherwise = (request {Req.requestHeaders = cookie_header : purgedHeaders}, cookie_jar')
+  | BS.null cookie_string = ETT__.t "Network.HTTP.Client.Cookies.insertCookiesIntoRequest" ETT__.$ (request, cookie_jar')
+  | otherwise = ETT__.t "Network.HTTP.Client.Cookies.insertCookiesIntoRequest" ETT__.$ (request {Req.requestHeaders = cookie_header : purgedHeaders}, cookie_jar')
   where purgedHeaders = L.deleteBy (\ (a, _) (b, _) -> a == b) (CI.mk $ "Cookie", BS.empty) $ Req.requestHeaders request
         (cookie_string, cookie_jar') = computeCookieString request cookie_jar now True
         cookie_header = (CI.mk $ "Cookie", cookie_string)
@@ -169,7 +170,7 @@ computeCookieString :: Req.Request           -- ^ Input request
                     -> UTCTime               -- ^ Value that should be used as \"now\"
                     -> Bool                  -- ^ Whether or not this request is coming from an \"http\" source (not javascript or anything like that)
                     -> (BS.ByteString, CookieJar)  -- ^ (Contents of a \"Cookie\" header, Updated cookie jar (last-access-time is updated))
-computeCookieString request cookie_jar now is_http_api = (output_line, cookie_jar')
+computeCookieString request cookie_jar now is_http_api = ETT__.t "Network.HTTP.Client.Cookies.computeCookieString" ETT__.$ (output_line, cookie_jar')
   where matching_cookie cookie = condition1 && condition2 && condition3 && condition4
           where condition1
                   | cookie_host_only cookie = CI.foldCase (Req.host request) == CI.foldCase (cookie_domain cookie)
@@ -195,7 +196,7 @@ updateCookieJar :: Response a                   -- ^ Response received from serv
                 -> UTCTime                      -- ^ Value that should be used as \"now\"
                 -> CookieJar                    -- ^ Current cookie jar
                 -> (CookieJar, Response a)      -- ^ (Updated cookie jar with cookies from the Response, The response stripped of any \"Set-Cookie\" header)
-updateCookieJar response request now cookie_jar = (cookie_jar', response { responseHeaders = other_headers })
+updateCookieJar response request now cookie_jar = ETT__.t "Network.HTTP.Client.Cookies.updateCookieJar" ETT__.$ (cookie_jar', response { responseHeaders = other_headers })
   where (set_cookie_headers, other_headers) = L.partition ((== (CI.mk $ "Set-Cookie")) . fst) $ responseHeaders response
         set_cookie_data = map snd set_cookie_headers
         set_cookies = map parseSetCookie set_cookie_data
@@ -211,7 +212,7 @@ receiveSetCookie :: SetCookie      -- ^ The 'SetCookie' the cookie jar is receiv
                  -> Bool           -- ^ Whether or not this request is coming from an \"http\" source (not javascript or anything like that)
                  -> CookieJar      -- ^ Input cookie jar to modify
                  -> CookieJar      -- ^ Updated cookie jar
-receiveSetCookie set_cookie request now is_http_api cookie_jar = case (do
+receiveSetCookie set_cookie request now is_http_api cookie_jar = ETT__.t "Network.HTTP.Client.Cookies.receiveSetCookie" ETT__.$ case (do
   cookie <- generateCookie set_cookie request now is_http_api
   return $ insertCheckedCookie cookie cookie_jar is_http_api) of
   Just cj -> cj
@@ -222,7 +223,7 @@ insertCheckedCookie :: Cookie    -- ^ The 'SetCookie' the cookie jar is receivin
                     -> CookieJar -- ^ Input cookie jar to modify
                     -> Bool      -- ^ Whether or not this request is coming from an \"http\" source (not javascript or anything like that)
                     -> CookieJar -- ^ Updated (or not) cookie jar
-insertCheckedCookie c cookie_jar is_http_api = case (do
+insertCheckedCookie c cookie_jar is_http_api = ETT__.t "Network.HTTP.Client.Cookies.insertCheckedCookie" ETT__.$ case (do
   (cookie_jar', cookie') <- existanceTest c cookie_jar
   return $ insertIntoCookieJar cookie' cookie_jar') of
   Just cj -> cj
@@ -239,7 +240,7 @@ generateCookie :: SetCookie      -- ^ The 'SetCookie' we are encountering
                -> UTCTime        -- ^ Value that should be used as \"now\"
                -> Bool           -- ^ Whether or not this request is coming from an \"http\" source (not javascript or anything like that)
                -> Maybe Cookie   -- ^ The optional output cookie
-generateCookie set_cookie request now is_http_api = do
+generateCookie set_cookie request now is_http_api = ETT__.t "Network.HTTP.Client.Cookies.generateCookie" ETT__.$ do
           domain_sanitized <- sanitizeDomain $ step4 (setCookieDomain set_cookie)
           domain_intermediate <- step5 domain_sanitized
           (domain_final, host_only') <- step6 domain_intermediate

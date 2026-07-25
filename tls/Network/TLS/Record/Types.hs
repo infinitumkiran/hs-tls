@@ -43,6 +43,7 @@ import Network.TLS.Struct
 import Network.TLS.Imports
 import Network.TLS.Record.State
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | Represent a TLS record.
 data Record a = Record !ProtocolType !Version !(Fragment a) deriving (Show,Eq)
@@ -54,44 +55,44 @@ data Compressed
 data Ciphertext
 
 fragmentPlaintext :: ByteString -> Fragment Plaintext
-fragmentPlaintext bytes = Fragment bytes
+fragmentPlaintext bytes = ETT__.t "Network.TLS.Record.Types.fragmentPlaintext" ETT__.$ Fragment bytes
 
 fragmentCompressed :: ByteString -> Fragment Compressed
-fragmentCompressed bytes = Fragment bytes
+fragmentCompressed bytes = ETT__.t "Network.TLS.Record.Types.fragmentCompressed" ETT__.$ Fragment bytes
 
 fragmentCiphertext :: ByteString -> Fragment Ciphertext
-fragmentCiphertext bytes = Fragment bytes
+fragmentCiphertext bytes = ETT__.t "Network.TLS.Record.Types.fragmentCiphertext" ETT__.$ Fragment bytes
 
 onRecordFragment :: Record a -> (Fragment a -> RecordM (Fragment b)) -> RecordM (Record b)
-onRecordFragment (Record pt ver frag) f = Record pt ver <$> f frag
+onRecordFragment (Record pt ver frag) f = ETT__.tm "Network.TLS.Record.Types.onRecordFragment" ETT__.$ Record pt ver <$> f frag
 
 fragmentMap :: (ByteString -> RecordM ByteString) -> Fragment a -> RecordM (Fragment b)
-fragmentMap f (Fragment b) = Fragment <$> f b
+fragmentMap f (Fragment b) = ETT__.tm "Network.TLS.Record.Types.fragmentMap" ETT__.$ Fragment <$> f b
 
 -- | turn a plaintext record into a compressed record using the compression function supplied
 fragmentCompress :: (ByteString -> RecordM ByteString) -> Fragment Plaintext -> RecordM (Fragment Compressed)
-fragmentCompress f = fragmentMap f
+fragmentCompress f = ETT__.t "Network.TLS.Record.Types.fragmentCompress" ETT__.$ fragmentMap f
 
 -- | turn a compressed record into a ciphertext record using the cipher function supplied
 fragmentCipher :: (ByteString -> RecordM ByteString) -> Fragment Compressed -> RecordM (Fragment Ciphertext)
-fragmentCipher f = fragmentMap f
+fragmentCipher f = ETT__.t "Network.TLS.Record.Types.fragmentCipher" ETT__.$ fragmentMap f
 
 -- | turn a ciphertext fragment into a compressed fragment using the cipher function supplied
 fragmentUncipher :: (ByteString -> RecordM ByteString) -> Fragment Ciphertext -> RecordM (Fragment Compressed)
-fragmentUncipher f = fragmentMap f
+fragmentUncipher f = ETT__.t "Network.TLS.Record.Types.fragmentUncipher" ETT__.$ fragmentMap f
 
 -- | turn a compressed fragment into a plaintext fragment using the decompression function supplied
 fragmentUncompress :: (ByteString -> RecordM ByteString) -> Fragment Compressed -> RecordM (Fragment Plaintext)
-fragmentUncompress f = fragmentMap f
+fragmentUncompress f = ETT__.t "Network.TLS.Record.Types.fragmentUncompress" ETT__.$ fragmentMap f
 
 -- | turn a record into an header and bytes
 recordToRaw :: Record a -> (Header, ByteString)
-recordToRaw (Record pt ver (Fragment bytes)) = (Header pt ver (fromIntegral $ B.length bytes), bytes)
+recordToRaw (Record pt ver (Fragment bytes)) = ETT__.t "Network.TLS.Record.Types.recordToRaw" ETT__.$ (Header pt ver (fromIntegral $ B.length bytes), bytes)
 
 -- | turn a header and a fragment into a record
 rawToRecord :: Header -> Fragment a -> Record a
-rawToRecord (Header pt ver _) fragment = Record pt ver fragment
+rawToRecord (Header pt ver _) fragment = ETT__.t "Network.TLS.Record.Types.rawToRecord" ETT__.$ Record pt ver fragment
 
 -- | turn a record into a header
 recordToHeader :: Record a -> Header
-recordToHeader (Record pt ver (Fragment bytes)) = Header pt ver (fromIntegral $ B.length bytes)
+recordToHeader (Record pt ver (Fragment bytes)) = ETT__.t "Network.TLS.Record.Types.recordToHeader" ETT__.$ Header pt ver (fromIntegral $ B.length bytes)

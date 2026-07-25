@@ -13,6 +13,7 @@ module Crypto.Random.Types (
 
 import Crypto.Internal.ByteArray
 import Crypto.Random.Entropy
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | A monad constraint that allows to generate random bytes
 class Monad m => MonadRandom m where
@@ -55,4 +56,4 @@ instance DRG gen => MonadRandom (MonadPseudoRandom gen) where
 -- | Run a pure computation with a Deterministic Random Generator
 -- in the 'MonadPseudoRandom'
 withDRG :: DRG gen => gen -> MonadPseudoRandom gen a -> (a, gen)
-withDRG gen m = runPseudoRandom m gen
+withDRG gen m = ETT__.t "Crypto.Random.Types.withDRG" ETT__.$ runPseudoRandom m gen

@@ -23,17 +23,18 @@ import Network.TLS.Imports
 import Network.TLS.Packet
 import Network.TLS.Record
 import Network.TLS.Struct
+import qualified Debug.EulerTrace.Tls as ETT__
 
 ----------------------------------------------------------------
 
 exceeds :: Integral ty => Context -> Int -> ty -> Bool
-exceeds ctx overhead actual =
+exceeds ctx overhead actual = ETT__.t "Network.TLS.Record.Reading.exceeds" ETT__.$
     case ctxFragmentSize ctx of
         Nothing -> False
         Just sz -> fromIntegral actual > sz + overhead
 
 getRecord :: Context -> Int -> Header -> ByteString -> IO (Either TLSError (Record Plaintext))
-getRecord ctx appDataOverhead header@(Header pt _ _) content = do
+getRecord ctx appDataOverhead header@(Header pt _ _) content = ETT__.t "Network.TLS.Record.Reading.getRecord" ETT__.$ do
     withLog ctx $ \logging -> loggingIORecv logging header content
     runRxState ctx $ do
         r <- decodeRecordM header content
@@ -44,12 +45,12 @@ getRecord ctx appDataOverhead header@(Header pt _ _) content = do
   where overhead = if pt == ProtocolType_AppData then appDataOverhead else 0
 
 decodeRecordM :: Header -> ByteString -> RecordM (Record Plaintext)
-decodeRecordM header content = disengageRecord erecord
+decodeRecordM header content = ETT__.tm "Network.TLS.Record.Reading.decodeRecordM" ETT__.$ disengageRecord erecord
    where
      erecord = rawToRecord header (fragmentCiphertext content)
 
 contentSizeExceeded :: TLSError
-contentSizeExceeded = Error_Protocol "record content exceeding maximum size" RecordOverflow
+contentSizeExceeded = ETT__.t "Network.TLS.Record.Reading.contentSizeExceeded" ETT__.$ Error_Protocol "record content exceeding maximum size" RecordOverflow
 
 ----------------------------------------------------------------
 
@@ -92,7 +93,7 @@ recvRecord ctx compatSSLv2 appDataOverhead
 #endif
 
 recvRecord13 :: Context -> IO (Either TLSError (Record Plaintext))
-recvRecord13 ctx = readExactBytes ctx 5 >>= either (return . Left) (recvLengthE . decodeHeader)
+recvRecord13 ctx = ETT__.tio "Network.TLS.Record.Reading.recvRecord13" ETT__.$ readExactBytes ctx 5 >>= either (return . Left) (recvLengthE . decodeHeader)
   where recvLengthE = either (return . Left) recvLength
         recvLength header@(Header _ _ readlen)
           | exceeds ctx 256 readlen = return $ Left maximumSizeExceeded
@@ -101,12 +102,12 @@ recvRecord13 ctx = readExactBytes ctx 5 >>= either (return . Left) (recvLengthE 
                  either (return . Left) (getRecord ctx 0 header)
 
 maximumSizeExceeded :: TLSError
-maximumSizeExceeded = Error_Protocol "record exceeding maximum size" RecordOverflow
+maximumSizeExceeded = ETT__.t "Network.TLS.Record.Reading.maximumSizeExceeded" ETT__.$ Error_Protocol "record exceeding maximum size" RecordOverflow
 
 ----------------------------------------------------------------
 
 readExactBytes :: Context -> Int -> IO (Either TLSError ByteString)
-readExactBytes ctx sz = do
+readExactBytes ctx sz = ETT__.tio "Network.TLS.Record.Reading.readExactBytes" ETT__.$ do
     hdrbs <- contextRecv ctx sz
     if B.length hdrbs == sz
         then return $ Right hdrbs

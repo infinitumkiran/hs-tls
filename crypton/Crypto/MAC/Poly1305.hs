@@ -36,6 +36,7 @@ import Crypto.Internal.DeepSeq
 import Data.Word
 import Foreign.C.Types
 import Foreign.Ptr
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Poly1305 State
 --
@@ -57,8 +58,8 @@ newtype Auth = Auth Bytes
 
 authTag :: ByteArrayAccess b => b -> CryptoFailable Auth
 authTag b
-    | B.length b /= 16 = CryptoFailed $ CryptoError_AuthenticationTagSizeInvalid
-    | otherwise = CryptoPassed $ Auth $ B.convert b
+    | B.length b /= 16 = ETT__.t "Crypto.MAC.Poly1305.authTag" ETT__.$ CryptoFailed $ CryptoError_AuthenticationTagSizeInvalid
+    | otherwise = ETT__.t "Crypto.MAC.Poly1305.authTag" ETT__.$ CryptoPassed $ Auth $ B.convert b
 
 instance Eq Auth where
     (Auth a1) == (Auth a2) = B.constEq a1 a2
@@ -78,22 +79,22 @@ initialize
     => key
     -> CryptoFailable State
 initialize key
-    | B.length key /= 32 = CryptoFailed $ CryptoError_MacKeyInvalid
-    | otherwise = CryptoPassed $ State $ B.allocAndFreeze 84 $ \ctxPtr ->
+    | B.length key /= 32 = ETT__.t "Crypto.MAC.Poly1305.initialize" ETT__.$ CryptoFailed $ CryptoError_MacKeyInvalid
+    | otherwise = ETT__.t "Crypto.MAC.Poly1305.initialize" ETT__.$ CryptoPassed $ State $ B.allocAndFreeze 84 $ \ctxPtr ->
         B.withByteArray key $ \keyPtr ->
             c_poly1305_init (castPtr ctxPtr) keyPtr
 {-# NOINLINE initialize #-}
 
 -- | update a context with a bytestring
 update :: ByteArrayAccess ba => State -> ba -> State
-update (State prevCtx) d = State $ B.copyAndFreeze prevCtx $ \ctxPtr ->
+update (State prevCtx) d = ETT__.t "Crypto.MAC.Poly1305.update" ETT__.$ State $ B.copyAndFreeze prevCtx $ \ctxPtr ->
     B.withByteArray d $ \dataPtr ->
         c_poly1305_update (castPtr ctxPtr) dataPtr (fromIntegral $ B.length d)
 {-# NOINLINE update #-}
 
 -- | updates a context with multiples bytestring
 updates :: ByteArrayAccess ba => State -> [ba] -> State
-updates (State prevCtx) d = State $ B.copyAndFreeze prevCtx (loop d)
+updates (State prevCtx) d = ETT__.t "Crypto.MAC.Poly1305.updates" ETT__.$ State $ B.copyAndFreeze prevCtx (loop d)
   where
     loop [] _ = return ()
     loop (x : xs) ctxPtr = do
@@ -103,7 +104,7 @@ updates (State prevCtx) d = State $ B.copyAndFreeze prevCtx (loop d)
 
 -- | finalize the context into a digest bytestring
 finalize :: State -> Auth
-finalize (State prevCtx) = Auth $ B.allocAndFreeze 16 $ \dst -> do
+finalize (State prevCtx) = ETT__.t "Crypto.MAC.Poly1305.finalize" ETT__.$ Auth $ B.allocAndFreeze 16 $ \dst -> do
     _ <-
         B.copy prevCtx (\ctxPtr -> c_poly1305_finalize dst (castPtr ctxPtr))
             :: IO ScrubbedBytes
@@ -113,8 +114,8 @@ finalize (State prevCtx) = Auth $ B.allocAndFreeze 16 $ \dst -> do
 -- | One-pass authorization creation
 auth :: (ByteArrayAccess key, ByteArrayAccess ba) => key -> ba -> Auth
 auth key d
-    | B.length key /= 32 = error "Poly1305: key length expected 32 bytes"
-    | otherwise = Auth $ B.allocAndFreeze 16 $ \dst -> do
+    | B.length key /= 32 = ETT__.t "Crypto.MAC.Poly1305.auth" ETT__.$ error "Poly1305: key length expected 32 bytes"
+    | otherwise = ETT__.t "Crypto.MAC.Poly1305.auth" ETT__.$ Auth $ B.allocAndFreeze 16 $ \dst -> do
         _ <- B.alloc 84 (onCtx dst) :: IO ScrubbedBytes
         return ()
   where

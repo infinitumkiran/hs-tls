@@ -90,34 +90,35 @@ import Crypto.Cipher.Types hiding (Cipher, cipherName)
 import Crypto.Error
 import qualified Crypto.MAC.Poly1305 as Poly1305
 import Crypto.System.CPU
+import qualified Debug.EulerTrace.Tls as ETT__
 
 takelast :: Int -> B.ByteString -> B.ByteString
-takelast i b = B.drop (B.length b - i) b
+takelast i b = ETT__.t "Network.TLS.Extra.Cipher.takelast" ETT__.$ B.drop (B.length b - i) b
 
 aes128cbc :: BulkDirection -> BulkKey -> BulkBlock
-aes128cbc BulkEncrypt key =
+aes128cbc BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes128cbc" ETT__.$
     let ctx = noFail (cipherInit key) :: AES128
      in (\iv input -> let output = cbcEncrypt ctx (makeIV_ iv) input in (output, takelast 16 output))
-aes128cbc BulkDecrypt key =
+aes128cbc BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes128cbc" ETT__.$
     let ctx = noFail (cipherInit key) :: AES128
      in (\iv input -> let output = cbcDecrypt ctx (makeIV_ iv) input in (output, takelast 16 input))
 
 aes256cbc :: BulkDirection -> BulkKey -> BulkBlock
-aes256cbc BulkEncrypt key =
+aes256cbc BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes256cbc" ETT__.$
     let ctx = noFail (cipherInit key) :: AES256
      in (\iv input -> let output = cbcEncrypt ctx (makeIV_ iv) input in (output, takelast 16 output))
-aes256cbc BulkDecrypt key =
+aes256cbc BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes256cbc" ETT__.$
     let ctx = noFail (cipherInit key) :: AES256
      in (\iv input -> let output = cbcDecrypt ctx (makeIV_ iv) input in (output, takelast 16 input))
 
 aes128ccm :: BulkDirection -> BulkKey -> BulkAEAD
-aes128ccm BulkEncrypt key =
+aes128ccm BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes128ccm" ETT__.$
     let ctx = noFail (cipherInit key) :: AES128
      in (\nonce d ad ->
             let mode = AEAD_CCM (B.length d) CCM_M16 CCM_L3
                 aeadIni = noFail (aeadInit mode ctx nonce)
              in swap $ aeadSimpleEncrypt aeadIni ad d 16)
-aes128ccm BulkDecrypt key =
+aes128ccm BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes128ccm" ETT__.$
     let ctx = noFail (cipherInit key) :: AES128
      in (\nonce d ad ->
             let mode = AEAD_CCM (B.length d) CCM_M16 CCM_L3
@@ -125,13 +126,13 @@ aes128ccm BulkDecrypt key =
              in simpleDecrypt aeadIni ad d 16)
 
 aes128ccm8 :: BulkDirection -> BulkKey -> BulkAEAD
-aes128ccm8 BulkEncrypt key =
+aes128ccm8 BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes128ccm8" ETT__.$
     let ctx = noFail (cipherInit key) :: AES128
      in (\nonce d ad ->
             let mode = AEAD_CCM (B.length d) CCM_M8 CCM_L3
                 aeadIni = noFail (aeadInit mode ctx nonce)
              in swap $ aeadSimpleEncrypt aeadIni ad d 8)
-aes128ccm8 BulkDecrypt key =
+aes128ccm8 BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes128ccm8" ETT__.$
     let ctx = noFail (cipherInit key) :: AES128
      in (\nonce d ad ->
             let mode = AEAD_CCM (B.length d) CCM_M8 CCM_L3
@@ -139,25 +140,25 @@ aes128ccm8 BulkDecrypt key =
              in simpleDecrypt aeadIni ad d 8)
 
 aes128gcm :: BulkDirection -> BulkKey -> BulkAEAD
-aes128gcm BulkEncrypt key =
+aes128gcm BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes128gcm" ETT__.$
     let ctx = noFail (cipherInit key) :: AES128
      in (\nonce d ad ->
             let aeadIni = noFail (aeadInit AEAD_GCM ctx nonce)
              in swap $ aeadSimpleEncrypt aeadIni ad d 16)
-aes128gcm BulkDecrypt key =
+aes128gcm BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes128gcm" ETT__.$
     let ctx = noFail (cipherInit key) :: AES128
      in (\nonce d ad ->
             let aeadIni = noFail (aeadInit AEAD_GCM ctx nonce)
              in simpleDecrypt aeadIni ad d 16)
 
 aes256ccm :: BulkDirection -> BulkKey -> BulkAEAD
-aes256ccm BulkEncrypt key =
+aes256ccm BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes256ccm" ETT__.$
     let ctx = noFail (cipherInit key) :: AES256
      in (\nonce d ad ->
             let mode = AEAD_CCM (B.length d) CCM_M16 CCM_L3
                 aeadIni = noFail (aeadInit mode ctx nonce)
              in swap $ aeadSimpleEncrypt aeadIni ad d 16)
-aes256ccm BulkDecrypt key =
+aes256ccm BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes256ccm" ETT__.$
     let ctx = noFail (cipherInit key) :: AES256
      in (\nonce d ad ->
             let mode = AEAD_CCM (B.length d) CCM_M16 CCM_L3
@@ -165,13 +166,13 @@ aes256ccm BulkDecrypt key =
              in simpleDecrypt aeadIni ad d 16)
 
 aes256ccm8 :: BulkDirection -> BulkKey -> BulkAEAD
-aes256ccm8 BulkEncrypt key =
+aes256ccm8 BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes256ccm8" ETT__.$
     let ctx = noFail (cipherInit key) :: AES256
      in (\nonce d ad ->
             let mode = AEAD_CCM (B.length d) CCM_M8 CCM_L3
                 aeadIni = noFail (aeadInit mode ctx nonce)
              in swap $ aeadSimpleEncrypt aeadIni ad d 8)
-aes256ccm8 BulkDecrypt key =
+aes256ccm8 BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes256ccm8" ETT__.$
     let ctx = noFail (cipherInit key) :: AES256
      in (\nonce d ad ->
             let mode = AEAD_CCM (B.length d) CCM_M8 CCM_L3
@@ -179,57 +180,57 @@ aes256ccm8 BulkDecrypt key =
              in simpleDecrypt aeadIni ad d 8)
 
 aes256gcm :: BulkDirection -> BulkKey -> BulkAEAD
-aes256gcm BulkEncrypt key =
+aes256gcm BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes256gcm" ETT__.$
     let ctx = noFail (cipherInit key) :: AES256
      in (\nonce d ad ->
             let aeadIni = noFail (aeadInit AEAD_GCM ctx nonce)
              in swap $ aeadSimpleEncrypt aeadIni ad d 16)
-aes256gcm BulkDecrypt key =
+aes256gcm BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.aes256gcm" ETT__.$
     let ctx = noFail (cipherInit key) :: AES256
      in (\nonce d ad ->
             let aeadIni = noFail (aeadInit AEAD_GCM ctx nonce)
              in simpleDecrypt aeadIni ad d 16)
 
 simpleDecrypt :: AEAD cipher -> B.ByteString -> B.ByteString -> Int -> (B.ByteString, AuthTag)
-simpleDecrypt aeadIni header input taglen = (output, tag)
+simpleDecrypt aeadIni header input taglen = ETT__.t "Network.TLS.Extra.Cipher.simpleDecrypt" ETT__.$ (output, tag)
   where
         aead                = aeadAppendHeader aeadIni header
         (output, aeadFinal) = aeadDecrypt aead input
         tag                 = aeadFinalize aeadFinal taglen
 
 noFail :: CryptoFailable a -> a
-noFail = throwCryptoError
+noFail = ETT__.t "Network.TLS.Extra.Cipher.noFail" ETT__.$ throwCryptoError
 
 makeIV_ :: BlockCipher a => B.ByteString -> IV a
-makeIV_ = fromMaybe (error "makeIV_") . makeIV
+makeIV_ = ETT__.t "Network.TLS.Extra.Cipher.makeIV_" ETT__.$ fromMaybe (error "makeIV_") . makeIV
 
 tripledes_ede :: BulkDirection -> BulkKey -> BulkBlock
-tripledes_ede BulkEncrypt key =
+tripledes_ede BulkEncrypt key = ETT__.t "Network.TLS.Extra.Cipher.tripledes_ede" ETT__.$
     let ctx = noFail $ cipherInit key
      in (\iv input -> let output = cbcEncrypt ctx (tripledes_iv iv) input in (output, takelast 8 output))
-tripledes_ede BulkDecrypt key =
+tripledes_ede BulkDecrypt key = ETT__.t "Network.TLS.Extra.Cipher.tripledes_ede" ETT__.$
     let ctx = noFail $ cipherInit key
      in (\iv input -> let output = cbcDecrypt ctx (tripledes_iv iv) input in (output, takelast 8 input))
 
 tripledes_iv :: BulkIV -> IV DES_EDE3
-tripledes_iv iv = fromMaybe (error "tripledes cipher iv internal error") $ makeIV iv
+tripledes_iv iv = ETT__.t "Network.TLS.Extra.Cipher.tripledes_iv" ETT__.$ fromMaybe (error "tripledes cipher iv internal error") $ makeIV iv
 
 rc4 :: BulkDirection -> BulkKey -> BulkStream
-rc4 _ bulkKey = BulkStream (combineRC4 $ RC4.initialize bulkKey)
+rc4 _ bulkKey = ETT__.t "Network.TLS.Extra.Cipher.rc4" ETT__.$ BulkStream (combineRC4 $ RC4.initialize bulkKey)
   where
     combineRC4 ctx input =
         let (ctx', output) = RC4.combine ctx input
          in (output, BulkStream (combineRC4 ctx'))
 
 chacha20poly1305 :: BulkDirection -> BulkKey -> BulkAEAD
-chacha20poly1305 BulkEncrypt key nonce =
+chacha20poly1305 BulkEncrypt key nonce = ETT__.t "Network.TLS.Extra.Cipher.chacha20poly1305" ETT__.$
     let st = noFail (ChaChaPoly1305.nonce12 nonce >>= ChaChaPoly1305.initialize key)
      in (\input ad ->
             let st2 = ChaChaPoly1305.finalizeAAD (ChaChaPoly1305.appendAAD ad st)
                 (output, st3) = ChaChaPoly1305.encrypt input st2
                 Poly1305.Auth tag = ChaChaPoly1305.finalize st3
             in (output, AuthTag tag))
-chacha20poly1305 BulkDecrypt key nonce =
+chacha20poly1305 BulkDecrypt key nonce = ETT__.t "Network.TLS.Extra.Cipher.chacha20poly1305" ETT__.$
     let st = noFail (ChaChaPoly1305.nonce12 nonce >>= ChaChaPoly1305.initialize key)
      in (\input ad ->
             let st2 = ChaChaPoly1305.finalizeAAD (ChaChaPoly1305.appendAAD ad st)
@@ -244,7 +245,7 @@ data CipherSet
 -- Preference between AEAD ciphers having equivalent properties is based on
 -- hardware-acceleration support in the crypton implementation.
 sortOptimized :: [CipherSet] -> [Cipher]
-sortOptimized = concatMap f
+sortOptimized = ETT__.t "Network.TLS.Extra.Cipher.sortOptimized" ETT__.$ concatMap f
   where
     f (SetAead gcm chacha ccm)
         | AESNI  `notElem` processorOptions = chacha ++ gcm ++ ccm
@@ -254,7 +255,7 @@ sortOptimized = concatMap f
 
 -- Order which is deterministic but not optimized for the CPU.
 sortDeterministic :: [CipherSet] -> [Cipher]
-sortDeterministic = concatMap f
+sortDeterministic = ETT__.t "Network.TLS.Extra.Cipher.sortDeterministic" ETT__.$ concatMap f
   where
     f (SetAead gcm chacha ccm) = gcm ++ chacha ++ ccm
     f (SetOther ciphers) = ciphers
@@ -269,15 +270,15 @@ sortDeterministic = concatMap f
 -- hardware-acceleration support.  If this dynamic runtime behavior is not
 -- desired, use 'ciphersuite_default_det' instead.
 ciphersuite_default :: [Cipher]
-ciphersuite_default = sortOptimized sets_default
+ciphersuite_default = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_default" ETT__.$ sortOptimized sets_default
 
 -- | Same as 'ciphersuite_default', but using deterministic preference not
 -- influenced by the CPU.
 ciphersuite_default_det :: [Cipher]
-ciphersuite_default_det = sortDeterministic sets_default
+ciphersuite_default_det = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_default_det" ETT__.$ sortDeterministic sets_default
 
 sets_default :: [CipherSet]
-sets_default =
+sets_default = ETT__.t "Network.TLS.Extra.Cipher.sets_default" ETT__.$
     [        -- First the PFS + GCM + SHA2 ciphers
       SetAead
         [ cipher_ECDHE_ECDSA_AES128GCM_SHA256, cipher_ECDHE_ECDSA_AES256GCM_SHA384 ]
@@ -332,16 +333,16 @@ sets_default =
 -- hardware-acceleration support.  If this dynamic runtime behavior is not
 -- desired, use 'ciphersuite_all_det' instead.
 ciphersuite_all :: [Cipher]
-ciphersuite_all = ciphersuite_default ++ complement_all
+ciphersuite_all = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_all" ETT__.$ ciphersuite_default ++ complement_all
 
 {-# WARNING ciphersuite_all_det "This ciphersuite list contains RC4. Use ciphersuite_strong_det or ciphersuite_default_det instead." #-}
 -- | Same as 'ciphersuite_all', but using deterministic preference not
 -- influenced by the CPU.
 ciphersuite_all_det :: [Cipher]
-ciphersuite_all_det = ciphersuite_default_det ++ complement_all
+ciphersuite_all_det = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_all_det" ETT__.$ ciphersuite_default_det ++ complement_all
 
 complement_all :: [Cipher]
-complement_all =
+complement_all = ETT__.t "Network.TLS.Extra.Cipher.complement_all" ETT__.$
     [ cipher_ECDHE_ECDSA_AES128CCM8_SHA256, cipher_ECDHE_ECDSA_AES256CCM8_SHA256
     , cipher_DHE_RSA_AES128CCM8_SHA256, cipher_DHE_RSA_AES256CCM8_SHA256
     , cipher_DHE_DSS_AES256_SHA1, cipher_DHE_DSS_AES128_SHA1
@@ -354,7 +355,7 @@ complement_all =
 {-# DEPRECATED ciphersuite_medium "Use ciphersuite_strong or ciphersuite_default instead." #-}
 -- | list of medium ciphers.
 ciphersuite_medium :: [Cipher]
-ciphersuite_medium = [ cipher_RC4_128_SHA1
+ciphersuite_medium = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_medium" ETT__.$ [ cipher_RC4_128_SHA1
                      , cipher_AES128_SHA1
                      ]
 
@@ -366,15 +367,15 @@ ciphersuite_medium = [ cipher_RC4_128_SHA1
 -- hardware-acceleration support.  If this dynamic runtime behavior is not
 -- desired, use 'ciphersuite_strong_det' instead.
 ciphersuite_strong :: [Cipher]
-ciphersuite_strong = sortOptimized sets_strong
+ciphersuite_strong = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_strong" ETT__.$ sortOptimized sets_strong
 
 -- | Same as 'ciphersuite_strong', but using deterministic preference not
 -- influenced by the CPU.
 ciphersuite_strong_det :: [Cipher]
-ciphersuite_strong_det = sortDeterministic sets_strong
+ciphersuite_strong_det = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_strong_det" ETT__.$ sortDeterministic sets_strong
 
 sets_strong :: [CipherSet]
-sets_strong =
+sets_strong = ETT__.t "Network.TLS.Extra.Cipher.sets_strong" ETT__.$
     [        -- If we have PFS + AEAD + SHA2, then allow AES128, else just 256
       SetAead [ cipher_ECDHE_ECDSA_AES256GCM_SHA384 ]
               [ cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256 ]
@@ -426,7 +427,7 @@ sets_strong =
 -- | DHE-RSA cipher suite.  This only includes ciphers bound specifically to
 -- DHE-RSA so TLS 1.3 ciphers must be added separately.
 ciphersuite_dhe_rsa :: [Cipher]
-ciphersuite_dhe_rsa = [ cipher_DHE_RSA_AES256GCM_SHA384, cipher_DHE_RSA_AES256CCM_SHA256
+ciphersuite_dhe_rsa = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_dhe_rsa" ETT__.$ [ cipher_DHE_RSA_AES256GCM_SHA384, cipher_DHE_RSA_AES256CCM_SHA256
                       , cipher_DHE_RSA_CHACHA20POLY1305_SHA256
                       , cipher_DHE_RSA_AES128GCM_SHA256, cipher_DHE_RSA_AES128CCM_SHA256
                       , cipher_DHE_RSA_AES256_SHA256, cipher_DHE_RSA_AES128_SHA256
@@ -434,15 +435,15 @@ ciphersuite_dhe_rsa = [ cipher_DHE_RSA_AES256GCM_SHA384, cipher_DHE_RSA_AES256CC
                       ]
 
 ciphersuite_dhe_dss :: [Cipher]
-ciphersuite_dhe_dss = [cipher_DHE_DSS_AES256_SHA1, cipher_DHE_DSS_AES128_SHA1, cipher_DHE_DSS_RC4_SHA1]
+ciphersuite_dhe_dss = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_dhe_dss" ETT__.$ [cipher_DHE_DSS_AES256_SHA1, cipher_DHE_DSS_AES128_SHA1, cipher_DHE_DSS_RC4_SHA1]
 
 -- | all unencrypted ciphers, do not use on insecure network.
 ciphersuite_unencrypted :: [Cipher]
-ciphersuite_unencrypted = [cipher_null_MD5, cipher_null_SHA1]
+ciphersuite_unencrypted = ETT__.t "Network.TLS.Extra.Cipher.ciphersuite_unencrypted" ETT__.$ [cipher_null_MD5, cipher_null_SHA1]
 
 bulk_null, bulk_rc4, bulk_aes128, bulk_aes256, bulk_tripledes_ede, bulk_aes128gcm, bulk_aes256gcm :: Bulk
 bulk_aes128ccm, bulk_aes128ccm8, bulk_aes256ccm, bulk_aes256ccm8, bulk_chacha20poly1305 :: Bulk
-bulk_null = Bulk
+bulk_null = ETT__.t "Network.TLS.Extra.Cipher.bulk_null" ETT__.$ Bulk
     { bulkName         = "null"
     , bulkKeySize      = 0
     , bulkIVSize       = 0
@@ -454,7 +455,7 @@ bulk_null = Bulk
   where
     passThrough _ _ = BulkStream go where go inp = (inp, BulkStream go)
 
-bulk_rc4 = Bulk
+bulk_rc4 = ETT__.t "Network.TLS.Extra.Cipher.bulk_rc4" ETT__.$ Bulk
     { bulkName         = "RC4-128"
     , bulkKeySize      = 16
     , bulkIVSize       = 0
@@ -464,7 +465,7 @@ bulk_rc4 = Bulk
     , bulkF            = BulkStreamF rc4
     }
 
-bulk_aes128 = Bulk
+bulk_aes128 = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes128" ETT__.$ Bulk
     { bulkName         = "AES128"
     , bulkKeySize      = 16
     , bulkIVSize       = 16
@@ -474,7 +475,7 @@ bulk_aes128 = Bulk
     , bulkF            = BulkBlockF aes128cbc
     }
 
-bulk_aes128ccm = Bulk
+bulk_aes128ccm = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes128ccm" ETT__.$ Bulk
     { bulkName         = "AES128CCM"
     , bulkKeySize      = 16 -- RFC 5116 Sec 5.1: K_LEN
     , bulkIVSize       = 4  -- RFC 6655 CCMNonce.salt, fixed_iv_length
@@ -484,7 +485,7 @@ bulk_aes128ccm = Bulk
     , bulkF            = BulkAeadF aes128ccm
     }
 
-bulk_aes128ccm8 = Bulk
+bulk_aes128ccm8 = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes128ccm8" ETT__.$ Bulk
     { bulkName         = "AES128CCM8"
     , bulkKeySize      = 16 -- RFC 5116 Sec 5.1: K_LEN
     , bulkIVSize       = 4  -- RFC 6655 CCMNonce.salt, fixed_iv_length
@@ -494,7 +495,7 @@ bulk_aes128ccm8 = Bulk
     , bulkF            = BulkAeadF aes128ccm8
     }
 
-bulk_aes128gcm = Bulk
+bulk_aes128gcm = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes128gcm" ETT__.$ Bulk
     { bulkName         = "AES128GCM"
     , bulkKeySize      = 16 -- RFC 5116 Sec 5.1: K_LEN
     , bulkIVSize       = 4  -- RFC 5288 GCMNonce.salt, fixed_iv_length
@@ -504,7 +505,7 @@ bulk_aes128gcm = Bulk
     , bulkF            = BulkAeadF aes128gcm
     }
 
-bulk_aes256ccm = Bulk
+bulk_aes256ccm = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes256ccm" ETT__.$ Bulk
     { bulkName         = "AES256CCM"
     , bulkKeySize      = 32 -- RFC 5116 Sec 5.1: K_LEN
     , bulkIVSize       = 4  -- RFC 6655 CCMNonce.salt, fixed_iv_length
@@ -514,7 +515,7 @@ bulk_aes256ccm = Bulk
     , bulkF            = BulkAeadF aes256ccm
     }
 
-bulk_aes256ccm8 = Bulk
+bulk_aes256ccm8 = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes256ccm8" ETT__.$ Bulk
     { bulkName         = "AES256CCM8"
     , bulkKeySize      = 32 -- RFC 5116 Sec 5.1: K_LEN
     , bulkIVSize       = 4  -- RFC 6655 CCMNonce.salt, fixed_iv_length
@@ -524,7 +525,7 @@ bulk_aes256ccm8 = Bulk
     , bulkF            = BulkAeadF aes256ccm8
     }
 
-bulk_aes256gcm = Bulk
+bulk_aes256gcm = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes256gcm" ETT__.$ Bulk
     { bulkName         = "AES256GCM"
     , bulkKeySize      = 32 -- RFC 5116 Sec 5.1: K_LEN
     , bulkIVSize       = 4  -- RFC 5288 GCMNonce.salt, fixed_iv_length
@@ -534,7 +535,7 @@ bulk_aes256gcm = Bulk
     , bulkF            = BulkAeadF aes256gcm
     }
 
-bulk_aes256 = Bulk
+bulk_aes256 = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes256" ETT__.$ Bulk
     { bulkName         = "AES256"
     , bulkKeySize      = 32
     , bulkIVSize       = 16
@@ -544,7 +545,7 @@ bulk_aes256 = Bulk
     , bulkF            = BulkBlockF aes256cbc
     }
 
-bulk_tripledes_ede = Bulk
+bulk_tripledes_ede = ETT__.t "Network.TLS.Extra.Cipher.bulk_tripledes_ede" ETT__.$ Bulk
     { bulkName      = "3DES-EDE-CBC"
     , bulkKeySize   = 24
     , bulkIVSize    = 8
@@ -554,7 +555,7 @@ bulk_tripledes_ede = Bulk
     , bulkF         = BulkBlockF tripledes_ede
     }
 
-bulk_chacha20poly1305 = Bulk
+bulk_chacha20poly1305 = ETT__.t "Network.TLS.Extra.Cipher.bulk_chacha20poly1305" ETT__.$ Bulk
     { bulkName         = "CHACHA20POLY1305"
     , bulkKeySize      = 32
     , bulkIVSize       = 12 -- RFC 7905 section 2, fixed_iv_length
@@ -566,14 +567,14 @@ bulk_chacha20poly1305 = Bulk
 
 -- TLS13 bulks are same as TLS12 except they never have explicit IV
 bulk_aes128gcm_13, bulk_aes256gcm_13, bulk_aes128ccm_13, bulk_aes128ccm8_13 :: Bulk
-bulk_aes128gcm_13  = bulk_aes128gcm  { bulkIVSize = 12, bulkExplicitIV = 0 }
-bulk_aes256gcm_13  = bulk_aes256gcm  { bulkIVSize = 12, bulkExplicitIV = 0 }
-bulk_aes128ccm_13  = bulk_aes128ccm  { bulkIVSize = 12, bulkExplicitIV = 0 }
-bulk_aes128ccm8_13 = bulk_aes128ccm8 { bulkIVSize = 12, bulkExplicitIV = 0 }
+bulk_aes128gcm_13  = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes128gcm_13" ETT__.$ bulk_aes128gcm  { bulkIVSize = 12, bulkExplicitIV = 0 }
+bulk_aes256gcm_13  = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes256gcm_13" ETT__.$ bulk_aes256gcm  { bulkIVSize = 12, bulkExplicitIV = 0 }
+bulk_aes128ccm_13  = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes128ccm_13" ETT__.$ bulk_aes128ccm  { bulkIVSize = 12, bulkExplicitIV = 0 }
+bulk_aes128ccm8_13 = ETT__.t "Network.TLS.Extra.Cipher.bulk_aes128ccm8_13" ETT__.$ bulk_aes128ccm8 { bulkIVSize = 12, bulkExplicitIV = 0 }
 
 -- | unencrypted cipher using RSA for key exchange and MD5 for digest
 cipher_null_MD5 :: Cipher
-cipher_null_MD5 = Cipher
+cipher_null_MD5 = ETT__.t "Network.TLS.Extra.Cipher.cipher_null_MD5" ETT__.$ Cipher
     { cipherID           = 0x0001
     , cipherName         = "RSA-null-MD5"
     , cipherBulk         = bulk_null
@@ -585,7 +586,7 @@ cipher_null_MD5 = Cipher
 
 -- | unencrypted cipher using RSA for key exchange and SHA1 for digest
 cipher_null_SHA1 :: Cipher
-cipher_null_SHA1 = Cipher
+cipher_null_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_null_SHA1" ETT__.$ Cipher
     { cipherID           = 0x0002
     , cipherName         = "RSA-null-SHA1"
     , cipherBulk         = bulk_null
@@ -597,7 +598,7 @@ cipher_null_SHA1 = Cipher
 
 -- | RC4 cipher, RSA key exchange and MD5 for digest
 cipher_RC4_128_MD5 :: Cipher
-cipher_RC4_128_MD5 = Cipher
+cipher_RC4_128_MD5 = ETT__.t "Network.TLS.Extra.Cipher.cipher_RC4_128_MD5" ETT__.$ Cipher
     { cipherID           = 0x0004
     , cipherName         = "RSA-rc4-128-md5"
     , cipherBulk         = bulk_rc4
@@ -609,7 +610,7 @@ cipher_RC4_128_MD5 = Cipher
 
 -- | RC4 cipher, RSA key exchange and SHA1 for digest
 cipher_RC4_128_SHA1 :: Cipher
-cipher_RC4_128_SHA1 = Cipher
+cipher_RC4_128_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_RC4_128_SHA1" ETT__.$ Cipher
     { cipherID           = 0x0005
     , cipherName         = "RSA-rc4-128-sha1"
     , cipherBulk         = bulk_rc4
@@ -621,7 +622,7 @@ cipher_RC4_128_SHA1 = Cipher
 
 -- | 3DES cipher (168 bit key), RSA key exchange and SHA1 for digest
 cipher_RSA_3DES_EDE_CBC_SHA1 :: Cipher
-cipher_RSA_3DES_EDE_CBC_SHA1 = Cipher
+cipher_RSA_3DES_EDE_CBC_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_RSA_3DES_EDE_CBC_SHA1" ETT__.$ Cipher
     { cipherID           = 0x000A
     , cipherName         = "RSA-3DES-EDE-CBC-SHA1"
     , cipherBulk         = bulk_tripledes_ede
@@ -633,7 +634,7 @@ cipher_RSA_3DES_EDE_CBC_SHA1 = Cipher
 
 -- | AES cipher (128 bit key), RSA key exchange and SHA1 for digest
 cipher_AES128_SHA1 :: Cipher
-cipher_AES128_SHA1 = Cipher
+cipher_AES128_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES128_SHA1" ETT__.$ Cipher
     { cipherID           = 0x002F
     , cipherName         = "RSA-AES128-SHA1"
     , cipherBulk         = bulk_aes128
@@ -645,7 +646,7 @@ cipher_AES128_SHA1 = Cipher
 
 -- | AES cipher (128 bit key), DHE key exchanged signed by DSA and SHA1 for digest
 cipher_DHE_DSS_AES128_SHA1 :: Cipher
-cipher_DHE_DSS_AES128_SHA1 = Cipher
+cipher_DHE_DSS_AES128_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_DSS_AES128_SHA1" ETT__.$ Cipher
     { cipherID           = 0x0032
     , cipherName         = "DHE-DSA-AES128-SHA1"
     , cipherBulk         = bulk_aes128
@@ -657,7 +658,7 @@ cipher_DHE_DSS_AES128_SHA1 = Cipher
 
 -- | AES cipher (128 bit key), DHE key exchanged signed by RSA and SHA1 for digest
 cipher_DHE_RSA_AES128_SHA1 :: Cipher
-cipher_DHE_RSA_AES128_SHA1 = Cipher
+cipher_DHE_RSA_AES128_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES128_SHA1" ETT__.$ Cipher
     { cipherID           = 0x0033
     , cipherName         = "DHE-RSA-AES128-SHA1"
     , cipherBulk         = bulk_aes128
@@ -669,7 +670,7 @@ cipher_DHE_RSA_AES128_SHA1 = Cipher
 
 -- | AES cipher (256 bit key), RSA key exchange and SHA1 for digest
 cipher_AES256_SHA1 :: Cipher
-cipher_AES256_SHA1 = Cipher
+cipher_AES256_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES256_SHA1" ETT__.$ Cipher
     { cipherID           = 0x0035
     , cipherName         = "RSA-AES256-SHA1"
     , cipherBulk         = bulk_aes256
@@ -681,7 +682,7 @@ cipher_AES256_SHA1 = Cipher
 
 -- | AES cipher (256 bit key), DHE key exchanged signed by DSA and SHA1 for digest
 cipher_DHE_DSS_AES256_SHA1 :: Cipher
-cipher_DHE_DSS_AES256_SHA1 = cipher_DHE_DSS_AES128_SHA1
+cipher_DHE_DSS_AES256_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_DSS_AES256_SHA1" ETT__.$ cipher_DHE_DSS_AES128_SHA1
     { cipherID           = 0x0038
     , cipherName         = "DHE-DSA-AES256-SHA1"
     , cipherBulk         = bulk_aes256
@@ -689,7 +690,7 @@ cipher_DHE_DSS_AES256_SHA1 = cipher_DHE_DSS_AES128_SHA1
 
 -- | AES cipher (256 bit key), DHE key exchanged signed by RSA and SHA1 for digest
 cipher_DHE_RSA_AES256_SHA1 :: Cipher
-cipher_DHE_RSA_AES256_SHA1 = cipher_DHE_RSA_AES128_SHA1
+cipher_DHE_RSA_AES256_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES256_SHA1" ETT__.$ cipher_DHE_RSA_AES128_SHA1
     { cipherID           = 0x0039
     , cipherName         = "DHE-RSA-AES256-SHA1"
     , cipherBulk         = bulk_aes256
@@ -697,7 +698,7 @@ cipher_DHE_RSA_AES256_SHA1 = cipher_DHE_RSA_AES128_SHA1
 
 -- | AES cipher (128 bit key), RSA key exchange and SHA256 for digest
 cipher_AES128_SHA256 :: Cipher
-cipher_AES128_SHA256 = Cipher
+cipher_AES128_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES128_SHA256" ETT__.$ Cipher
     { cipherID           = 0x003C
     , cipherName         = "RSA-AES128-SHA256"
     , cipherBulk         = bulk_aes128
@@ -709,7 +710,7 @@ cipher_AES128_SHA256 = Cipher
 
 -- | AES cipher (256 bit key), RSA key exchange and SHA256 for digest
 cipher_AES256_SHA256 :: Cipher
-cipher_AES256_SHA256 = Cipher
+cipher_AES256_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES256_SHA256" ETT__.$ Cipher
     { cipherID           = 0x003D
     , cipherName         = "RSA-AES256-SHA256"
     , cipherBulk         = bulk_aes256
@@ -722,14 +723,14 @@ cipher_AES256_SHA256 = Cipher
 -- This is not registered in IANA.
 -- So, this will be removed in the next major release.
 cipher_DHE_DSS_RC4_SHA1 :: Cipher
-cipher_DHE_DSS_RC4_SHA1 = cipher_DHE_DSS_AES128_SHA1
+cipher_DHE_DSS_RC4_SHA1 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_DSS_RC4_SHA1" ETT__.$ cipher_DHE_DSS_AES128_SHA1
     { cipherID           = 0x0066
     , cipherName         = "DHE-DSA-RC4-SHA1"
     , cipherBulk         = bulk_rc4
     }
 
 cipher_DHE_RSA_AES128_SHA256 :: Cipher
-cipher_DHE_RSA_AES128_SHA256 = cipher_DHE_RSA_AES128_SHA1
+cipher_DHE_RSA_AES128_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES128_SHA256" ETT__.$ cipher_DHE_RSA_AES128_SHA1
     { cipherID           = 0x0067
     , cipherName         = "DHE-RSA-AES128-SHA256"
     , cipherHash         = SHA256
@@ -738,7 +739,7 @@ cipher_DHE_RSA_AES128_SHA256 = cipher_DHE_RSA_AES128_SHA1
     }
 
 cipher_DHE_RSA_AES256_SHA256 :: Cipher
-cipher_DHE_RSA_AES256_SHA256 = cipher_DHE_RSA_AES128_SHA256
+cipher_DHE_RSA_AES256_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES256_SHA256" ETT__.$ cipher_DHE_RSA_AES128_SHA256
     { cipherID           = 0x006B
     , cipherName         = "DHE-RSA-AES256-SHA256"
     , cipherBulk         = bulk_aes256
@@ -747,7 +748,7 @@ cipher_DHE_RSA_AES256_SHA256 = cipher_DHE_RSA_AES128_SHA256
 -- | AESCCM cipher (128 bit key), RSA key exchange.
 -- The SHA256 digest is used as a PRF, not as a MAC.
 cipher_AES128CCM_SHA256 :: Cipher
-cipher_AES128CCM_SHA256 = Cipher
+cipher_AES128CCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES128CCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc09c
     , cipherName         = "RSA-AES128CCM-SHA256"
     , cipherBulk         = bulk_aes128ccm
@@ -760,7 +761,7 @@ cipher_AES128CCM_SHA256 = Cipher
 -- | AESCCM8 cipher (128 bit key), RSA key exchange.
 -- The SHA256 digest is used as a PRF, not as a MAC.
 cipher_AES128CCM8_SHA256 :: Cipher
-cipher_AES128CCM8_SHA256 = Cipher
+cipher_AES128CCM8_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES128CCM8_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc0a0
     , cipherName         = "RSA-AES128CCM8-SHA256"
     , cipherBulk         = bulk_aes128ccm8
@@ -773,7 +774,7 @@ cipher_AES128CCM8_SHA256 = Cipher
 -- | AESGCM cipher (128 bit key), RSA key exchange.
 -- The SHA256 digest is used as a PRF, not as a MAC.
 cipher_AES128GCM_SHA256 :: Cipher
-cipher_AES128GCM_SHA256 = Cipher
+cipher_AES128GCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES128GCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0x009C
     , cipherName         = "RSA-AES128GCM-SHA256"
     , cipherBulk         = bulk_aes128gcm
@@ -786,7 +787,7 @@ cipher_AES128GCM_SHA256 = Cipher
 -- | AESCCM cipher (256 bit key), RSA key exchange.
 -- The SHA256 digest is used as a PRF, not as a MAC.
 cipher_AES256CCM_SHA256 :: Cipher
-cipher_AES256CCM_SHA256 = Cipher
+cipher_AES256CCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES256CCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc09d
     , cipherName         = "RSA-AES256CCM-SHA256"
     , cipherBulk         = bulk_aes256ccm
@@ -799,7 +800,7 @@ cipher_AES256CCM_SHA256 = Cipher
 -- | AESCCM8 cipher (256 bit key), RSA key exchange.
 -- The SHA256 digest is used as a PRF, not as a MAC.
 cipher_AES256CCM8_SHA256 :: Cipher
-cipher_AES256CCM8_SHA256 = Cipher
+cipher_AES256CCM8_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES256CCM8_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc0a1
     , cipherName         = "RSA-AES256CCM8-SHA256"
     , cipherBulk         = bulk_aes256ccm8
@@ -812,7 +813,7 @@ cipher_AES256CCM8_SHA256 = Cipher
 -- | AESGCM cipher (256 bit key), RSA key exchange.
 -- The SHA384 digest is used as a PRF, not as a MAC.
 cipher_AES256GCM_SHA384 :: Cipher
-cipher_AES256GCM_SHA384 = Cipher
+cipher_AES256GCM_SHA384 = ETT__.t "Network.TLS.Extra.Cipher.cipher_AES256GCM_SHA384" ETT__.$ Cipher
     { cipherID           = 0x009D
     , cipherName         = "RSA-AES256GCM-SHA384"
     , cipherBulk         = bulk_aes256gcm
@@ -823,7 +824,7 @@ cipher_AES256GCM_SHA384 = Cipher
     }
 
 cipher_DHE_RSA_AES128CCM_SHA256 :: Cipher
-cipher_DHE_RSA_AES128CCM_SHA256 = Cipher
+cipher_DHE_RSA_AES128CCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES128CCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc09e
     , cipherName         = "DHE-RSA-AES128CCM-SHA256"
     , cipherBulk         = bulk_aes128ccm
@@ -834,7 +835,7 @@ cipher_DHE_RSA_AES128CCM_SHA256 = Cipher
     }
 
 cipher_DHE_RSA_AES128CCM8_SHA256 :: Cipher
-cipher_DHE_RSA_AES128CCM8_SHA256 = Cipher
+cipher_DHE_RSA_AES128CCM8_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES128CCM8_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc0a2
     , cipherName         = "DHE-RSA-AES128CCM8-SHA256"
     , cipherBulk         = bulk_aes128ccm8
@@ -845,7 +846,7 @@ cipher_DHE_RSA_AES128CCM8_SHA256 = Cipher
     }
 
 cipher_DHE_RSA_AES128GCM_SHA256 :: Cipher
-cipher_DHE_RSA_AES128GCM_SHA256 = Cipher
+cipher_DHE_RSA_AES128GCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES128GCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0x009E
     , cipherName         = "DHE-RSA-AES128GCM-SHA256"
     , cipherBulk         = bulk_aes128gcm
@@ -856,7 +857,7 @@ cipher_DHE_RSA_AES128GCM_SHA256 = Cipher
     }
 
 cipher_DHE_RSA_AES256CCM_SHA256 :: Cipher
-cipher_DHE_RSA_AES256CCM_SHA256 = Cipher
+cipher_DHE_RSA_AES256CCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES256CCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc09f
     , cipherName         = "DHE-RSA-AES256CCM-SHA256"
     , cipherBulk         = bulk_aes256ccm
@@ -867,7 +868,7 @@ cipher_DHE_RSA_AES256CCM_SHA256 = Cipher
     }
 
 cipher_DHE_RSA_AES256CCM8_SHA256 :: Cipher
-cipher_DHE_RSA_AES256CCM8_SHA256 = Cipher
+cipher_DHE_RSA_AES256CCM8_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES256CCM8_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc0a3
     , cipherName         = "DHE-RSA-AES256CCM8-SHA256"
     , cipherBulk         = bulk_aes256ccm8
@@ -878,7 +879,7 @@ cipher_DHE_RSA_AES256CCM8_SHA256 = Cipher
     }
 
 cipher_DHE_RSA_AES256GCM_SHA384 :: Cipher
-cipher_DHE_RSA_AES256GCM_SHA384 = Cipher
+cipher_DHE_RSA_AES256GCM_SHA384 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_AES256GCM_SHA384" ETT__.$ Cipher
     { cipherID           = 0x009F
     , cipherName         = "DHE-RSA-AES256GCM-SHA384"
     , cipherBulk         = bulk_aes256gcm
@@ -889,7 +890,7 @@ cipher_DHE_RSA_AES256GCM_SHA384 = Cipher
     }
 
 cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256 :: Cipher
-cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256 = Cipher
+cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256" ETT__.$ Cipher
     { cipherID           = 0xCCA8
     , cipherName         = "ECDHE-RSA-CHACHA20POLY1305-SHA256"
     , cipherBulk         = bulk_chacha20poly1305
@@ -900,7 +901,7 @@ cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256 = Cipher
     }
 
 cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256 :: Cipher
-cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256 = Cipher
+cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256" ETT__.$ Cipher
     { cipherID           = 0xCCA9
     , cipherName         = "ECDHE-ECDSA-CHACHA20POLY1305-SHA256"
     , cipherBulk         = bulk_chacha20poly1305
@@ -911,7 +912,7 @@ cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256 = Cipher
     }
 
 cipher_DHE_RSA_CHACHA20POLY1305_SHA256 :: Cipher
-cipher_DHE_RSA_CHACHA20POLY1305_SHA256 = Cipher
+cipher_DHE_RSA_CHACHA20POLY1305_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_DHE_RSA_CHACHA20POLY1305_SHA256" ETT__.$ Cipher
     { cipherID           = 0xCCAA
     , cipherName         = "DHE-RSA-CHACHA20POLY1305-SHA256"
     , cipherBulk         = bulk_chacha20poly1305
@@ -922,7 +923,7 @@ cipher_DHE_RSA_CHACHA20POLY1305_SHA256 = Cipher
     }
 
 cipher_TLS13_AES128GCM_SHA256 :: Cipher
-cipher_TLS13_AES128GCM_SHA256 = Cipher
+cipher_TLS13_AES128GCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_TLS13_AES128GCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0x1301
     , cipherName         = "AES128GCM-SHA256"
     , cipherBulk         = bulk_aes128gcm_13
@@ -933,7 +934,7 @@ cipher_TLS13_AES128GCM_SHA256 = Cipher
     }
 
 cipher_TLS13_AES256GCM_SHA384 :: Cipher
-cipher_TLS13_AES256GCM_SHA384 = Cipher
+cipher_TLS13_AES256GCM_SHA384 = ETT__.t "Network.TLS.Extra.Cipher.cipher_TLS13_AES256GCM_SHA384" ETT__.$ Cipher
     { cipherID           = 0x1302
     , cipherName         = "AES256GCM-SHA384"
     , cipherBulk         = bulk_aes256gcm_13
@@ -944,7 +945,7 @@ cipher_TLS13_AES256GCM_SHA384 = Cipher
     }
 
 cipher_TLS13_CHACHA20POLY1305_SHA256 :: Cipher
-cipher_TLS13_CHACHA20POLY1305_SHA256 = Cipher
+cipher_TLS13_CHACHA20POLY1305_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_TLS13_CHACHA20POLY1305_SHA256" ETT__.$ Cipher
     { cipherID           = 0x1303
     , cipherName         = "CHACHA20POLY1305-SHA256"
     , cipherBulk         = bulk_chacha20poly1305
@@ -955,7 +956,7 @@ cipher_TLS13_CHACHA20POLY1305_SHA256 = Cipher
     }
 
 cipher_TLS13_AES128CCM_SHA256 :: Cipher
-cipher_TLS13_AES128CCM_SHA256 = Cipher
+cipher_TLS13_AES128CCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_TLS13_AES128CCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0x1304
     , cipherName         = "AES128CCM-SHA256"
     , cipherBulk         = bulk_aes128ccm_13
@@ -966,7 +967,7 @@ cipher_TLS13_AES128CCM_SHA256 = Cipher
     }
 
 cipher_TLS13_AES128CCM8_SHA256 :: Cipher
-cipher_TLS13_AES128CCM8_SHA256 = Cipher
+cipher_TLS13_AES128CCM8_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_TLS13_AES128CCM8_SHA256" ETT__.$ Cipher
     { cipherID           = 0x1305
     , cipherName         = "AES128CCM8-SHA256"
     , cipherBulk         = bulk_aes128ccm8_13
@@ -977,7 +978,7 @@ cipher_TLS13_AES128CCM8_SHA256 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES128CBC_SHA :: Cipher
-cipher_ECDHE_ECDSA_AES128CBC_SHA = Cipher
+cipher_ECDHE_ECDSA_AES128CBC_SHA = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES128CBC_SHA" ETT__.$ Cipher
     { cipherID           = 0xC009
     , cipherName         = "ECDHE-ECDSA-AES128CBC-SHA"
     , cipherBulk         = bulk_aes128
@@ -988,7 +989,7 @@ cipher_ECDHE_ECDSA_AES128CBC_SHA = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES256CBC_SHA :: Cipher
-cipher_ECDHE_ECDSA_AES256CBC_SHA = Cipher
+cipher_ECDHE_ECDSA_AES256CBC_SHA = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES256CBC_SHA" ETT__.$ Cipher
     { cipherID           = 0xC00A
     , cipherName         = "ECDHE-ECDSA-AES256CBC-SHA"
     , cipherBulk         = bulk_aes256
@@ -999,7 +1000,7 @@ cipher_ECDHE_ECDSA_AES256CBC_SHA = Cipher
     }
 
 cipher_ECDHE_RSA_AES128CBC_SHA :: Cipher
-cipher_ECDHE_RSA_AES128CBC_SHA = Cipher
+cipher_ECDHE_RSA_AES128CBC_SHA = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_RSA_AES128CBC_SHA" ETT__.$ Cipher
     { cipherID           = 0xC013
     , cipherName         = "ECDHE-RSA-AES128CBC-SHA"
     , cipherBulk         = bulk_aes128
@@ -1010,7 +1011,7 @@ cipher_ECDHE_RSA_AES128CBC_SHA = Cipher
     }
 
 cipher_ECDHE_RSA_AES256CBC_SHA :: Cipher
-cipher_ECDHE_RSA_AES256CBC_SHA = Cipher
+cipher_ECDHE_RSA_AES256CBC_SHA = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_RSA_AES256CBC_SHA" ETT__.$ Cipher
     { cipherID           = 0xC014
     , cipherName         = "ECDHE-RSA-AES256CBC-SHA"
     , cipherBulk         = bulk_aes256
@@ -1021,7 +1022,7 @@ cipher_ECDHE_RSA_AES256CBC_SHA = Cipher
     }
 
 cipher_ECDHE_RSA_AES128CBC_SHA256 :: Cipher
-cipher_ECDHE_RSA_AES128CBC_SHA256 = Cipher
+cipher_ECDHE_RSA_AES128CBC_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_RSA_AES128CBC_SHA256" ETT__.$ Cipher
     { cipherID           = 0xC027
     , cipherName         = "ECDHE-RSA-AES128CBC-SHA256"
     , cipherBulk         = bulk_aes128
@@ -1032,7 +1033,7 @@ cipher_ECDHE_RSA_AES128CBC_SHA256 = Cipher
     }
 
 cipher_ECDHE_RSA_AES256CBC_SHA384 :: Cipher
-cipher_ECDHE_RSA_AES256CBC_SHA384 = Cipher
+cipher_ECDHE_RSA_AES256CBC_SHA384 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_RSA_AES256CBC_SHA384" ETT__.$ Cipher
     { cipherID           = 0xC028
     , cipherName         = "ECDHE-RSA-AES256CBC-SHA384"
     , cipherBulk         = bulk_aes256
@@ -1043,7 +1044,7 @@ cipher_ECDHE_RSA_AES256CBC_SHA384 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES128CBC_SHA256 :: Cipher
-cipher_ECDHE_ECDSA_AES128CBC_SHA256 = Cipher
+cipher_ECDHE_ECDSA_AES128CBC_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES128CBC_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc023
     , cipherName         = "ECDHE-ECDSA-AES128CBC-SHA256"
     , cipherBulk         = bulk_aes128
@@ -1054,7 +1055,7 @@ cipher_ECDHE_ECDSA_AES128CBC_SHA256 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES256CBC_SHA384 :: Cipher
-cipher_ECDHE_ECDSA_AES256CBC_SHA384 = Cipher
+cipher_ECDHE_ECDSA_AES256CBC_SHA384 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES256CBC_SHA384" ETT__.$ Cipher
     { cipherID           = 0xC024
     , cipherName         = "ECDHE-ECDSA-AES256CBC-SHA384"
     , cipherBulk         = bulk_aes256
@@ -1065,7 +1066,7 @@ cipher_ECDHE_ECDSA_AES256CBC_SHA384 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES128CCM_SHA256 :: Cipher
-cipher_ECDHE_ECDSA_AES128CCM_SHA256 = Cipher
+cipher_ECDHE_ECDSA_AES128CCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES128CCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc0ac
     , cipherName         = "ECDHE-ECDSA-AES128CCM-SHA256"
     , cipherBulk         = bulk_aes128ccm
@@ -1076,7 +1077,7 @@ cipher_ECDHE_ECDSA_AES128CCM_SHA256 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES128CCM8_SHA256 :: Cipher
-cipher_ECDHE_ECDSA_AES128CCM8_SHA256 = Cipher
+cipher_ECDHE_ECDSA_AES128CCM8_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES128CCM8_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc0ae
     , cipherName         = "ECDHE-ECDSA-AES128CCM8-SHA256"
     , cipherBulk         = bulk_aes128ccm8
@@ -1087,7 +1088,7 @@ cipher_ECDHE_ECDSA_AES128CCM8_SHA256 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES128GCM_SHA256 :: Cipher
-cipher_ECDHE_ECDSA_AES128GCM_SHA256 = Cipher
+cipher_ECDHE_ECDSA_AES128GCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES128GCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0xC02B
     , cipherName         = "ECDHE-ECDSA-AES128GCM-SHA256"
     , cipherBulk         = bulk_aes128gcm
@@ -1098,7 +1099,7 @@ cipher_ECDHE_ECDSA_AES128GCM_SHA256 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES256CCM_SHA256 :: Cipher
-cipher_ECDHE_ECDSA_AES256CCM_SHA256 = Cipher
+cipher_ECDHE_ECDSA_AES256CCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES256CCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc0ad
     , cipherName         = "ECDHE-ECDSA-AES256CCM-SHA256"
     , cipherBulk         = bulk_aes256ccm
@@ -1109,7 +1110,7 @@ cipher_ECDHE_ECDSA_AES256CCM_SHA256 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES256CCM8_SHA256 :: Cipher
-cipher_ECDHE_ECDSA_AES256CCM8_SHA256 = Cipher
+cipher_ECDHE_ECDSA_AES256CCM8_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES256CCM8_SHA256" ETT__.$ Cipher
     { cipherID           = 0xc0af
     , cipherName         = "ECDHE-ECDSA-AES256CCM8-SHA256"
     , cipherBulk         = bulk_aes256ccm8
@@ -1120,7 +1121,7 @@ cipher_ECDHE_ECDSA_AES256CCM8_SHA256 = Cipher
     }
 
 cipher_ECDHE_ECDSA_AES256GCM_SHA384 :: Cipher
-cipher_ECDHE_ECDSA_AES256GCM_SHA384 = Cipher
+cipher_ECDHE_ECDSA_AES256GCM_SHA384 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_ECDSA_AES256GCM_SHA384" ETT__.$ Cipher
     { cipherID           = 0xC02C
     , cipherName         = "ECDHE-ECDSA-AES256GCM-SHA384"
     , cipherBulk         = bulk_aes256gcm
@@ -1131,7 +1132,7 @@ cipher_ECDHE_ECDSA_AES256GCM_SHA384 = Cipher
     }
 
 cipher_ECDHE_RSA_AES128GCM_SHA256 :: Cipher
-cipher_ECDHE_RSA_AES128GCM_SHA256 = Cipher
+cipher_ECDHE_RSA_AES128GCM_SHA256 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_RSA_AES128GCM_SHA256" ETT__.$ Cipher
     { cipherID           = 0xC02F
     , cipherName         = "ECDHE-RSA-AES128GCM-SHA256"
     , cipherBulk         = bulk_aes128gcm
@@ -1142,7 +1143,7 @@ cipher_ECDHE_RSA_AES128GCM_SHA256 = Cipher
     }
 
 cipher_ECDHE_RSA_AES256GCM_SHA384 :: Cipher
-cipher_ECDHE_RSA_AES256GCM_SHA384 = Cipher
+cipher_ECDHE_RSA_AES256GCM_SHA384 = ETT__.t "Network.TLS.Extra.Cipher.cipher_ECDHE_RSA_AES256GCM_SHA384" ETT__.$ Cipher
     { cipherID           = 0xC030
     , cipherName         = "ECDHE-RSA-AES256GCM-SHA384"
     , cipherBulk         = bulk_aes256gcm

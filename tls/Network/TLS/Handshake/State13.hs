@@ -42,17 +42,18 @@ import Network.TLS.Struct
 import Network.TLS.Imports
 import Network.TLS.Types
 import Network.TLS.Util
+import qualified Debug.EulerTrace.Tls as ETT__
 
 getTxState :: Context -> IO (Hash, Cipher, CryptLevel, ByteString)
-getTxState ctx = getXState ctx ctxTxState
+getTxState ctx = ETT__.tio "Network.TLS.Handshake.State13.getTxState" ETT__.$ getXState ctx ctxTxState
 
 getRxState :: Context -> IO (Hash, Cipher, CryptLevel, ByteString)
-getRxState ctx = getXState ctx ctxRxState
+getRxState ctx = ETT__.tio "Network.TLS.Handshake.State13.getRxState" ETT__.$ getXState ctx ctxRxState
 
 getXState :: Context
           -> (Context -> MVar RecordState)
           -> IO (Hash, Cipher, CryptLevel, ByteString)
-getXState ctx func = do
+getXState ctx func = ETT__.tio "Network.TLS.Handshake.State13.getXState" ETT__.$ do
     tx <- readMVar (func ctx)
     let Just usedCipher = stCipher tx
         usedHash = cipherHash usedCipher
@@ -73,23 +74,23 @@ instance HasCryptLevel a => TrafficSecret (ServerTrafficSecret a) where
     fromTrafficSecret prx@(ServerTrafficSecret s) = (getCryptLevel prx, s)
 
 setTxState :: TrafficSecret ty => Context -> Hash -> Cipher -> ty -> IO ()
-setTxState = setXState ctxTxState BulkEncrypt
+setTxState = ETT__.t "Network.TLS.Handshake.State13.setTxState" ETT__.$ setXState ctxTxState BulkEncrypt
 
 setRxState :: TrafficSecret ty => Context -> Hash -> Cipher -> ty -> IO ()
-setRxState = setXState ctxRxState BulkDecrypt
+setRxState = ETT__.t "Network.TLS.Handshake.State13.setRxState" ETT__.$ setXState ctxRxState BulkDecrypt
 
 setXState :: TrafficSecret ty
           => (Context -> MVar RecordState) -> BulkDirection
           -> Context -> Hash -> Cipher -> ty
           -> IO ()
-setXState func encOrDec ctx h cipher ts =
+setXState func encOrDec ctx h cipher ts = ETT__.tio "Network.TLS.Handshake.State13.setXState" ETT__.$
     let (lvl, secret) = fromTrafficSecret ts
      in setXState' func encOrDec ctx h cipher lvl secret
 
 setXState' :: (Context -> MVar RecordState) -> BulkDirection
           -> Context -> Hash -> Cipher -> CryptLevel -> ByteString
           -> IO ()
-setXState' func encOrDec ctx h cipher lvl secret =
+setXState' func encOrDec ctx h cipher lvl secret = ETT__.tio "Network.TLS.Handshake.State13.setXState'" ETT__.$
     modifyMVar_ (func ctx) (\_ -> return rt)
   where
     bulk    = cipherBulk cipher
@@ -111,17 +112,17 @@ setXState' func encOrDec ctx h cipher lvl secret =
       }
 
 clearTxState :: Context -> IO ()
-clearTxState = clearXState ctxTxState
+clearTxState = ETT__.t "Network.TLS.Handshake.State13.clearTxState" ETT__.$ clearXState ctxTxState
 
 clearRxState :: Context -> IO ()
-clearRxState = clearXState ctxRxState
+clearRxState = ETT__.t "Network.TLS.Handshake.State13.clearRxState" ETT__.$ clearXState ctxRxState
 
 clearXState :: (Context -> MVar RecordState) -> Context -> IO ()
-clearXState func ctx =
+clearXState func ctx = ETT__.tio "Network.TLS.Handshake.State13.clearXState" ETT__.$
     modifyMVar_ (func ctx) (\rt -> return rt { stCipher = Nothing })
 
 setHelloParameters13 :: Cipher -> HandshakeM (Either TLSError ())
-setHelloParameters13 cipher = do
+setHelloParameters13 cipher = ETT__.tm "Network.TLS.Handshake.State13.setHelloParameters13" ETT__.$ do
     hst <- get
     case hstPendingCipher hst of
         Nothing -> do
@@ -143,7 +144,7 @@ setHelloParameters13 cipher = do
 -- wrapped in a "message_hash" construct.  See RFC 8446 section 4.4.1.  This
 -- applies to key-schedule computations as well as the ones for PSK binders.
 wrapAsMessageHash13 :: HandshakeM ()
-wrapAsMessageHash13 = do
+wrapAsMessageHash13 = ETT__.tm "Network.TLS.Handshake.State13.wrapAsMessageHash13" ETT__.$ do
     cipher <- getPendingCipher
     foldHandshakeDigest (cipherHash cipher) foldFunc
   where
@@ -153,17 +154,17 @@ wrapAsMessageHash13 = do
                             ]
 
 transcriptHash :: MonadIO m => Context -> m ByteString
-transcriptHash ctx = do
+transcriptHash ctx = ETT__.tm "Network.TLS.Handshake.State13.transcriptHash" ETT__.$ do
     hst <- fromJust "HState" <$> getHState ctx
     case hstHandshakeDigest hst of
       HandshakeDigestContext hashCtx -> return $ hashFinal hashCtx
       HandshakeMessages      _       -> error "un-initialized handshake digest"
 
 setPendingActions :: Context -> [PendingAction] -> IO ()
-setPendingActions ctx = writeIORef (ctxPendingActions ctx)
+setPendingActions ctx = ETT__.t "Network.TLS.Handshake.State13.setPendingActions" ETT__.$ writeIORef (ctxPendingActions ctx)
 
 popPendingAction :: Context -> IO (Maybe PendingAction)
-popPendingAction ctx = do
+popPendingAction ctx = ETT__.tio "Network.TLS.Handshake.State13.popPendingAction" ETT__.$ do
     let ref = ctxPendingActions ctx
     actions <- readIORef ref
     case actions of

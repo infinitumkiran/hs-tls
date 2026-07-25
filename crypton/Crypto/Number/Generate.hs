@@ -22,6 +22,7 @@ import Crypto.Random.Types
 import Data.Bits (complement, shiftL, testBit, unsafeShiftR, (.&.), (.|.))
 import Foreign.Ptr
 import Foreign.Storable
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Top bits policy when generating a number
 data GenTopPolicy
@@ -49,8 +50,8 @@ generateParams
     -- ^ force the number to be odd
     -> m Integer
 generateParams bits genTopPolicy generateOdd
-    | bits <= 0 = return 0
-    | otherwise = os2ip . tweak <$> getRandomBytes bytes
+    | bits <= 0 = ETT__.t "Crypto.Number.Generate.generateParams" ETT__.$ return 0
+    | otherwise = ETT__.t "Crypto.Number.Generate.generateParams" ETT__.$ os2ip . tweak <$> getRandomBytes bytes
   where
     tweak :: ScrubbedBytes -> ScrubbedBytes
     tweak orig = B.copyAndFreeze orig $ \p0 -> do
@@ -86,8 +87,8 @@ generateParams bits genTopPolicy generateOdd
 -- * @'generatePrefix' n@ generates bytes and uses the prefix of @n@ bits
 generatePrefix :: MonadRandom m => Int -> m Integer
 generatePrefix bits
-    | bits <= 0 = return 0
-    | otherwise = do
+    | bits <= 0 = ETT__.t "Crypto.Number.Generate.generatePrefix" ETT__.$ return 0
+    | otherwise = ETT__.t "Crypto.Number.Generate.generatePrefix" ETT__.$ do
         let (count, offset) = (bits + 7) `divMod` 8
         bytes <- getRandomBytes count
         return $ os2ip (bytes :: ScrubbedBytes) `unsafeShiftR` (7 - offset)
@@ -99,10 +100,10 @@ generateMax
     -- ^ range
     -> m Integer
 generateMax range
-    | range <= 1 = return 0
-    | range < 127 = generateSimple
-    | canOverGenerate = loopGenerateOver tries
-    | otherwise = loopGenerate tries
+    | range <= 1 = ETT__.t "Crypto.Number.Generate.generateMax" ETT__.$ return 0
+    | range < 127 = ETT__.t "Crypto.Number.Generate.generateMax" ETT__.$ generateSimple
+    | canOverGenerate = ETT__.t "Crypto.Number.Generate.generateMax" ETT__.$ loopGenerateOver tries
+    | otherwise = ETT__.t "Crypto.Number.Generate.generateMax" ETT__.$ loopGenerate tries
   where
     -- this "generator" is mostly for quickcheck benefits. it'll be biased if
     -- range is not a multiple of 2, but overall, no security should be
@@ -154,4 +155,4 @@ generateMax range
 
 -- | generate a number between the inclusive bound [low,high].
 generateBetween :: MonadRandom m => Integer -> Integer -> m Integer
-generateBetween low high = (low +) <$> generateMax (high - low + 1)
+generateBetween low high = ETT__.tm "Crypto.Number.Generate.generateBetween" ETT__.$ (low +) <$> generateMax (high - low + 1)

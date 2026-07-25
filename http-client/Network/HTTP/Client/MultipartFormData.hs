@@ -77,6 +77,7 @@ import Data.Word
 import Data.Monoid (Monoid(..))
 import Control.Monad
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 type Part = PartM IO
 
@@ -111,7 +112,7 @@ partBS :: Applicative m
        => Text              -- ^ Name of the corresponding \<input\>.
        -> BS.ByteString     -- ^ The body for this 'Part'.
        -> PartM m
-partBS n b = Part n Data.Monoid.mempty mempty mempty $ pure $ RequestBodyBS b
+partBS n b = ETT__.t "Network.HTTP.Client.MultipartFormData.partBS" ETT__.$ Part n Data.Monoid.mempty mempty mempty $ pure $ RequestBodyBS b
 
 -- | Make a 'Part' whose content is a lazy 'BL.ByteString'.
 --
@@ -121,7 +122,7 @@ partLBS :: Applicative m
         => Text             -- ^ Name of the corresponding \<input\>.
         -> BL.ByteString    -- ^ The body for this 'Part'.
         -> PartM m
-partLBS n b = Part n mempty mempty mempty $ pure $ RequestBodyLBS b
+partLBS n b = ETT__.t "Network.HTTP.Client.MultipartFormData.partLBS" ETT__.$ Part n mempty mempty mempty $ pure $ RequestBodyLBS b
 
 -- | Make a 'Part' from a file.
 --
@@ -136,7 +137,7 @@ partLBS n b = Part n mempty mempty mempty $ pure $ RequestBodyLBS b
 partFile :: Text            -- ^ Name of the corresponding \<input\>.
          -> FilePath        -- ^ The name of the local file to upload.
          -> Part
-partFile n f =
+partFile n f = ETT__.t "Network.HTTP.Client.MultipartFormData.partFile" ETT__.$
     partFileRequestBodyM n f $ do
         liftM RequestBodyBS $ liftIO $ BS.readFile f
 
@@ -150,13 +151,13 @@ partFile n f =
 partFileSource :: Text      -- ^ Name of the corresponding \<input\>.
                -> FilePath  -- ^ The name of the local file to upload.
                -> Part
-partFileSource n f =
+partFileSource n f = ETT__.t "Network.HTTP.Client.MultipartFormData.partFileSource" ETT__.$
     partFileRequestBodyM n f $ do
         size <- liftIO $ withBinaryFile f ReadMode hFileSize
         return $ RequestBodyStream (fromInteger size) $ streamFile f
 
 streamFile :: FilePath -> GivesPopper ()
-streamFile fp np =
+streamFile fp np = ETT__.t "Network.HTTP.Client.MultipartFormData.streamFile" ETT__.$
     withFile fp ReadMode $ np . go
   where
     go h = BS.hGetSome h defaultChunkSize
@@ -172,7 +173,7 @@ streamFile fp np =
 --
 -- The 'Part' does not have a content type associated with it.
 partFileSourceChunked :: Text -> FilePath -> Part
-partFileSourceChunked n f =
+partFileSourceChunked n f = ETT__.t "Network.HTTP.Client.MultipartFormData.partFileSourceChunked" ETT__.$
     partFileRequestBody n f $ do
         RequestBodyStreamChunked $ streamFile f
 
@@ -189,7 +190,7 @@ partFileRequestBody :: Applicative m
                     -> FilePath    -- ^ File name to supply to the server.
                     -> RequestBody -- ^ Data to upload.
                     -> PartM m
-partFileRequestBody n f rqb =
+partFileRequestBody n f rqb = ETT__.t "Network.HTTP.Client.MultipartFormData.partFileRequestBody" ETT__.$
     partFileRequestBodyM n f $ pure rqb
 
 -- | Construct a 'Part' from action returning the 'RequestBody'
@@ -203,21 +204,21 @@ partFileRequestBodyM :: Text        -- ^ Name of the corresponding \<input\>.
                      -> FilePath    -- ^ File name to supply to the server.
                      -> m RequestBody -- ^ Action that will supply data to upload.
                      -> PartM m
-partFileRequestBodyM n f rqb =
+partFileRequestBodyM n f rqb = ETT__.t "Network.HTTP.Client.MultipartFormData.partFileRequestBodyM" ETT__.$
     Part n (Just f) (Just $ defaultMimeLookup $ pack f) mempty rqb
 
 {-# INLINE cp #-}
 cp :: BS.ByteString -> RequestBody
-cp bs = RequestBodyBuilder (fromIntegral $ BS.length bs) $ copyByteString bs
+cp bs = ETT__.t "Network.HTTP.Client.MultipartFormData.cp" ETT__.$ RequestBodyBuilder (fromIntegral $ BS.length bs) $ copyByteString bs
 
 -- | Add a list of additional headers to this 'Part'.
 addPartHeaders :: PartM m -> [Header] -> PartM m
-addPartHeaders p hs = p { partHeaders = partHeaders p <> hs }
+addPartHeaders p hs = ETT__.t "Network.HTTP.Client.MultipartFormData.addPartHeaders" ETT__.$ p { partHeaders = partHeaders p <> hs }
 
 renderPart :: Functor m
            => BS.ByteString     -- ^ Boundary between parts.
            -> PartM m -> m RequestBody
-renderPart boundary (Part name mfilename mcontenttype hdrs get) = render <$> get
+renderPart boundary (Part name mfilename mcontenttype hdrs get) = ETT__.t "Network.HTTP.Client.MultipartFormData.renderPart" ETT__.$ render <$> get
   where render renderBody =
             cp "--" <> cp boundary <> cp "\r\n"
          <> cp "Content-Disposition: form-data; name=\""
@@ -244,15 +245,15 @@ renderPart boundary (Part name mfilename mcontenttype hdrs get) = render <$> get
 renderParts :: Applicative m
             => BS.ByteString    -- ^ Boundary between parts.
             -> [PartM m] -> m RequestBody
-renderParts boundary parts = (fin . mconcat) <$> traverse (renderPart boundary) parts
+renderParts boundary parts = ETT__.t "Network.HTTP.Client.MultipartFormData.renderParts" ETT__.$ (fin . mconcat) <$> traverse (renderPart boundary) parts
   where fin = (<> cp "--" <> cp boundary <> cp "--\r\n")
 
 -- | Generate a boundary simillar to those generated by WebKit-based browsers.
 webkitBoundary :: IO BS.ByteString
-webkitBoundary = getStdRandom webkitBoundaryPure
+webkitBoundary = ETT__.tio "Network.HTTP.Client.MultipartFormData.webkitBoundary" ETT__.$ getStdRandom webkitBoundaryPure
 
 webkitBoundaryPure :: RandomGen g => g -> (BS.ByteString, g)
-webkitBoundaryPure g = (`runState` g) $ do
+webkitBoundaryPure g = ETT__.t "Network.HTTP.Client.MultipartFormData.webkitBoundaryPure" ETT__.$ (`runState` g) $ do
     fmap (BS.append prefix . BS.pack . Prelude.concat) $ replicateM 4 $ do
         randomness <- state $ random
         return [unsafeAt alphaNumericEncodingMap $ randomness `shiftR` 24 .&. 0x3F
@@ -276,13 +277,13 @@ webkitBoundaryPure g = (`runState` g) $ do
 --
 -- This sets a new 'requestBody', adds a content-type request header and changes the method to POST.
 formDataBody :: MonadIO m => [Part] -> Request -> m Request
-formDataBody a b = liftIO $ do
+formDataBody a b = ETT__.tm "Network.HTTP.Client.MultipartFormData.formDataBody" ETT__.$ liftIO $ do
     boundary <- webkitBoundary
     formDataBodyWithBoundary boundary a b
 
 -- | Add form data with supplied boundary
 formDataBodyWithBoundary :: Applicative m => BS.ByteString -> [PartM m] -> Request -> m Request
-formDataBodyWithBoundary boundary parts req = do
+formDataBodyWithBoundary boundary parts req = ETT__.t "Network.HTTP.Client.MultipartFormData.formDataBodyWithBoundary" ETT__.$ do
     (\ body -> req
         { method = methodPost
         , requestHeaders =

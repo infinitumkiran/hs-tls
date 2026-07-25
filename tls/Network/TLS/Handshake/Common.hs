@@ -52,12 +52,13 @@ import Network.TLS.Imports
 import Control.Monad.State.Strict
 import Control.Exception (IOException, handle, fromException, throwIO)
 import Data.IORef (writeIORef)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 handshakeFailed :: TLSError -> IO ()
-handshakeFailed err = throwIO $ HandshakeFailed err
+handshakeFailed err = ETT__.tio "Network.TLS.Handshake.Common.handshakeFailed" ETT__.$ throwIO $ HandshakeFailed err
 
 handleException :: Context -> IO () -> IO ()
-handleException ctx f = catchException f $ \exception -> do
+handleException ctx f = ETT__.tio "Network.TLS.Handshake.Common.handleException" ETT__.$ catchException f $ \exception -> do
     -- If the error was an Uncontextualized TLSException, we replace the
     -- context with HandshakeFailed. If it's anything else, we convert
     -- it to a string and wrap it with Error_Misc and HandshakeFailed.
@@ -77,35 +78,35 @@ handleException ctx f = catchException f $ \exception -> do
     ignoreIOErr _ = return ()
 
 errorToAlert :: TLSError -> (AlertLevel, AlertDescription)
-errorToAlert (Error_Protocol _ ad)   = (AlertLevel_Fatal, ad)
-errorToAlert (Error_Protocol_Warning _ ad)   = (AlertLevel_Warning, ad)
-errorToAlert (Error_Packet_unexpected _ _) = (AlertLevel_Fatal, UnexpectedMessage)
+errorToAlert (Error_Protocol _ ad)   = ETT__.t "Network.TLS.Handshake.Common.errorToAlert" ETT__.$ (AlertLevel_Fatal, ad)
+errorToAlert (Error_Protocol_Warning _ ad)   = ETT__.t "Network.TLS.Handshake.Common.errorToAlert" ETT__.$ (AlertLevel_Warning, ad)
+errorToAlert (Error_Packet_unexpected _ _) = ETT__.t "Network.TLS.Handshake.Common.errorToAlert" ETT__.$ (AlertLevel_Fatal, UnexpectedMessage)
 errorToAlert (Error_Packet_Parsing msg)
-  | "invalid version" `isInfixOf` msg      = (AlertLevel_Fatal, ProtocolVersion)
-  | "request_update"  `isInfixOf` msg      = (AlertLevel_Fatal, IllegalParameter)
-  | otherwise                              = (AlertLevel_Fatal, DecodeError)
-errorToAlert _                             = (AlertLevel_Fatal, InternalError)
+  | "invalid version" `isInfixOf` msg      = ETT__.t "Network.TLS.Handshake.Common.errorToAlert" ETT__.$ (AlertLevel_Fatal, ProtocolVersion)
+  | "request_update"  `isInfixOf` msg      = ETT__.t "Network.TLS.Handshake.Common.errorToAlert" ETT__.$ (AlertLevel_Fatal, IllegalParameter)
+  | otherwise                              = ETT__.t "Network.TLS.Handshake.Common.errorToAlert" ETT__.$ (AlertLevel_Fatal, DecodeError)
+errorToAlert _                             = ETT__.t "Network.TLS.Handshake.Common.errorToAlert" ETT__.$ (AlertLevel_Fatal, InternalError)
 
 -- | Return the message that a TLS endpoint can add to its local log for the
 -- specified library error.
 errorToAlertMessage :: TLSError -> String
-errorToAlertMessage (Error_Protocol msg _)         = msg
-errorToAlertMessage (Error_Protocol_Warning msg _) = msg
-errorToAlertMessage (Error_Packet_unexpected msg _)   = msg
-errorToAlertMessage (Error_Packet_Parsing msg)        = msg
-errorToAlertMessage e                                 = show e
+errorToAlertMessage (Error_Protocol msg _)         = ETT__.t "Network.TLS.Handshake.Common.errorToAlertMessage" ETT__.$ msg
+errorToAlertMessage (Error_Protocol_Warning msg _) = ETT__.t "Network.TLS.Handshake.Common.errorToAlertMessage" ETT__.$ msg
+errorToAlertMessage (Error_Packet_unexpected msg _)   = ETT__.t "Network.TLS.Handshake.Common.errorToAlertMessage" ETT__.$ msg
+errorToAlertMessage (Error_Packet_Parsing msg)        = ETT__.t "Network.TLS.Handshake.Common.errorToAlertMessage" ETT__.$ msg
+errorToAlertMessage e                                 = ETT__.t "Network.TLS.Handshake.Common.errorToAlertMessage" ETT__.$ show e
 
 unexpected :: MonadIO m => String -> Maybe String -> m a
-unexpected msg expected = throwCore $ Error_Packet_unexpected msg (maybe "" (" expected: " ++) expected)
+unexpected msg expected = ETT__.tm "Network.TLS.Handshake.Common.unexpected" ETT__.$ throwCore $ Error_Packet_unexpected msg (maybe "" (" expected: " ++) expected)
 
 newSession :: Context -> IO Session
 newSession ctx
-    | supportedSession $ ctxSupported ctx = Session . Just <$> getStateRNG ctx 32
-    | otherwise                           = return $ Session Nothing
+    | supportedSession $ ctxSupported ctx = ETT__.t "Network.TLS.Handshake.Common.newSession" ETT__.$ Session . Just <$> getStateRNG ctx 32
+    | otherwise                           = ETT__.t "Network.TLS.Handshake.Common.newSession" ETT__.$ return $ Session Nothing
 
 -- | when a new handshake is done, wrap up & clean up.
 handshakeTerminate :: Context -> IO ()
-handshakeTerminate ctx = do
+handshakeTerminate ctx = ETT__.tio "Network.TLS.Handshake.Common.handshakeTerminate" ETT__.$ do
     session <- usingState_ ctx getSession
     -- only callback the session established if we have a session
     case session of
@@ -133,7 +134,7 @@ handshakeTerminate ctx = do
 sendChangeCipherAndFinish :: Context
                           -> Role
                           -> IO ()
-sendChangeCipherAndFinish ctx role = do
+sendChangeCipherAndFinish ctx role = ETT__.tio "Network.TLS.Handshake.Common.sendChangeCipherAndFinish" ETT__.$ do
     sendPacket ctx ChangeCipherSpec
     liftIO $ contextFlush ctx
     cf <- usingState_ ctx getVersion >>= \ver -> usingHState ctx $ getHandshakeDigest ver role
@@ -142,7 +143,7 @@ sendChangeCipherAndFinish ctx role = do
     liftIO $ contextFlush ctx
 
 recvChangeCipherAndFinish :: Context -> IO ()
-recvChangeCipherAndFinish ctx = runRecvState ctx (RecvStateNext expectChangeCipher)
+recvChangeCipherAndFinish ctx = ETT__.tio "Network.TLS.Handshake.Common.recvChangeCipherAndFinish" ETT__.$ runRecvState ctx (RecvStateNext expectChangeCipher)
   where expectChangeCipher ChangeCipherSpec = return $ RecvStateHandshake expectFinish
         expectChangeCipher p                = unexpected (show p) (Just "change cipher")
         expectFinish (Finished _) = return RecvStateDone
@@ -154,7 +155,7 @@ data RecvState m =
     | RecvStateDone
 
 recvPacketHandshake :: Context -> IO [Handshake]
-recvPacketHandshake ctx = do
+recvPacketHandshake ctx = ETT__.tio "Network.TLS.Handshake.Common.recvPacketHandshake" ETT__.$ do
     pkts <- recvPacket ctx
     case pkts of
         Right (Handshake l) -> return l
@@ -172,31 +173,31 @@ recvPacketHandshake ctx = do
 
 -- | process a list of handshakes message in the recv state machine.
 onRecvStateHandshake :: Context -> RecvState IO -> [Handshake] -> IO (RecvState IO)
-onRecvStateHandshake _   recvState [] = return recvState
-onRecvStateHandshake _   (RecvStateNext f) hms = f (Handshake hms)
-onRecvStateHandshake ctx (RecvStateHandshake f) (x:xs) = do
+onRecvStateHandshake _   recvState [] = ETT__.tio "Network.TLS.Handshake.Common.onRecvStateHandshake" ETT__.$ return recvState
+onRecvStateHandshake _   (RecvStateNext f) hms = ETT__.tio "Network.TLS.Handshake.Common.onRecvStateHandshake" ETT__.$ f (Handshake hms)
+onRecvStateHandshake ctx (RecvStateHandshake f) (x:xs) = ETT__.tio "Network.TLS.Handshake.Common.onRecvStateHandshake" ETT__.$ do
     nstate <- f x
     processHandshake ctx x
     onRecvStateHandshake ctx nstate xs
-onRecvStateHandshake _ _ _   = unexpected "spurious handshake" Nothing
+onRecvStateHandshake _ _ _   = ETT__.tio "Network.TLS.Handshake.Common.onRecvStateHandshake" ETT__.$ unexpected "spurious handshake" Nothing
 
 runRecvState :: Context -> RecvState IO -> IO ()
-runRecvState _    RecvStateDone    = return ()
-runRecvState ctx (RecvStateNext f) = recvPacket ctx >>= either throwCore f >>= runRecvState ctx
-runRecvState ctx iniState          = recvPacketHandshake ctx >>= onRecvStateHandshake ctx iniState >>= runRecvState ctx
+runRecvState _    RecvStateDone    = ETT__.tio "Network.TLS.Handshake.Common.runRecvState" ETT__.$ return ()
+runRecvState ctx (RecvStateNext f) = ETT__.tio "Network.TLS.Handshake.Common.runRecvState" ETT__.$ recvPacket ctx >>= either throwCore f >>= runRecvState ctx
+runRecvState ctx iniState          = ETT__.tio "Network.TLS.Handshake.Common.runRecvState" ETT__.$ recvPacketHandshake ctx >>= onRecvStateHandshake ctx iniState >>= runRecvState ctx
 
 ensureRecvComplete :: MonadIO m => Context -> m ()
-ensureRecvComplete ctx = do
+ensureRecvComplete ctx = ETT__.tm "Network.TLS.Handshake.Common.ensureRecvComplete" ETT__.$ do
     complete <- liftIO $ isRecvComplete ctx
     unless complete $
         throwCore $ Error_Protocol "received incomplete message at key change" UnexpectedMessage
 
 processExtendedMasterSec :: MonadIO m => Context -> Version -> MessageType -> [ExtensionRaw] -> m Bool
 processExtendedMasterSec ctx ver msgt exts
-    | ver < TLS10  = return False
-    | ver > TLS12  = error "EMS processing is not compatible with TLS 1.3"
-    | ems == NoEMS = return False
-    | otherwise    =
+    | ver < TLS10  = ETT__.t "Network.TLS.Handshake.Common.processExtendedMasterSec" ETT__.$ return False
+    | ver > TLS12  = ETT__.t "Network.TLS.Handshake.Common.processExtendedMasterSec" ETT__.$ error "EMS processing is not compatible with TLS 1.3"
+    | ems == NoEMS = ETT__.t "Network.TLS.Handshake.Common.processExtendedMasterSec" ETT__.$ return False
+    | otherwise    = ETT__.t "Network.TLS.Handshake.Common.processExtendedMasterSec" ETT__.$
         case extensionLookup extensionID_ExtendedMasterSecret exts >>= extensionDecode msgt of
             Just ExtendedMasterSecret -> usingHState ctx (setExtendedMasterSec True) >> return True
             Nothing | ems == RequireEMS -> throwCore $ Error_Protocol err HandshakeFailure
@@ -205,7 +206,7 @@ processExtendedMasterSec ctx ver msgt exts
         err = "peer does not support Extended Master Secret"
 
 getSessionData :: Context -> IO (Maybe SessionData)
-getSessionData ctx = do
+getSessionData ctx = ETT__.tio "Network.TLS.Handshake.Common.getSessionData" ETT__.$ do
     ver <- usingState_ ctx getVersion
     sni <- usingState_ ctx getClientSNI
     mms <- usingHState ctx (gets hstMasterSecret)
@@ -231,7 +232,7 @@ getSessionData ctx = do
                         }
 
 extensionLookup :: ExtensionID -> [ExtensionRaw] -> Maybe ByteString
-extensionLookup toFind = fmap (\(ExtensionRaw _ content) -> content)
+extensionLookup toFind = ETT__.t "Network.TLS.Handshake.Common.extensionLookup" ETT__.$ fmap (\(ExtensionRaw _ content) -> content)
                        . find (\(ExtensionRaw eid _) -> eid == toFind)
 
 -- | Store the specified keypair.  Whether the public key and private key
@@ -244,7 +245,7 @@ storePrivInfo :: MonadIO m
               -> CertificateChain
               -> PrivKey
               -> m PubKey
-storePrivInfo ctx cc privkey = do
+storePrivInfo ctx cc privkey = ETT__.tm "Network.TLS.Handshake.Common.storePrivInfo" ETT__.$ do
     let CertificateChain (c:_) = cc
         pubkey = certPubKey $ getCertificate c
     unless (isDigitalSignaturePair (pubkey, privkey)) $
@@ -255,10 +256,10 @@ storePrivInfo ctx cc privkey = do
 -- verify that the group selected by the peer is supported in the local
 -- configuration
 checkSupportedGroup :: Context -> Group -> IO ()
-checkSupportedGroup ctx grp =
+checkSupportedGroup ctx grp = ETT__.tio "Network.TLS.Handshake.Common.checkSupportedGroup" ETT__.$
     unless (isSupportedGroup ctx grp) $
         let msg = "unsupported (EC)DHE group: " ++ show grp
          in throwCore $ Error_Protocol msg IllegalParameter
 
 isSupportedGroup :: Context -> Group -> Bool
-isSupportedGroup ctx grp = grp `elem` supportedGroups (ctxSupported ctx)
+isSupportedGroup ctx grp = ETT__.t "Network.TLS.Handshake.Common.isSupportedGroup" ETT__.$ grp `elem` supportedGroups (ctxSupported ctx)

@@ -50,6 +50,7 @@ import Data.IORef (IORef, newIORef, mkWeakIORef, readIORef)
 import qualified Data.Foldable as F
 import GHC.Conc (unsafeIOToSTM)
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 data KeyedPool key resource = KeyedPool
     { kpCreate :: !(key -> IO resource)
@@ -83,13 +84,13 @@ data PoolList a
     deriving F.Foldable
 
 plistToList :: PoolList a -> [(UTCTime, a)]
-plistToList (One a t) = [(t, a)]
-plistToList (Cons a _ t plist) = (t, a) : plistToList plist
+plistToList (One a t) = ETT__.t "Data.KeyedPool.plistToList" ETT__.$ [(t, a)]
+plistToList (Cons a _ t plist) = ETT__.t "Data.KeyedPool.plistToList" ETT__.$ (t, a) : plistToList plist
 
 plistFromList :: [(UTCTime, a)] -> Maybe (PoolList a)
-plistFromList [] = Nothing
-plistFromList [(t, a)] = Just (One a t)
-plistFromList xs =
+plistFromList [] = ETT__.t "Data.KeyedPool.plistFromList" ETT__.$ Nothing
+plistFromList [(t, a)] = ETT__.t "Data.KeyedPool.plistFromList" ETT__.$ Just (One a t)
+plistFromList xs = ETT__.t "Data.KeyedPool.plistFromList" ETT__.$
     Just . snd . go $ xs
   where
     go [] = error "plistFromList.go []"
@@ -113,7 +114,7 @@ createKeyedPool
     -> Int -- ^ number of resources to allow in the pool across all keys
     -> (SomeException -> IO ()) -- ^ what to do if the reaper throws an exception
     -> IO (KeyedPool key resource)
-createKeyedPool create destroy maxPerKey maxTotal onReaperException = do
+createKeyedPool create destroy maxPerKey maxTotal onReaperException = ETT__.tio "Data.KeyedPool.createKeyedPool" ETT__.$ do
     var <- newTVarIO $ PoolOpen 0 Map.empty
 
     -- We use a different IORef for the weak ref instead of the var
@@ -150,7 +151,7 @@ createKeyedPool create destroy maxPerKey maxTotal onReaperException = do
 destroyKeyedPool' :: (resource -> IO ())
                   -> TVar (PoolMap key resource)
                   -> IO ()
-destroyKeyedPool' destroy var = do
+destroyKeyedPool' destroy var = ETT__.tio "Data.KeyedPool.destroyKeyedPool'" ETT__.$ do
     m <- atomically $ swapTVar var PoolClosed
     F.mapM_ (ignoreExceptions . destroy) m
 
@@ -162,7 +163,7 @@ reap :: forall key resource.
      => (resource -> IO ())
      -> TVar (PoolMap key resource)
      -> IO ()
-reap destroy var =
+reap destroy var = ETT__.tio "Data.KeyedPool.reap" ETT__.$
     loop
   where
     loop = do
@@ -216,7 +217,7 @@ reap destroy var =
 -- resource cleanup, you should bracket this operation together with
 -- 'managedRelease'.
 takeKeyedPool :: Ord key => KeyedPool key resource -> key -> IO (Managed resource)
-takeKeyedPool kp key = mask_ $ join $ atomically $ do
+takeKeyedPool kp key = ETT__.tio "Data.KeyedPool.takeKeyedPool" ETT__.$ mask_ $ join $ atomically $ do
     (m, mresource) <- fmap go $ readTVar (kpVar kp)
     writeTVar (kpVar kp) $! m
     return $ do
@@ -251,7 +252,7 @@ takeKeyedPool kp key = mask_ $ join $ atomically $ do
 -- | Try to return a resource to the pool. If too many resources
 -- already exist, then just destroy it.
 putResource :: Ord key => KeyedPool key resource -> key -> resource -> IO ()
-putResource kp key resource = do
+putResource kp key resource = ETT__.tio "Data.KeyedPool.putResource" ETT__.$ do
     now <- getCurrentTime
     join $ atomically $ do
         (m, action) <- fmap (go now) (readTVar (kpVar kp))
@@ -275,11 +276,11 @@ putResource kp key resource = do
 -- | Add a new element to the list, up to the given maximum number. If we're
 -- already at the maximum, return the new value as leftover.
 addToList :: UTCTime -> Int -> a -> PoolList a -> (PoolList a, Maybe a)
-addToList _ i x l | i <= 1 = (l, Just x)
-addToList now _ x l@One{} = (Cons x 2 now l, Nothing)
+addToList _ i x l | i <= 1 = ETT__.t "Data.KeyedPool.addToList" ETT__.$ (l, Just x)
+addToList now _ x l@One{} = ETT__.t "Data.KeyedPool.addToList" ETT__.$ (Cons x 2 now l, Nothing)
 addToList now maxCount x l@(Cons _ currCount _ _)
-    | maxCount > currCount = (Cons x (currCount + 1) now l, Nothing)
-    | otherwise = (l, Just x)
+    | maxCount > currCount = ETT__.t "Data.KeyedPool.addToList" ETT__.$ (Cons x (currCount + 1) now l, Nothing)
+    | otherwise = ETT__.t "Data.KeyedPool.addToList" ETT__.$ (l, Just x)
 
 -- | A managed resource, which can be returned to the 'KeyedPool' when
 -- work with it is complete. Using garbage collection, it will default
@@ -294,23 +295,23 @@ data Managed resource = Managed
 
 -- | Get the raw resource from the 'Managed' value.
 managedResource :: Managed resource -> resource
-managedResource = _managedResource
+managedResource = ETT__.t "Data.KeyedPool.managedResource" ETT__.$ _managedResource
 
 -- | Was this value taken from the pool?
 managedReused :: Managed resource -> Bool
-managedReused = _managedReused
+managedReused = ETT__.t "Data.KeyedPool.managedReused" ETT__.$ _managedReused
 
 -- | Release the resource, after which it is invalid to use the
 -- 'managedResource' value. 'Reuse' returns the resource to the
 -- pool; 'DontReuse' destroys it.
 managedRelease :: Managed resource -> Reuse -> IO ()
-managedRelease = _managedRelease
+managedRelease = ETT__.t "Data.KeyedPool.managedRelease" ETT__.$ _managedRelease
 
 data Reuse = Reuse | DontReuse
 
 -- | For testing purposes only: create a dummy Managed wrapper
 dummyManaged :: resource -> Managed resource
-dummyManaged resource = Managed
+dummyManaged resource = ETT__.t "Data.KeyedPool.dummyManaged" ETT__.$ Managed
     { _managedResource = resource
     , _managedReused = False
     , _managedRelease = const (return ())
@@ -318,8 +319,8 @@ dummyManaged resource = Managed
     }
 
 ignoreExceptions :: IO () -> IO ()
-ignoreExceptions f = f `catch` \(_ :: SomeException) -> return ()
+ignoreExceptions f = ETT__.tio "Data.KeyedPool.ignoreExceptions" ETT__.$ f `catch` \(_ :: SomeException) -> return ()
 
 -- | Prevent the managed resource from getting released before you want to use.
 keepAlive :: Managed resource -> IO ()
-keepAlive = readIORef . _managedAlive
+keepAlive = ETT__.t "Data.KeyedPool.keepAlive" ETT__.$ readIORef . _managedAlive

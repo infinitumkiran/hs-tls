@@ -27,6 +27,7 @@ import Data.Default
 import Data.X509
 import Data.X509.Validation.Fingerprint
 import Data.X509.Validation.Types
+import qualified Debug.EulerTrace.CryptonX509Validation as ETT__
 
 -- | The result of a cache query
 data ValidationCacheResult
@@ -68,7 +69,7 @@ data ValidationCache = ValidationCache
     }
 
 defaultValidationCache :: ValidationCache
-defaultValidationCache = exceptionValidationCache []
+defaultValidationCache = ETT__.t "Data.X509.Validation.Cache.defaultValidationCache" ETT__.$ exceptionValidationCache []
 
 instance Default ValidationCache where
     def = defaultValidationCache
@@ -87,7 +88,7 @@ instance Default ValidationCache where
 -- Note that only one fingerprint is allowed per ServiceID, for other use,
 -- another cache mechanism need to be use.
 exceptionValidationCache :: [(ServiceID, Fingerprint)] -> ValidationCache
-exceptionValidationCache fingerprints =
+exceptionValidationCache fingerprints = ETT__.t "Data.X509.Validation.Cache.exceptionValidationCache" ETT__.$
     ValidationCache
         (queryListCallback fingerprints)
         (\_ _ _ -> return ())
@@ -102,7 +103,7 @@ tofuValidationCache
     :: [(ServiceID, Fingerprint)]
     -- ^ a list of exceptions
     -> IO ValidationCache
-tofuValidationCache fingerprints = do
+tofuValidationCache fingerprints = ETT__.tio "Data.X509.Validation.Cache.tofuValidationCache" ETT__.$ do
     l <- newMVar fingerprints
     return $
         ValidationCache
@@ -112,7 +113,7 @@ tofuValidationCache fingerprints = do
 -- | a cache query function working on list.
 -- don't use when the list grows a lot.
 queryListCallback :: [(ServiceID, Fingerprint)] -> ValidationCacheQueryCallback
-queryListCallback list = query
+queryListCallback list = ETT__.t "Data.X509.Validation.Cache.queryListCallback" ETT__.$ query
   where
     query serviceID fingerprint _ = return $
         case lookup serviceID list of

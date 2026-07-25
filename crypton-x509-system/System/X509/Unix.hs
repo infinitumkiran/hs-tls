@@ -24,9 +24,10 @@ import qualified Control.Exception as E
 
 import Data.Maybe (catMaybes)
 import Data.Monoid (mconcat)
+import qualified Debug.EulerTrace.CryptonX509System as ETT__
 
 defaultSystemPaths :: [FilePath]
-defaultSystemPaths =
+defaultSystemPaths = ETT__.t "System.X509.Unix.defaultSystemPaths" ETT__.$
     [ "/etc/ssl/certs/"                 -- linux
     , "/system/etc/security/cacerts/"   -- android
     , "/usr/local/share/certs/"         -- freebsd
@@ -34,13 +35,13 @@ defaultSystemPaths =
     ]
 
 envPathOverride :: String
-envPathOverride = "SYSTEM_CERTIFICATE_PATH"
+envPathOverride = ETT__.t "System.X509.Unix.envPathOverride" ETT__.$ "SYSTEM_CERTIFICATE_PATH"
 
 getSystemCertificateStore :: IO CertificateStore
-getSystemCertificateStore = mconcat . catMaybes <$> (getSystemPaths >>= mapM readCertificateStore)
+getSystemCertificateStore = ETT__.tio "System.X509.Unix.getSystemCertificateStore" ETT__.$ mconcat . catMaybes <$> (getSystemPaths >>= mapM readCertificateStore)
 
 getSystemPaths :: IO [FilePath]
-getSystemPaths = E.catch ((:[]) <$> getEnv envPathOverride) inDefault
+getSystemPaths = ETT__.tio "System.X509.Unix.getSystemPaths" ETT__.$ E.catch ((:[]) <$> getEnv envPathOverride) inDefault
     where
         inDefault :: E.IOException -> IO [FilePath]
         inDefault _ = return defaultSystemPaths

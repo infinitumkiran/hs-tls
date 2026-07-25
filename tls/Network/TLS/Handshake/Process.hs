@@ -37,9 +37,10 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (gets)
 import Data.X509 (CertificateChain(..), Certificate(..), getCertificate)
 import Data.IORef (writeIORef)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 processHandshake :: Context -> Handshake -> IO ()
-processHandshake ctx hs = do
+processHandshake ctx hs = ETT__.tio "Network.TLS.Handshake.Process.processHandshake" ETT__.$ do
     role <- usingState_ ctx isClientContext
     case hs of
         ClientHello cver ran _ cids _ ex _ -> when (role == ServerRole) $ do
@@ -83,13 +84,13 @@ processHandshake ctx hs = do
         isHRR _                                 = False
 
 processHandshake13 :: Context -> Handshake13 -> IO ()
-processHandshake13 ctx = void . updateHandshake13 ctx
+processHandshake13 ctx = ETT__.t "Network.TLS.Handshake.Process.processHandshake13" ETT__.$ void . updateHandshake13 ctx
 
 -- process the client key exchange message. the protocol expects the initial
 -- client version received in ClientHello, not the negotiated version.
 -- in case the version mismatch, generate a random master secret
 processClientKeyXchg :: Context -> ClientKeyXchgAlgorithmData -> IO ()
-processClientKeyXchg ctx (CKX_RSA encryptedPremaster) = do
+processClientKeyXchg ctx (CKX_RSA encryptedPremaster) = ETT__.tio "Network.TLS.Handshake.Process.processClientKeyXchg" ETT__.$ do
     (rver, role, random) <- usingState_ ctx $ do
         (,,) <$> getVersion <*> isClientContext <*> genRandom 48
     ePremaster <- decryptRSA ctx encryptedPremaster
@@ -104,7 +105,7 @@ processClientKeyXchg ctx (CKX_RSA encryptedPremaster) = do
                     | otherwise          -> setMasterSecretFromPre rver role premaster
     liftIO $ logKey ctx (MasterSecret masterSecret)
 
-processClientKeyXchg ctx (CKX_DH clientDHValue) = do
+processClientKeyXchg ctx (CKX_DH clientDHValue) = ETT__.tio "Network.TLS.Handshake.Process.processClientKeyXchg" ETT__.$ do
     rver <- usingState_ ctx getVersion
     role <- usingState_ ctx isClientContext
 
@@ -118,7 +119,7 @@ processClientKeyXchg ctx (CKX_DH clientDHValue) = do
     masterSecret <- usingHState ctx $ setMasterSecretFromPre rver role premaster
     liftIO $ logKey ctx (MasterSecret masterSecret)
 
-processClientKeyXchg ctx (CKX_ECDH bytes) = do
+processClientKeyXchg ctx (CKX_ECDH bytes) = ETT__.tio "Network.TLS.Handshake.Process.processClientKeyXchg" ETT__.$ do
     ServerECDHParams grp _ <- usingHState ctx getServerECDHParams
     case decodeGroupPublic grp bytes of
       Left _ -> throwCore $ Error_Protocol "client public key cannot be decoded" IllegalParameter
@@ -133,7 +134,7 @@ processClientKeyXchg ctx (CKX_ECDH bytes) = do
               Nothing -> throwCore $ Error_Protocol "cannot generate a shared secret on ECDH" IllegalParameter
 
 processClientFinished :: Context -> FinishedData -> IO ()
-processClientFinished ctx fdata = do
+processClientFinished ctx fdata = ETT__.tio "Network.TLS.Handshake.Process.processClientFinished" ETT__.$ do
     (cc,ver) <- usingState_ ctx $ (,) <$> isClientContext <*> getVersion
     expected <- usingHState ctx $ getHandshakeDigest ver $ invertRole cc
     when (expected /= fdata) $ decryptError "cannot verify finished"
@@ -141,6 +142,6 @@ processClientFinished ctx fdata = do
 
 -- initialize a new Handshake context (initial handshake or renegotiations)
 startHandshake :: Context -> Version -> ClientRandom -> IO ()
-startHandshake ctx ver crand =
+startHandshake ctx ver crand = ETT__.tio "Network.TLS.Handshake.Process.startHandshake" ETT__.$
     let hs = Just $ newEmptyHandshake ver crand
     in liftIO $ void $ swapMVar (ctxHandshake ctx) hs

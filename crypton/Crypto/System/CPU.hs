@@ -30,6 +30,7 @@ import Crypto.Internal.Compat
 import Crypto.Random.Entropy.RDRand
 import Crypto.Random.Entropy.Source
 #endif
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | CPU options impacting cryptography implementation and library performance.
 data ProcessorOption
@@ -44,7 +45,7 @@ data ProcessorOption
 -- | Options which have been enabled at compile time and are supported by the
 -- current CPU.
 processorOptions :: [ProcessorOption]
-processorOptions = unsafeDoIO $ do
+processorOptions = ETT__.t "Crypto.System.CPU.processorOptions" ETT__.$ unsafeDoIO $ do
     p <- crypton_aes_cpu_init
     options <- traverse (getOption p) aesOptions
     rdrand <- hasRDRand
@@ -57,10 +58,10 @@ processorOptions = unsafeDoIO $ do
 
 hasRDRand :: IO Bool
 #ifdef SUPPORT_RDRAND
-hasRDRand = fmap isJust getRDRand
+hasRDRand = ETT__.tio "Crypto.System.CPU.hasRDRand" ETT__.$ fmap isJust getRDRand
   where getRDRand = entropyOpen :: IO (Maybe RDRand)
 #else
-hasRDRand = return False
+hasRDRand = ETT__.tio "Crypto.System.CPU.hasRDRand" ETT__.$ return False
 #endif
 
 foreign import ccall unsafe "crypton_aes_cpu_init"

@@ -59,31 +59,32 @@ import qualified Data.ByteString.Lazy as L
 import Data.Int (Int32)
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr)
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Hash a strict bytestring into a digest.
 hash :: (ByteArrayAccess ba, HashAlgorithm a) => ba -> Digest a
-hash bs = hashFinalize $ hashUpdate hashInit bs
+hash bs = ETT__.t "Crypto.Hash.hash" ETT__.$ hashFinalize $ hashUpdate hashInit bs
 
 -- | Hash the first N bytes of a bytestring, with code path independent from N.
 hashPrefix
     :: (ByteArrayAccess ba, HashAlgorithmPrefix a) => ba -> Int -> Digest a
-hashPrefix = hashFinalizePrefix hashInit
+hashPrefix = ETT__.t "Crypto.Hash.hashPrefix" ETT__.$ hashFinalizePrefix hashInit
 
 -- | Hash a lazy bytestring into a digest.
 hashlazy :: HashAlgorithm a => L.ByteString -> Digest a
-hashlazy lbs = hashFinalize $ hashUpdates hashInit (L.toChunks lbs)
+hashlazy lbs = ETT__.t "Crypto.Hash.hashlazy" ETT__.$ hashFinalize $ hashUpdates hashInit (L.toChunks lbs)
 
 -- | Initialize a new context for this hash algorithm
 hashInit :: forall a. HashAlgorithm a => Context a
-hashInit = Context $ B.allocAndFreeze (hashInternalContextSize (undefined :: a)) $ \(ptr :: Ptr (Context a)) ->
+hashInit = ETT__.t "Crypto.Hash.hashInit" ETT__.$ Context $ B.allocAndFreeze (hashInternalContextSize (undefined :: a)) $ \(ptr :: Ptr (Context a)) ->
     hashInternalInit ptr
 
 -- | run hashUpdates on one single bytestring and return the updated context.
 hashUpdate
     :: (ByteArrayAccess ba, HashAlgorithm a) => Context a -> ba -> Context a
 hashUpdate ctx b
-    | B.null b = ctx
-    | otherwise = hashUpdates ctx [b]
+    | B.null b = ETT__.t "Crypto.Hash.hashUpdate" ETT__.$ ctx
+    | otherwise = ETT__.t "Crypto.Hash.hashUpdate" ETT__.$ hashUpdates ctx [b]
 
 -- | Update the context with a list of strict bytestring,
 -- and return a new context with the updates.
@@ -94,8 +95,8 @@ hashUpdates
     -> [ba]
     -> Context a
 hashUpdates c l
-    | null ls = c
-    | otherwise = Context $ B.copyAndFreeze c $ \(ctx :: Ptr (Context a)) ->
+    | null ls = ETT__.t "Crypto.Hash.hashUpdates" ETT__.$ c
+    | otherwise = ETT__.t "Crypto.Hash.hashUpdates" ETT__.$ Context $ B.copyAndFreeze c $ \(ctx :: Ptr (Context a)) ->
         mapM_ (\b -> B.withByteArray b (processBlocks ctx (B.length b))) ls
   where
     ls = filter (not . B.null) l
@@ -117,7 +118,7 @@ hashFinalize
      . HashAlgorithm a
     => Context a
     -> Digest a
-hashFinalize !c =
+hashFinalize !c = ETT__.t "Crypto.Hash.hashFinalize" ETT__.$
     Digest $ B.allocAndFreeze (hashDigestSize (undefined :: a)) $ \(dig :: Ptr (Digest a)) -> do
         ((!_) :: B.Bytes) <- B.copy c $ \(ctx :: Ptr (Context a)) -> hashInternalFinalize ctx dig
         return ()
@@ -135,7 +136,7 @@ hashFinalizePrefix
     -> ba
     -> Int
     -> Digest a
-hashFinalizePrefix !c b len =
+hashFinalizePrefix !c b len = ETT__.t "Crypto.Hash.hashFinalizePrefix" ETT__.$
     Digest $ B.allocAndFreeze (hashDigestSize (undefined :: a)) $ \(dig :: Ptr (Digest a)) -> do
         ((!_) :: B.Bytes) <- B.copy c $ \(ctx :: Ptr (Context a)) ->
             B.withByteArray b $ \d ->
@@ -149,16 +150,16 @@ hashFinalizePrefix !c b len =
 
 -- | Initialize a new context for a specified hash algorithm
 hashInitWith :: HashAlgorithm alg => alg -> Context alg
-hashInitWith _ = hashInit
+hashInitWith _ = ETT__.t "Crypto.Hash.hashInitWith" ETT__.$ hashInit
 
 -- | Run the 'hash' function but takes an explicit hash algorithm parameter
 hashWith :: (ByteArrayAccess ba, HashAlgorithm alg) => alg -> ba -> Digest alg
-hashWith _ = hash
+hashWith _ = ETT__.t "Crypto.Hash.hashWith" ETT__.$ hash
 
 -- | Run the 'hashPrefix' function but takes an explicit hash algorithm parameter
 hashPrefixWith
     :: (ByteArrayAccess ba, HashAlgorithmPrefix alg) => alg -> ba -> Int -> Digest alg
-hashPrefixWith _ = hashPrefix
+hashPrefixWith _ = ETT__.t "Crypto.Hash.hashPrefixWith" ETT__.$ hashPrefix
 
 -- | Try to transform a bytearray into a Digest of specific algorithm.
 --
@@ -166,7 +167,7 @@ hashPrefixWith _ = hashPrefix
 -- Nothing is returned.
 digestFromByteString
     :: forall a ba. (HashAlgorithm a, ByteArrayAccess ba) => ba -> Maybe (Digest a)
-digestFromByteString = from undefined
+digestFromByteString = ETT__.t "Crypto.Hash.digestFromByteString" ETT__.$ from undefined
   where
     from :: a -> ba -> Maybe (Digest a)
     from alg bs

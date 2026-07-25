@@ -29,11 +29,12 @@ import qualified Crypto.PubKey.ECC.Types as ECC
 import           Crypto.Number.Serialize (os2ip)
 
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | Read an EC point from a serialized format and make sure the point is
 -- valid for the specified curve.
 unserializePoint :: ECC.Curve -> SerializedPoint -> Maybe ECC.Point
-unserializePoint curve (SerializedPoint bs) =
+unserializePoint curve (SerializedPoint bs) = ETT__.t "Data.X509.EC.unserializePoint" ETT__.$
     case B.uncons bs of
         Nothing                -> Nothing
         Just (ptFormat, input) ->
@@ -55,8 +56,8 @@ unserializePoint curve (SerializedPoint bs) =
 -- if a curve in explicit format is valid: if the input is not trusted one
 -- should consider 'ecPubKeyCurveName' instead.
 ecPubKeyCurve :: PubKeyEC -> Maybe ECC.Curve
-ecPubKeyCurve (PubKeyEC_Named name _) = Just $ ECC.getCurveByName name
-ecPubKeyCurve pub@PubKeyEC_Prime{}    =
+ecPubKeyCurve (PubKeyEC_Named name _) = ETT__.t "Data.X509.EC.ecPubKeyCurve" ETT__.$ Just $ ECC.getCurveByName name
+ecPubKeyCurve pub@PubKeyEC_Prime{}    = ETT__.t "Data.X509.EC.ecPubKeyCurve" ETT__.$
     fmap buildCurve $
         unserializePoint (buildCurve undefined) (pubkeyEC_generator pub)
   where
@@ -73,8 +74,8 @@ ecPubKeyCurve pub@PubKeyEC_Prime{}    =
 
 -- | Return the name of a standard curve associated to an EC Public Key
 ecPubKeyCurveName :: PubKeyEC -> Maybe ECC.CurveName
-ecPubKeyCurveName (PubKeyEC_Named name _) = Just name
-ecPubKeyCurveName pub@PubKeyEC_Prime{}    =
+ecPubKeyCurveName (PubKeyEC_Named name _) = ETT__.t "Data.X509.EC.ecPubKeyCurveName" ETT__.$ Just name
+ecPubKeyCurveName pub@PubKeyEC_Prime{}    = ETT__.t "Data.X509.EC.ecPubKeyCurveName" ETT__.$
     find matchPrimeCurve $ enumFrom $ toEnum 0
   where
     matchPrimeCurve c =
@@ -90,8 +91,8 @@ ecPubKeyCurveName pub@PubKeyEC_Prime{}    =
 -- if a curve in explicit format is valid: if the input is not trusted one
 -- should consider 'ecPrivKeyCurveName' instead.
 ecPrivKeyCurve :: PrivKeyEC -> Maybe ECC.Curve
-ecPrivKeyCurve (PrivKeyEC_Named name _) = Just $ ECC.getCurveByName name
-ecPrivKeyCurve priv@PrivKeyEC_Prime{}   =
+ecPrivKeyCurve (PrivKeyEC_Named name _) = ETT__.t "Data.X509.EC.ecPrivKeyCurve" ETT__.$ Just $ ECC.getCurveByName name
+ecPrivKeyCurve priv@PrivKeyEC_Prime{}   = ETT__.t "Data.X509.EC.ecPrivKeyCurve" ETT__.$
     fmap buildCurve $
         unserializePoint (buildCurve undefined) (privkeyEC_generator priv)
   where
@@ -108,8 +109,8 @@ ecPrivKeyCurve priv@PrivKeyEC_Prime{}   =
 
 -- | Return the name of a standard curve associated to an EC Private Key
 ecPrivKeyCurveName :: PrivKeyEC -> Maybe ECC.CurveName
-ecPrivKeyCurveName (PrivKeyEC_Named name _) = Just name
-ecPrivKeyCurveName priv@PrivKeyEC_Prime{}   =
+ecPrivKeyCurveName (PrivKeyEC_Named name _) = ETT__.t "Data.X509.EC.ecPrivKeyCurveName" ETT__.$ Just name
+ecPrivKeyCurveName priv@PrivKeyEC_Prime{}   = ETT__.t "Data.X509.EC.ecPrivKeyCurveName" ETT__.$
     find matchPrimeCurve $ enumFrom $ toEnum 0
   where
     matchPrimeCurve c =
@@ -123,4 +124,4 @@ ecPrivKeyCurveName priv@PrivKeyEC_Prime{}   =
 
 -- | Return the curve name associated to an OID
 lookupCurveNameByOID :: OID -> Maybe ECC.CurveName
-lookupCurveNameByOID = lookupByOID curvesOIDTable
+lookupCurveNameByOID = ETT__.t "Data.X509.EC.lookupCurveNameByOID" ETT__.$ lookupByOID curvesOIDTable

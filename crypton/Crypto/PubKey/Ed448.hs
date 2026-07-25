@@ -51,6 +51,7 @@ import qualified Crypto.Internal.ByteArray as B
 import Crypto.Internal.Compat
 import Crypto.Internal.Imports
 import Crypto.Random
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | An Ed448 Secret key
 newtype SecretKey = SecretKey ScrubbedBytes
@@ -67,16 +68,16 @@ newtype Signature = Signature Bytes
 -- | Try to build a public key from a bytearray
 publicKey :: ByteArrayAccess ba => ba -> CryptoFailable PublicKey
 publicKey bs
-    | B.length bs == publicKeySize =
+    | B.length bs == publicKeySize = ETT__.t "Crypto.PubKey.Ed448.publicKey" ETT__.$
         CryptoPassed $ PublicKey $ B.copyAndFreeze bs (\_ -> return ())
-    | otherwise =
+    | otherwise = ETT__.t "Crypto.PubKey.Ed448.publicKey" ETT__.$
         CryptoFailed $ CryptoError_PublicKeySizeInvalid
 
 -- | Try to build a secret key from a bytearray
 secretKey :: ByteArrayAccess ba => ba -> CryptoFailable SecretKey
 secretKey bs
-    | B.length bs == secretKeySize = unsafeDoIO $ withByteArray bs initialize
-    | otherwise =
+    | B.length bs == secretKeySize = ETT__.t "Crypto.PubKey.Ed448.secretKey" ETT__.$ unsafeDoIO $ withByteArray bs initialize
+    | otherwise = ETT__.t "Crypto.PubKey.Ed448.secretKey" ETT__.$
         CryptoFailed CryptoError_SecretKeyStructureInvalid
   where
     initialize inp = do
@@ -91,14 +92,14 @@ secretKey bs
 -- | Try to build a signature from a bytearray
 signature :: ByteArrayAccess ba => ba -> CryptoFailable Signature
 signature bs
-    | B.length bs == signatureSize =
+    | B.length bs == signatureSize = ETT__.t "Crypto.PubKey.Ed448.signature" ETT__.$
         CryptoPassed $ Signature $ B.copyAndFreeze bs (\_ -> return ())
-    | otherwise =
+    | otherwise = ETT__.t "Crypto.PubKey.Ed448.signature" ETT__.$
         CryptoFailed CryptoError_SecretKeyStructureInvalid
 
 -- | Create a public key from a secret key
 toPublic :: SecretKey -> PublicKey
-toPublic (SecretKey sec) = PublicKey
+toPublic (SecretKey sec) = ETT__.t "Crypto.PubKey.Ed448.toPublic" ETT__.$ PublicKey
     <$> B.allocAndFreeze publicKeySize
     $ \result ->
         withByteArray sec $ \psec ->
@@ -110,7 +111,7 @@ toPublic (SecretKey sec) = PublicKey
 --   is generated from the secret key parameter to prevent
 --   Double Public Key Signing Function Oracle Attack.
 sign :: ByteArrayAccess ba => SecretKey -> PublicKey -> ba -> Signature
-sign secret _public message =
+sign secret _public message = ETT__.t "Crypto.PubKey.Ed448.sign" ETT__.$
     Signature $ B.allocAndFreeze signatureSize $ \sig ->
         withByteArray secret $ \sec ->
             withByteArray public $ \pub ->
@@ -126,7 +127,7 @@ sign secret _public message =
 -- performance critical applications. To use it safely, applications
 -- must verify or derive the public key.
 unsafeSign :: ByteArrayAccess ba => SecretKey -> PublicKey -> ba -> Signature
-unsafeSign secret public message =
+unsafeSign secret public message = ETT__.t "Crypto.PubKey.Ed448.unsafeSign" ETT__.$
     Signature $ B.allocAndFreeze signatureSize $ \sig ->
         withByteArray secret $ \sec ->
             withByteArray public $ \pub ->
@@ -137,7 +138,7 @@ unsafeSign secret public message =
 
 -- | Verify a message
 verify :: ByteArrayAccess ba => PublicKey -> ba -> Signature -> Bool
-verify public message signatureVal = unsafeDoIO $
+verify public message signatureVal = ETT__.t "Crypto.PubKey.Ed448.verify" ETT__.$ unsafeDoIO $
     withByteArray signatureVal $ \sig ->
         withByteArray public $ \pub ->
             withByteArray message $ \msg -> do
@@ -148,22 +149,22 @@ verify public message signatureVal = unsafeDoIO $
 
 -- | Generate a secret key
 generateSecretKey :: MonadRandom m => m SecretKey
-generateSecretKey = SecretKey <$> getRandomBytes secretKeySize
+generateSecretKey = ETT__.tm "Crypto.PubKey.Ed448.generateSecretKey" ETT__.$ SecretKey <$> getRandomBytes secretKeySize
 
 -- | A public key is 57 bytes
 publicKeySize :: Int
-publicKeySize = 57
+publicKeySize = ETT__.t "Crypto.PubKey.Ed448.publicKeySize" ETT__.$ 57
 
 -- | A secret key is 57 bytes
 secretKeySize :: Int
-secretKeySize = 57
+secretKeySize = ETT__.t "Crypto.PubKey.Ed448.secretKeySize" ETT__.$ 57
 
 -- | A signature is 114 bytes
 signatureSize :: Int
-signatureSize = 114
+signatureSize = ETT__.t "Crypto.PubKey.Ed448.signatureSize" ETT__.$ 114
 
 no_context :: Ptr Word8
-no_context = nullPtr -- not supported yet
+no_context = ETT__.t "Crypto.PubKey.Ed448.no_context" ETT__.$ nullPtr -- not supported yet
 
 foreign import ccall "crypton_decaf_ed448_derive_public_key"
     decaf_ed448_derive_public_key

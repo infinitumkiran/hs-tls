@@ -29,6 +29,7 @@ Library
   Exposed-modules:   Data.X509
                      Data.X509.EC
   Other-modules:     Data.X509.Internal
+                     Debug.EulerTrace.CryptonX509
                      Data.X509.CertificateChain
                      Data.X509.AlgorithmIdentifier
                      Data.X509.DistinguishedName

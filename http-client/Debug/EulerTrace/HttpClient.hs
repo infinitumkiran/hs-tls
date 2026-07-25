@@ -1,0 +1,157 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-cse -fno-full-laziness -w #-}
+{-# OPTIONS_HADDOCK hide #-}
+
+-- |
+-- Module      : Debug.EulerTrace.HttpClient
+--
+-- Call tracer injected into the euler-api-gateway TLS debug forks.
+--
+-- DO NOT MERGE UPSTREAM.  This module, and the @ETT__.t@ / @ETT__.tm@ /
+-- @ETT__.tio@ wrappers sprinkled through this package, exist only so we can see
+-- which function in the TLS stack a failing outbound request dies in.
+--
+-- Enable at runtime:
+--
+-- > EULER_TLS_TRACE=all                       # every instrumented package
+-- > EULER_TLS_TRACE=tls,crypton-connection    # only these packages
+--
+-- The trace goes to stderr; redirect it with @2>>trace.log@.  It deliberately
+-- does not open a file of its own: each instrumented package has its own copy of
+-- this module, and GHC takes a per-inode write lock, so only the first package to
+-- open a shared log file would get a handle and the other eight would silently
+-- fall back to no tracing.
+--
+-- With the variable unset the wrappers are a single boolean test, so an
+-- instrumented build is safe to leave in place.
+--
+-- Output format:
+--
+-- > ETT <seq> <pkg> <threadid> <indent><dir> <label>
+--
+-- where @dir@ is @>@ on entry, @<@ on normal return and @!@ when the call left
+-- via an exception (the exception is appended).  A label with a @>@ and no
+-- matching @<@ is the innermost function that did not return: that is the one
+-- that broke.
+module Debug.EulerTrace.HttpClient
+    ( t
+    , tm
+    , tio
+      -- | Re-exported so the injected call sites work even in modules that
+      -- hide or shadow Prelude's '$' (e.g. @Network.TLS.Imports@).
+    , ($)
+    ) where
+
+import qualified Control.Exception as E
+import Control.Concurrent (myThreadId)
+import Data.IORef
+import System.Environment (lookupEnv)
+import System.IO (hPutStr, stderr)
+import System.IO.Unsafe (unsafePerformIO)
+
+-- | Short name of the package this copy was injected into.
+pkgTag :: String
+pkgTag = "http-client"
+
+-- ---------------------------------------------------------------------------
+-- configuration
+-- ---------------------------------------------------------------------------
+
+{-# NOINLINE enabled #-}
+enabled :: Bool
+enabled = unsafePerformIO $ do
+    r <- E.try (fmap (maybe False wanted) (lookupEnv "EULER_TLS_TRACE"))
+    case r of
+        Left (_ :: E.SomeException) -> return False
+        Right v -> return v
+  where
+    wanted raw =
+        let ws = words (map (\c -> if c == ',' then ' ' else c) raw)
+        in case ws of
+            [] -> False
+            _ | any (`elem` ["0", "off", "false", "no"]) ws -> False
+              | any (`elem` ["1", "all", "*", "on", "true", "yes"]) ws -> True
+              | otherwise -> pkgTag `elem` ws
+
+-- ---------------------------------------------------------------------------
+-- per-thread nesting depth and a global sequence number
+-- ---------------------------------------------------------------------------
+
+{-# NOINLINE counter #-}
+counter :: IORef Int
+counter = unsafePerformIO (newIORef 0)
+
+{-# NOINLINE depths #-}
+depths :: IORef [(String, Int)]
+depths = unsafePerformIO (newIORef [])
+
+nextSeq :: IO Int
+nextSeq = atomicModifyIORef' counter (\n -> (n + 1, n + 1))
+
+-- | Read the current depth for this thread; @d@ is added afterwards.
+adjustDepth :: String -> Int -> IO Int
+adjustDepth tid d = atomicModifyIORef' depths $ \m ->
+    let cur = maybe 0 id (lookup tid m)
+        new = max 0 (cur + d)
+        rest = filter ((/= tid) . fst) m
+        m' = if length rest > 256 then [(tid, new)] else (tid, new) : rest
+    in (m', if d >= 0 then cur else new)
+
+emit :: Char -> String -> String -> IO ()
+emit dir label extra = do
+    r <- E.try $ do
+        tid <- fmap show myThreadId
+        i <- nextSeq
+        d <- adjustDepth tid (case dir of
+                                  '>' -> 1
+                                  '<' -> -1
+                                  '!' -> -1
+                                  _ -> 0)
+        let pad = replicate (2 * min 40 d) ' '
+        -- one hPutStr, so lines from concurrent threads do not interleave
+        hPutStr stderr $ concat
+            [ "ETT ", show i, " ", pkgTag, " ", tid, " ", pad, [dir], " "
+            , label, extra, "\n" ]
+    case r of
+        Left (_ :: E.SomeException) -> return ()
+        Right () -> return ()
+
+-- ---------------------------------------------------------------------------
+-- the wrappers the rewriter injects
+-- ---------------------------------------------------------------------------
+
+-- | Entry only.  Type-checks against any right-hand side, so this is what gets
+-- used for pure functions and for anything whose result type we could not prove
+-- monadic.  Fires when the right-hand side is forced.
+t :: String -> a -> a
+t label x
+    | not enabled = x
+    | otherwise = unsafePerformIO (emit ':' label "" >> return x)
+
+-- | Entry and exit, for any monad.  An exception in the wrapped action shows up
+-- as a missing exit line rather than a @!@ line -- we cannot catch outside 'IO'.
+tm :: Monad m => String -> m a -> m a
+tm label act
+    | not enabled = act
+    | otherwise = markIn label (act >>= \r -> markOut label (return r))
+
+markIn :: String -> a -> a
+markIn label x = unsafePerformIO (emit '>' label "" >> return x)
+
+markOut :: String -> a -> a
+markOut label x = unsafePerformIO (emit '<' label "" >> return x)
+
+-- | Entry, exit and exception, for 'IO'.  The exception is re-thrown unchanged.
+tio :: String -> IO a -> IO a
+tio label act
+    | not enabled = act
+    | otherwise = do
+        emit '>' label ""
+        r <- E.try act
+        case r of
+            Left (e :: E.SomeException) -> do
+                emit '!' label ("   !! " ++ show e)
+                E.throwIO e
+            Right v -> do
+                emit '<' label ""
+                return v

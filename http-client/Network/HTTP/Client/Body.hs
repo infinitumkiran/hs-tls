@@ -22,6 +22,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Control.Monad (unless, when)
 import qualified Data.Streaming.Zlib as Z
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 -- | Get a single chunk of data from the response body, or an empty
 -- bytestring if no more data is available.
@@ -32,14 +33,14 @@ import qualified Data.Streaming.Zlib as Z
 --
 -- Since 0.1.0
 brRead :: BodyReader -> IO S.ByteString
-brRead = id
+brRead = ETT__.t "Network.HTTP.Client.Body.brRead" ETT__.$ id
 
 -- | Continuously call 'brRead', building up a lazy ByteString until a chunk is
 -- constructed that is at least as many bytes as requested.
 --
 -- Since 0.4.20
 brReadSome :: BodyReader -> Int -> IO L.ByteString
-brReadSome brRead' =
+brReadSome brRead' = ETT__.t "Network.HTTP.Client.Body.brReadSome" ETT__.$
     loop id
   where
     loop front rem'
@@ -51,10 +52,10 @@ brReadSome brRead' =
                 else loop (front . (bs:)) (rem' - S.length bs)
 
 brEmpty :: BodyReader
-brEmpty = return S.empty
+brEmpty = ETT__.t "Network.HTTP.Client.Body.brEmpty" ETT__.$ return S.empty
 
 constBodyReader :: [S.ByteString] -> IO BodyReader
-constBodyReader input = do
+constBodyReader input = ETT__.tio "Network.HTTP.Client.Body.constBodyReader" ETT__.$ do
   iinput <- newIORef input
   return $ atomicModifyIORef iinput $ \input' ->
         case input' of
@@ -65,7 +66,7 @@ constBodyReader input = do
 --
 -- Since 0.1.0
 brConsume :: BodyReader -> IO [S.ByteString]
-brConsume brRead' =
+brConsume brRead' = ETT__.tio "Network.HTTP.Client.Body.brConsume" ETT__.$
     go id
   where
     go front = do
@@ -75,7 +76,7 @@ brConsume brRead' =
             else go (front . (x:))
 
 makeGzipReader :: BodyReader -> IO BodyReader
-makeGzipReader brRead' = do
+makeGzipReader brRead' = ETT__.tio "Network.HTTP.Client.Body.makeGzipReader" ETT__.$ do
     inf <- Z.initInflate $ Z.WindowBits 31
     istate <- newIORef Nothing
     let goPopper popper = do
@@ -109,7 +110,7 @@ makeUnlimitedReader
   :: IO () -- ^ cleanup
   -> Connection
   -> IO BodyReader
-makeUnlimitedReader cleanup Connection {..} = do
+makeUnlimitedReader cleanup Connection {..} = ETT__.t "Network.HTTP.Client.Body.makeUnlimitedReader" ETT__.$ do
     icomplete <- newIORef False
     return $ do
         bs <- connectionRead
@@ -123,7 +124,7 @@ makeLengthReader
   -> Int
   -> Connection
   -> IO BodyReader
-makeLengthReader cleanup count0 Connection {..} = do
+makeLengthReader cleanup count0 Connection {..} = ETT__.t "Network.HTTP.Client.Body.makeLengthReader" ETT__.$ do
     icount <- newIORef count0
     return $ do
         count <- readIORef icount
@@ -153,7 +154,7 @@ makeChunkedReader
   -> Bool -- ^ raw
   -> Connection
   -> IO BodyReader
-makeChunkedReader mhl cleanup raw conn@Connection {..} = do
+makeChunkedReader mhl cleanup raw conn@Connection {..} = ETT__.t "Network.HTTP.Client.Body.makeChunkedReader" ETT__.$ do
     icount <- newIORef 0
     return $ do
       bs <- go icount

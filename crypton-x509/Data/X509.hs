@@ -79,6 +79,7 @@ import Data.X509.PrivateKey
 import Data.X509.AlgorithmIdentifier
 
 import Crypto.Hash
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | A Signed Certificate
 type SignedCertificate = SignedExact Certificate
@@ -88,26 +89,26 @@ type SignedCRL         = SignedExact CRL
 
 -- | Get the Certificate associated to a SignedCertificate
 getCertificate :: SignedCertificate -> Certificate
-getCertificate = signedObject . getSigned
+getCertificate = ETT__.t "Data.X509.getCertificate" ETT__.$ signedObject . getSigned
 
 -- | Get the CRL associated to a SignedCRL
 getCRL :: SignedCRL -> CRL
-getCRL = signedObject . getSigned
+getCRL = ETT__.t "Data.X509.getCRL" ETT__.$ signedObject . getSigned
 
 -- | Try to decode a bytestring to a SignedCertificate
 decodeSignedCertificate :: B.ByteString -> Either String SignedCertificate
-decodeSignedCertificate = decodeSignedObject
+decodeSignedCertificate = ETT__.t "Data.X509.decodeSignedCertificate" ETT__.$ decodeSignedObject
 
 -- | Try to decode a bytestring to a SignedCRL
 decodeSignedCRL :: B.ByteString -> Either String SignedCRL
-decodeSignedCRL = decodeSignedObject
+decodeSignedCRL = ETT__.t "Data.X509.decodeSignedCRL" ETT__.$ decodeSignedObject
 
 -- | Make an OpenSSL style hash of distinguished name
 --
 -- OpenSSL algorithm is odd, and has been replicated here somewhat.
 -- only lower the case of ascii character.
 hashDN :: DistinguishedName -> B.ByteString
-hashDN = shorten . hashWith SHA1 . encodeASN1' DER . flip toASN1 [] . DistinguishedNameInner . dnLowerUTF8
+hashDN = ETT__.t "Data.X509.hashDN" ETT__.$ shorten . hashWith SHA1 . encodeASN1' DER . flip toASN1 [] . DistinguishedNameInner . dnLowerUTF8
     where dnLowerUTF8 (DistinguishedName l) = DistinguishedName $ map (second toLowerUTF8) l
           toLowerUTF8 (ASN1CharacterString _ s) = ASN1CharacterString UTF8 (B.map asciiToLower s)
           asciiToLower c
@@ -118,8 +119,8 @@ hashDN = shorten . hashWith SHA1 . encodeASN1' DER . flip toASN1 [] . Distinguis
 
 -- | Create an openssl style old hash of distinguished name
 hashDN_old :: DistinguishedName -> B.ByteString
-hashDN_old = shorten . hashWith MD5 . encodeASN1' DER . flip toASN1 []
+hashDN_old = ETT__.t "Data.X509.hashDN_old" ETT__.$ shorten . hashWith MD5 . encodeASN1' DER . flip toASN1 []
 
 shorten :: Digest a -> B.ByteString
-shorten b = B.pack $ map i [3,2,1,0]
+shorten b = ETT__.t "Data.X509.shorten" ETT__.$ B.pack $ map i [3,2,1,0]
     where i n = BA.index b n

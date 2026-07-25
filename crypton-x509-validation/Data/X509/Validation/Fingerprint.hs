@@ -16,6 +16,7 @@ import Data.ASN1.Types
 import Data.ByteArray (ByteArrayAccess, convert)
 import Data.ByteString (ByteString)
 import Data.X509
+import qualified Debug.EulerTrace.CryptonX509Validation as ETT__
 
 -- | Fingerprint of a certificate
 newtype Fingerprint = Fingerprint ByteString
@@ -31,7 +32,7 @@ getFingerprint
     -- ^ algorithm to compute the fingerprint
     -> Fingerprint
     -- ^ fingerprint in binary form
-getFingerprint sobj halg = Fingerprint $ mkHash halg $ encodeSignedObject sobj
+getFingerprint sobj halg = ETT__.t "Data.X509.Validation.Fingerprint.getFingerprint" ETT__.$ Fingerprint $ mkHash halg $ encodeSignedObject sobj
   where
     mkHash HashMD2 = convert . hashWith MD2
     mkHash HashMD5 = convert . hashWith MD5

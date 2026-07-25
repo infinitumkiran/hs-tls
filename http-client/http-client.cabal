@@ -22,6 +22,7 @@ library
                        Network.HTTP.Client.MultipartFormData
                        Network.HTTP.Client.Internal
   other-modules:       Network.HTTP.Client.Body
+                       Debug.EulerTrace.HttpClient
                        Network.HTTP.Client.Connection
                        Network.HTTP.Client.Cookies
                        Network.HTTP.Client.Core

@@ -19,17 +19,18 @@ import qualified Crypto.Internal.ByteArray as B
 import Crypto.Internal.Compat (unsafeDoIO)
 import Crypto.Number.Basic
 import qualified Crypto.Number.Serialize.Internal as Internal
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | @os2ip@ converts a byte string into a positive integer.
 os2ip :: B.ByteArrayAccess ba => ba -> Integer
-os2ip bs = unsafeDoIO $ B.withByteArray bs (\p -> Internal.os2ip p (B.length bs))
+os2ip bs = ETT__.t "Crypto.Number.Serialize.os2ip" ETT__.$ unsafeDoIO $ B.withByteArray bs (\p -> Internal.os2ip p (B.length bs))
 
 -- | @i2osp@ converts a positive integer into a byte string.
 --
 -- The first byte is MSB (most significant byte); the last byte is the LSB (least significant byte)
 i2osp :: B.ByteArray ba => Integer -> ba
-i2osp 0 = B.allocAndFreeze 1 (\p -> Internal.i2osp 0 p 1 >> return ())
-i2osp m = B.allocAndFreeze sz (\p -> Internal.i2osp m p sz >> return ())
+i2osp 0 = ETT__.t "Crypto.Number.Serialize.i2osp" ETT__.$ B.allocAndFreeze 1 (\p -> Internal.i2osp 0 p 1 >> return ())
+i2osp m = ETT__.t "Crypto.Number.Serialize.i2osp" ETT__.$ B.allocAndFreeze sz (\p -> Internal.i2osp m p sz >> return ())
   where
     !sz = numBytes m
 
@@ -39,10 +40,10 @@ i2osp m = B.allocAndFreeze sz (\p -> Internal.i2osp m p sz >> return ())
 {-# INLINEABLE i2ospOf #-}
 i2ospOf :: B.ByteArray ba => Int -> Integer -> Maybe ba
 i2ospOf len m
-    | len <= 0 = Nothing
-    | m < 0 = Nothing
-    | sz > len = Nothing
-    | otherwise =
+    | len <= 0 = ETT__.t "Crypto.Number.Serialize.i2ospOf" ETT__.$ Nothing
+    | m < 0 = ETT__.t "Crypto.Number.Serialize.i2ospOf" ETT__.$ Nothing
+    | sz > len = ETT__.t "Crypto.Number.Serialize.i2ospOf" ETT__.$ Nothing
+    | otherwise = ETT__.t "Crypto.Number.Serialize.i2ospOf" ETT__.$
         Just $ B.unsafeCreate len (\p -> Internal.i2ospOf m p len >> return ())
   where
     !sz = numBytes m
@@ -53,4 +54,4 @@ i2ospOf len m
 -- For example if you just took a modulo of the number that represent
 -- the size (example the RSA modulo n).
 i2ospOf_ :: B.ByteArray ba => Int -> Integer -> ba
-i2ospOf_ len = maybe (error "i2ospOf_: integer is larger than expected") id . i2ospOf len
+i2ospOf_ len = ETT__.t "Crypto.Number.Serialize.i2ospOf_" ETT__.$ maybe (error "i2ospOf_: integer is larger than expected") id . i2ospOf len

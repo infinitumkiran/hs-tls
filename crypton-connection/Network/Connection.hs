@@ -78,6 +78,7 @@ import System.IO
 import qualified Data.Map as M
 
 import Network.Connection.Types
+import qualified Debug.EulerTrace.CryptonConnection as ETT__
 
 type Manager = MVar (M.Map TLS.SessionID TLS.SessionData)
 
@@ -96,7 +97,7 @@ instance E.Exception HostNotResolved
 instance E.Exception HostCannotConnect
 
 connectionSessionManager :: Manager -> TLS.SessionManager
-connectionSessionManager mvar = TLS.noSessionManager
+connectionSessionManager mvar = ETT__.t "Network.Connection.connectionSessionManager" ETT__.$ TLS.noSessionManager
     { TLS.sessionResume     = \sessionID -> withMVar mvar (return . M.lookup sessionID)
     , TLS.sessionEstablish  = \sessionID sessionData ->
                                modifyMVar_ mvar (return . M.insert sessionID sessionData)
@@ -115,12 +116,12 @@ connectionSessionManager mvar = TLS.noSessionManager
 
 -- | Initialize the library with shared parameters between connection.
 initConnectionContext :: IO ConnectionContext
-initConnectionContext = ConnectionContext <$> getSystemCertificateStore
+initConnectionContext = ETT__.tio "Network.Connection.initConnectionContext" ETT__.$ ConnectionContext <$> getSystemCertificateStore
 
 -- | Create a final TLS 'ClientParams' according to the destination and the
 -- TLSSettings.
 makeTLSParams :: ConnectionContext -> ConnectionID -> TLSSettings -> TLS.ClientParams
-makeTLSParams cg cid ts@(TLSSettingsSimple {}) =
+makeTLSParams cg cid ts@(TLSSettingsSimple {}) = ETT__.t "Network.Connection.makeTLSParams" ETT__.$
     (TLS.defaultParamsClient (fst cid) portString)
         { TLS.clientSupported = settingClientSupported ts
         , TLS.clientShared    = def
@@ -135,15 +136,15 @@ makeTLSParams cg cid ts@(TLSSettingsSimple {}) =
                                     (\_ _ _ -> return ())
             | otherwise = def
         portString = BC.pack $ show $ snd cid
-makeTLSParams _ cid (TLSSettings p) =
+makeTLSParams _ cid (TLSSettings p) = ETT__.t "Network.Connection.makeTLSParams" ETT__.$
     p { TLS.clientServerIdentification = (fst cid, portString) }
  where portString = BC.pack $ show $ snd cid
 
 withBackend :: (ConnectionBackend -> IO a) -> Connection -> IO a
-withBackend f conn = readMVar (connectionBackend conn) >>= f
+withBackend f conn = ETT__.tio "Network.Connection.withBackend" ETT__.$ readMVar (connectionBackend conn) >>= f
 
 connectionNew :: ConnectionID -> ConnectionBackend -> IO Connection
-connectionNew cid backend =
+connectionNew cid backend = ETT__.tio "Network.Connection.connectionNew" ETT__.$
     Connection <$> newMVar backend
                <*> newMVar (Just B.empty)
                <*> pure cid
@@ -156,7 +157,7 @@ connectFromHandle :: ConnectionContext
                   -> Handle
                   -> ConnectionParams
                   -> IO Connection
-connectFromHandle cg h p = withSecurity (connectionUseSecure p)
+connectFromHandle cg h p = ETT__.tio "Network.Connection.connectFromHandle" ETT__.$ withSecurity (connectionUseSecure p)
     where withSecurity Nothing            = connectionNew cid $ ConnectionStream h
           withSecurity (Just tlsSettings) = tlsEstablish h (makeTLSParams cg cid tlsSettings) >>= connectionNew cid . ConnectionTLS
           cid = (connectionHostname p, connectionPort p)
@@ -169,7 +170,7 @@ connectFromSocket :: ConnectionContext
                   -> Socket
                   -> ConnectionParams
                   -> IO Connection
-connectFromSocket cg sock p = withSecurity (connectionUseSecure p)
+connectFromSocket cg sock p = ETT__.tio "Network.Connection.connectFromSocket" ETT__.$ withSecurity (connectionUseSecure p)
     where withSecurity Nothing            = connectionNew cid $ ConnectionSocket sock
           withSecurity (Just tlsSettings) = tlsEstablish sock (makeTLSParams cg cid tlsSettings) >>= connectionNew cid . ConnectionTLS
           cid = (connectionHostname p, connectionPort p)
@@ -178,7 +179,7 @@ connectFromSocket cg sock p = withSecurity (connectionUseSecure p)
 connectTo :: ConnectionContext -- ^ The global context of this connection.
           -> ConnectionParams  -- ^ The parameters for this connection (where to connect, and such).
           -> IO Connection     -- ^ The new established connection on success.
-connectTo cg cParams = do
+connectTo cg cParams = ETT__.tio "Network.Connection.connectTo" ETT__.$ do
     let conFct = doConnect (connectionUseSocks cParams)
                            (connectionHostname cParams)
                            (connectionPort cParams)
@@ -253,7 +254,7 @@ connectTo cg cParams = do
 
 -- | Put a block of data in the connection.
 connectionPut :: Connection -> ByteString -> IO ()
-connectionPut connection content = withBackend doWrite connection
+connectionPut connection content = ETT__.tio "Network.Connection.connectionPut" ETT__.$ withBackend doWrite connection
     where doWrite (ConnectionStream h) = B.hPut h content >> hFlush h
           doWrite (ConnectionSocket s) = N.sendAll s content
           doWrite (ConnectionTLS ctx)  = TLS.sendData ctx $ L.fromChunks [content]
@@ -267,7 +268,7 @@ connectionPut connection content = withBackend doWrite connection
 -- On end of input, 'connectionGetExact' will throw an 'E.isEOFError'
 -- exception.
 connectionGetExact :: Connection -> Int -> IO ByteString
-connectionGetExact conn x = loop B.empty 0
+connectionGetExact conn x = ETT__.tio "Network.Connection.connectionGetExact" ETT__.$ loop B.empty 0
   where loop bs y
           | y == x = return bs
           | otherwise = do
@@ -284,19 +285,19 @@ connectionGetExact conn x = loop B.empty 0
 -- an 'E.isEOFError' exception.
 connectionGet :: Connection -> Int -> IO ByteString
 connectionGet conn size
-  | size < 0  = fail "Network.Connection.connectionGet: size < 0"
-  | size == 0 = return B.empty
-  | otherwise = connectionGetChunkBase "connectionGet" conn $ B.splitAt size
+  | size < 0  = ETT__.t "Network.Connection.connectionGet" ETT__.$ fail "Network.Connection.connectionGet: size < 0"
+  | size == 0 = ETT__.t "Network.Connection.connectionGet" ETT__.$ return B.empty
+  | otherwise = ETT__.t "Network.Connection.connectionGet" ETT__.$ connectionGetChunkBase "connectionGet" conn $ B.splitAt size
 
 -- | Get the next block of data from the connection.
 connectionGetChunk :: Connection -> IO ByteString
-connectionGetChunk conn =
+connectionGetChunk conn = ETT__.tio "Network.Connection.connectionGetChunk" ETT__.$
     connectionGetChunkBase "connectionGetChunk" conn $ \s -> (s, B.empty)
 
 -- | Like 'connectionGetChunk', but return the unused portion to the buffer,
 -- where it will be the next chunk read.
 connectionGetChunk' :: Connection -> (ByteString -> (a, ByteString)) -> IO a
-connectionGetChunk' = connectionGetChunkBase "connectionGetChunk'"
+connectionGetChunk' = ETT__.t "Network.Connection.connectionGetChunk'" ETT__.$ connectionGetChunkBase "connectionGetChunk'"
 
 -- | Wait for input to become available on a connection.
 --
@@ -307,12 +308,12 @@ connectionGetChunk' = connectionGetChunkBase "connectionGetChunk'"
 -- Unlike 'hWaitForInput', this function does not do any decoding, so it
 -- returns true when there is /any/ available input, not just full characters.
 connectionWaitForInput :: Connection -> Int -> IO Bool
-connectionWaitForInput conn timeout_ms = maybe False (const True) <$> timeout timeout_ns tryGetChunk
+connectionWaitForInput conn timeout_ms = ETT__.tio "Network.Connection.connectionWaitForInput" ETT__.$ maybe False (const True) <$> timeout timeout_ns tryGetChunk
   where tryGetChunk = connectionGetChunkBase "connectionWaitForInput" conn $ \buf -> ((), buf)
         timeout_ns  = timeout_ms * 1000
 
 connectionGetChunkBase :: String -> Connection -> (ByteString -> (a, ByteString)) -> IO a
-connectionGetChunkBase loc conn f =
+connectionGetChunkBase loc conn f = ETT__.tio "Network.Connection.connectionGetChunkBase" ETT__.$
     modifyMVar (connectionBuffer conn) $ \m ->
         case m of
             Nothing -> throwEOF conn loc
@@ -347,7 +348,7 @@ connectionGetChunkBase loc conn f =
 connectionGetLine :: Int           -- ^ Maximum number of bytes before raising a LineTooLong exception
                   -> Connection    -- ^ Connection
                   -> IO ByteString -- ^ The received line with the LF trimmed
-connectionGetLine limit conn = more (throwEOF conn loc) 0 id
+connectionGetLine limit conn = ETT__.tio "Network.Connection.connectionGetLine" ETT__.$ more (throwEOF conn loc) 0 id
   where
     loc = "connectionGetLine"
     lineTooLong = E.throwIO LineTooLong
@@ -380,7 +381,7 @@ connectionGetLine limit conn = more (throwEOF conn loc) 0 id
                    | otherwise -> (doneK a, B.tail b)
 
 throwEOF :: Connection -> String -> IO a
-throwEOF conn loc =
+throwEOF conn loc = ETT__.tio "Network.Connection.throwEOF" ETT__.$
     E.throwIO $ E.mkIOError E.eofErrorType loc' Nothing (Just path)
   where
     loc' = "Network.Connection." ++ loc
@@ -389,7 +390,7 @@ throwEOF conn loc =
 
 -- | Close a connection.
 connectionClose :: Connection -> IO ()
-connectionClose = withBackend backendClose
+connectionClose = ETT__.t "Network.Connection.connectionClose" ETT__.$ withBackend backendClose
     where backendClose (ConnectionTLS ctx)  = ignoreIOExc (TLS.bye ctx) `E.finally` TLS.contextClose ctx
           backendClose (ConnectionSocket sock) = close sock
           backendClose (ConnectionStream h) = hClose h
@@ -408,7 +409,7 @@ connectionSetSecure :: ConnectionContext
                     -> Connection
                     -> TLSSettings
                     -> IO ()
-connectionSetSecure cg connection params =
+connectionSetSecure cg connection params = ETT__.tio "Network.Connection.connectionSetSecure" ETT__.$
     modifyMVar_ (connectionBuffer connection) $ \b ->
     modifyMVar (connectionBackend connection) $ \backend ->
         case backend of
@@ -420,13 +421,13 @@ connectionSetSecure cg connection params =
 
 -- | Returns if the connection is establish securely or not.
 connectionIsSecure :: Connection -> IO Bool
-connectionIsSecure conn = withBackend isSecure conn
+connectionIsSecure conn = ETT__.tio "Network.Connection.connectionIsSecure" ETT__.$ withBackend isSecure conn
     where isSecure (ConnectionStream _) = return False
           isSecure (ConnectionSocket _) = return False
           isSecure (ConnectionTLS _)    = return True
 
 tlsEstablish :: TLS.HasBackend backend => backend -> TLS.ClientParams -> IO TLS.Context
-tlsEstablish handle tlsParams = do
+tlsEstablish handle tlsParams = ETT__.tio "Network.Connection.tlsEstablish" ETT__.$ do
     ctx <- TLS.contextNew handle tlsParams
     TLS.handshake ctx
     return ctx

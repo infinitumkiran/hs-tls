@@ -36,12 +36,13 @@ import Control.Concurrent.MVar
 import Control.Monad.State.Strict
 import qualified Data.ByteString as B
 import Data.IORef
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | encodePacket transform a packet into marshalled data related to current state
 -- and updating state on the go
 encodePacket :: Monoid bytes
              => Context -> RecordLayer bytes -> Packet -> IO (Either TLSError bytes)
-encodePacket ctx recordLayer pkt = do
+encodePacket ctx recordLayer pkt = ETT__.tio "Network.TLS.Sending.encodePacket" ETT__.$ do
     (ver, _) <- decideRecordVersion ctx
     let pt = packetType pkt
         mkRecord bs = Record pt ver (fragmentPlaintext bs)
@@ -55,14 +56,14 @@ encodePacket ctx recordLayer pkt = do
 -- packets are not fragmented here but by callers of sendPacket, so that the
 -- empty-packet countermeasure may be applied to each fragment independently.
 packetToFragments :: Context -> Maybe Int -> Packet -> IO [ByteString]
-packetToFragments ctx len (Handshake hss)  =
+packetToFragments ctx len (Handshake hss)  = ETT__.tio "Network.TLS.Sending.packetToFragments" ETT__.$
     getChunks len . B.concat <$> mapM (updateHandshake ctx ClientRole) hss
-packetToFragments _   _   (Alert a)        = return [encodeAlerts a]
-packetToFragments _   _   ChangeCipherSpec = return [encodeChangeCipherSpec]
-packetToFragments _   _   (AppData x)      = return [x]
+packetToFragments _   _   (Alert a)        = ETT__.tio "Network.TLS.Sending.packetToFragments" ETT__.$ return [encodeAlerts a]
+packetToFragments _   _   ChangeCipherSpec = ETT__.tio "Network.TLS.Sending.packetToFragments" ETT__.$ return [encodeChangeCipherSpec]
+packetToFragments _   _   (AppData x)      = ETT__.tio "Network.TLS.Sending.packetToFragments" ETT__.$ return [x]
 
 switchTxEncryption :: Context -> IO ()
-switchTxEncryption ctx = do
+switchTxEncryption ctx = ETT__.tio "Network.TLS.Sending.switchTxEncryption" ETT__.$ do
     tx  <- usingHState ctx (fromJust "tx-state" <$> gets hstPendingTxState)
     (ver, cc) <- usingState_ ctx $ do v <- getVersion
                                       c <- isClientContext
@@ -73,7 +74,7 @@ switchTxEncryption ctx = do
   where isCBC tx = maybe False (\c -> bulkBlockSize (cipherBulk c) > 0) (stCipher tx)
 
 updateHandshake :: Context -> Role -> Handshake -> IO ByteString
-updateHandshake ctx role hs = do
+updateHandshake ctx role hs = ETT__.tio "Network.TLS.Sending.updateHandshake" ETT__.$ do
     case hs of
         Finished fdata -> usingState_ ctx $ updateVerifiedData role fdata
         _              -> return ()
@@ -88,7 +89,7 @@ updateHandshake ctx role hs = do
 
 encodePacket13 :: Monoid bytes
                => Context -> RecordLayer bytes -> Packet13 -> IO (Either TLSError bytes)
-encodePacket13 ctx recordLayer pkt = do
+encodePacket13 ctx recordLayer pkt = ETT__.tio "Network.TLS.Sending.encodePacket13" ETT__.$ do
     let pt = contentType pkt
         mkRecord bs = Record pt TLS12 (fragmentPlaintext bs)
         len = ctxFragmentSize ctx
@@ -96,16 +97,16 @@ encodePacket13 ctx recordLayer pkt = do
     fmap mconcat <$> forEitherM records (recordEncode13 recordLayer)
 
 packetToFragments13 :: Context -> Maybe Int -> Packet13 -> IO [ByteString]
-packetToFragments13 ctx len (Handshake13 hss)  =
+packetToFragments13 ctx len (Handshake13 hss)  = ETT__.tio "Network.TLS.Sending.packetToFragments13" ETT__.$
     getChunks len . B.concat <$> mapM (updateHandshake13 ctx) hss
-packetToFragments13 _   _   (Alert13 a)        = return [encodeAlerts a]
-packetToFragments13 _   _   (AppData13 x)      = return [x]
-packetToFragments13 _   _   ChangeCipherSpec13 = return [encodeChangeCipherSpec]
+packetToFragments13 _   _   (Alert13 a)        = ETT__.tio "Network.TLS.Sending.packetToFragments13" ETT__.$ return [encodeAlerts a]
+packetToFragments13 _   _   (AppData13 x)      = ETT__.tio "Network.TLS.Sending.packetToFragments13" ETT__.$ return [x]
+packetToFragments13 _   _   ChangeCipherSpec13 = ETT__.tio "Network.TLS.Sending.packetToFragments13" ETT__.$ return [encodeChangeCipherSpec]
 
 updateHandshake13 :: Context -> Handshake13 -> IO ByteString
 updateHandshake13 ctx hs
-    | isIgnored hs = return encoded
-    | otherwise    = usingHState ctx $ do
+    | isIgnored hs = ETT__.t "Network.TLS.Sending.updateHandshake13" ETT__.$ return encoded
+    | otherwise    = ETT__.t "Network.TLS.Sending.updateHandshake13" ETT__.$ usingHState ctx $ do
         when (isHRR hs) wrapAsMessageHash13
         updateHandshakeDigest encoded
         addHandshakeMessage encoded

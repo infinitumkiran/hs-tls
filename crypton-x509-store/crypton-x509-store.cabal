@@ -29,6 +29,7 @@ Library
   Exposed-modules:   Data.X509.CertificateStore
                      Data.X509.File
                      Data.X509.Memory
+  Other-modules:     Debug.EulerTrace.CryptonX509Store
   ghc-options:       -Wall
 
 Test-Suite test-x509-store

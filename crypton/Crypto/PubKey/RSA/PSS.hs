@@ -35,6 +35,7 @@ import qualified Crypto.Internal.ByteArray as B (convert, eq)
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Parameters for PSS signature/verification.
 data PSSParams hash seed output = PSSParams
@@ -53,7 +54,7 @@ defaultPSSParams
     :: (ByteArrayAccess seed, ByteArray output, HashAlgorithm hash)
     => hash
     -> PSSParams hash seed output
-defaultPSSParams hashAlg =
+defaultPSSParams hashAlg = ETT__.t "Crypto.PubKey.RSA.PSS.defaultPSSParams" ETT__.$
     PSSParams
         { pssHash = hashAlg
         , pssMaskGenAlg = mgf1 hashAlg
@@ -63,7 +64,7 @@ defaultPSSParams hashAlg =
 
 -- | Default Params using SHA1 algorithm.
 defaultPSSParamsSHA1 :: PSSParams SHA1 ByteString ByteString
-defaultPSSParamsSHA1 = defaultPSSParams SHA1
+defaultPSSParamsSHA1 = ETT__.t "Crypto.PubKey.RSA.PSS.defaultPSSParamsSHA1" ETT__.$ defaultPSSParams SHA1
 
 -- | Sign using the PSS parameters and the salt explicitely passed as parameters.
 --
@@ -82,8 +83,8 @@ signDigestWithSalt
     -- ^ Message digest
     -> Either Error ByteString
 signDigestWithSalt salt blinder params pk digest
-    | emLen < hashLen + saltLen + 2 = Left InvalidParameters
-    | otherwise = Right $ dp blinder pk em
+    | emLen < hashLen + saltLen + 2 = ETT__.t "Crypto.PubKey.RSA.PSS.signDigestWithSalt" ETT__.$ Left InvalidParameters
+    | otherwise = ETT__.t "Crypto.PubKey.RSA.PSS.signDigestWithSalt" ETT__.$ Right $ dp blinder pk em
   where
     k = private_size pk
     emLen = if emTruncate pubBits then k - 1 else k
@@ -115,7 +116,7 @@ signWithSalt
     -> ByteString
     -- ^ Message to sign
     -> Either Error ByteString
-signWithSalt salt blinder params pk m = signDigestWithSalt salt blinder params pk mHash
+signWithSalt salt blinder params pk m = ETT__.t "Crypto.PubKey.RSA.PSS.signWithSalt" ETT__.$ signDigestWithSalt salt blinder params pk mHash
   where
     mHash = hashWith (pssHash params) m
 
@@ -131,7 +132,7 @@ sign
     -> ByteString
     -- ^ Message to sign
     -> m (Either Error ByteString)
-sign blinder params pk m = do
+sign blinder params pk m = ETT__.tm "Crypto.PubKey.RSA.PSS.sign" ETT__.$ do
     salt <- getRandomBytes (pssSaltLength params)
     return (signWithSalt salt blinder params pk m)
 
@@ -147,7 +148,7 @@ signDigest
     -> Digest hash
     -- ^ Message digest
     -> m (Either Error ByteString)
-signDigest blinder params pk digest = do
+signDigest blinder params pk digest = ETT__.tm "Crypto.PubKey.RSA.PSS.signDigest" ETT__.$ do
     salt <- getRandomBytes (pssSaltLength params)
     return (signDigestWithSalt salt blinder params pk digest)
 
@@ -161,7 +162,7 @@ signSafer
     -> ByteString
     -- ^ message to sign
     -> m (Either Error ByteString)
-signSafer params pk m = do
+signSafer params pk m = ETT__.tm "Crypto.PubKey.RSA.PSS.signSafer" ETT__.$ do
     blinder <- generateBlinder (private_n pk)
     sign (Just blinder) params pk m
 
@@ -175,7 +176,7 @@ signDigestSafer
     -> Digest hash
     -- ^ message digst
     -> m (Either Error ByteString)
-signDigestSafer params pk digest = do
+signDigestSafer params pk digest = ETT__.tm "Crypto.PubKey.RSA.PSS.signDigestSafer" ETT__.$ do
     blinder <- generateBlinder (private_n pk)
     signDigest (Just blinder) params pk digest
 
@@ -192,7 +193,7 @@ verify
     -> ByteString
     -- ^ Signature
     -> Bool
-verify params pk m = verifyDigest params pk mHash
+verify params pk m = ETT__.t "Crypto.PubKey.RSA.PSS.verify" ETT__.$ verifyDigest params pk mHash
   where
     mHash = hashWith (pssHash params) m
 
@@ -210,13 +211,13 @@ verifyDigest
     -- ^ Signature
     -> Bool
 verifyDigest params pk digest s
-    | B.length s /= k = False
-    | B.any (/= 0) pre = False
-    | B.last em /= pssTrailerField params = False
-    | B.any (/= 0) ps0 = False
-    | b1 /= B.singleton 1 = False
-    | pssSaltLength params /= B.length salt = False
-    | otherwise = B.eq h h'
+    | B.length s /= k = ETT__.t "Crypto.PubKey.RSA.PSS.verifyDigest" ETT__.$ False
+    | B.any (/= 0) pre = ETT__.t "Crypto.PubKey.RSA.PSS.verifyDigest" ETT__.$ False
+    | B.last em /= pssTrailerField params = ETT__.t "Crypto.PubKey.RSA.PSS.verifyDigest" ETT__.$ False
+    | B.any (/= 0) ps0 = ETT__.t "Crypto.PubKey.RSA.PSS.verifyDigest" ETT__.$ False
+    | b1 /= B.singleton 1 = ETT__.t "Crypto.PubKey.RSA.PSS.verifyDigest" ETT__.$ False
+    | pssSaltLength params /= B.length salt = ETT__.t "Crypto.PubKey.RSA.PSS.verifyDigest" ETT__.$ False
+    | otherwise = ETT__.t "Crypto.PubKey.RSA.PSS.verifyDigest" ETT__.$ B.eq h h'
   where
     -- parameters
     hashLen = hashDigestSize (pssHash params)
@@ -238,11 +239,11 @@ verifyDigest params pk digest s
 
 -- When the modulus has bit length 1 modulo 8 we drop the first byte.
 emTruncate :: Int -> Bool
-emTruncate bits = ((bits - 1) .&. 0x7) == 0
+emTruncate bits = ETT__.t "Crypto.PubKey.RSA.PSS.emTruncate" ETT__.$ ((bits - 1) .&. 0x7) == 0
 
 normalizeToKeySize :: Int -> [Word8] -> [Word8]
-normalizeToKeySize _ [] = [] -- very unlikely
-normalizeToKeySize bits (x : xs) = x .&. mask : xs
+normalizeToKeySize _ [] = ETT__.t "Crypto.PubKey.RSA.PSS.normalizeToKeySize" ETT__.$ [] -- very unlikely
+normalizeToKeySize bits (x : xs) = ETT__.t "Crypto.PubKey.RSA.PSS.normalizeToKeySize" ETT__.$ x .&. mask : xs
   where
     mask = if sh > 0 then 0xff `shiftR` (8 - sh) else 0xff
     sh = (bits - 1) .&. 0x7

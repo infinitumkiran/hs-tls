@@ -84,6 +84,7 @@ import Network.TLS.Packet ( putDNames
                           , putBinaryVersion
                           , getBinaryVersion
                           )
+import qualified Debug.EulerTrace.Tls as ETT__
 
 ------------------------------------------------------------
 
@@ -125,50 +126,50 @@ extensionID_ServerName
   , extensionID_KeyShare
   , extensionID_SecureRenegotiation
   , extensionID_QuicTransportParameters :: ExtensionID
-extensionID_ServerName                          = 0x0 -- RFC6066
-extensionID_MaxFragmentLength                   = 0x1 -- RFC6066
-extensionID_ClientCertificateUrl                = 0x2 -- RFC6066
-extensionID_TrustedCAKeys                       = 0x3 -- RFC6066
-extensionID_TruncatedHMAC                       = 0x4 -- RFC6066
-extensionID_StatusRequest                       = 0x5 -- RFC6066
-extensionID_UserMapping                         = 0x6 -- RFC4681
-extensionID_ClientAuthz                         = 0x7 -- RFC5878
-extensionID_ServerAuthz                         = 0x8 -- RFC5878
-extensionID_CertType                            = 0x9 -- RFC6091
-extensionID_NegotiatedGroups                    = 0xa -- RFC4492bis and TLS 1.3
-extensionID_EcPointFormats                      = 0xb -- RFC4492
-extensionID_SRP                                 = 0xc -- RFC5054
-extensionID_SignatureAlgorithms                 = 0xd -- RFC5246, TLS 1.3
-extensionID_SRTP                                = 0xe -- RFC5764
-extensionID_Heartbeat                           = 0xf -- RFC6520
-extensionID_ApplicationLayerProtocolNegotiation = 0x10 -- RFC7301
-extensionID_StatusRequestv2                     = 0x11 -- RFC6961
-extensionID_SignedCertificateTimestamp          = 0x12 -- RFC6962
-extensionID_ClientCertificateType               = 0x13 -- RFC7250
-extensionID_ServerCertificateType               = 0x14 -- RFC7250
-extensionID_Padding                             = 0x15 -- draft-agl-tls-padding. expires 2015-03-12
-extensionID_EncryptThenMAC                      = 0x16 -- RFC7366
-extensionID_ExtendedMasterSecret                = 0x17 -- REF7627
-extensionID_SessionTicket                       = 0x23 -- RFC4507
+extensionID_ServerName                          = ETT__.t "Network.TLS.Extension.extensionID_ServerName" ETT__.$ 0x0 -- RFC6066
+extensionID_MaxFragmentLength                   = ETT__.t "Network.TLS.Extension.extensionID_MaxFragmentLength" ETT__.$ 0x1 -- RFC6066
+extensionID_ClientCertificateUrl                = ETT__.t "Network.TLS.Extension.extensionID_ClientCertificateUrl" ETT__.$ 0x2 -- RFC6066
+extensionID_TrustedCAKeys                       = ETT__.t "Network.TLS.Extension.extensionID_TrustedCAKeys" ETT__.$ 0x3 -- RFC6066
+extensionID_TruncatedHMAC                       = ETT__.t "Network.TLS.Extension.extensionID_TruncatedHMAC" ETT__.$ 0x4 -- RFC6066
+extensionID_StatusRequest                       = ETT__.t "Network.TLS.Extension.extensionID_StatusRequest" ETT__.$ 0x5 -- RFC6066
+extensionID_UserMapping                         = ETT__.t "Network.TLS.Extension.extensionID_UserMapping" ETT__.$ 0x6 -- RFC4681
+extensionID_ClientAuthz                         = ETT__.t "Network.TLS.Extension.extensionID_ClientAuthz" ETT__.$ 0x7 -- RFC5878
+extensionID_ServerAuthz                         = ETT__.t "Network.TLS.Extension.extensionID_ServerAuthz" ETT__.$ 0x8 -- RFC5878
+extensionID_CertType                            = ETT__.t "Network.TLS.Extension.extensionID_CertType" ETT__.$ 0x9 -- RFC6091
+extensionID_NegotiatedGroups                    = ETT__.t "Network.TLS.Extension.extensionID_NegotiatedGroups" ETT__.$ 0xa -- RFC4492bis and TLS 1.3
+extensionID_EcPointFormats                      = ETT__.t "Network.TLS.Extension.extensionID_EcPointFormats" ETT__.$ 0xb -- RFC4492
+extensionID_SRP                                 = ETT__.t "Network.TLS.Extension.extensionID_SRP" ETT__.$ 0xc -- RFC5054
+extensionID_SignatureAlgorithms                 = ETT__.t "Network.TLS.Extension.extensionID_SignatureAlgorithms" ETT__.$ 0xd -- RFC5246, TLS 1.3
+extensionID_SRTP                                = ETT__.t "Network.TLS.Extension.extensionID_SRTP" ETT__.$ 0xe -- RFC5764
+extensionID_Heartbeat                           = ETT__.t "Network.TLS.Extension.extensionID_Heartbeat" ETT__.$ 0xf -- RFC6520
+extensionID_ApplicationLayerProtocolNegotiation = ETT__.t "Network.TLS.Extension.extensionID_ApplicationLayerProtocolNegotiation" ETT__.$ 0x10 -- RFC7301
+extensionID_StatusRequestv2                     = ETT__.t "Network.TLS.Extension.extensionID_StatusRequestv2" ETT__.$ 0x11 -- RFC6961
+extensionID_SignedCertificateTimestamp          = ETT__.t "Network.TLS.Extension.extensionID_SignedCertificateTimestamp" ETT__.$ 0x12 -- RFC6962
+extensionID_ClientCertificateType               = ETT__.t "Network.TLS.Extension.extensionID_ClientCertificateType" ETT__.$ 0x13 -- RFC7250
+extensionID_ServerCertificateType               = ETT__.t "Network.TLS.Extension.extensionID_ServerCertificateType" ETT__.$ 0x14 -- RFC7250
+extensionID_Padding                             = ETT__.t "Network.TLS.Extension.extensionID_Padding" ETT__.$ 0x15 -- draft-agl-tls-padding. expires 2015-03-12
+extensionID_EncryptThenMAC                      = ETT__.t "Network.TLS.Extension.extensionID_EncryptThenMAC" ETT__.$ 0x16 -- RFC7366
+extensionID_ExtendedMasterSecret                = ETT__.t "Network.TLS.Extension.extensionID_ExtendedMasterSecret" ETT__.$ 0x17 -- REF7627
+extensionID_SessionTicket                       = ETT__.t "Network.TLS.Extension.extensionID_SessionTicket" ETT__.$ 0x23 -- RFC4507
 -- Reserved                                       0x28 -- TLS 1.3
-extensionID_PreSharedKey                        = 0x29 -- TLS 1.3
-extensionID_EarlyData                           = 0x2a -- TLS 1.3
-extensionID_SupportedVersions                   = 0x2b -- TLS 1.3
-extensionID_Cookie                              = 0x2c -- TLS 1.3
-extensionID_PskKeyExchangeModes                 = 0x2d -- TLS 1.3
+extensionID_PreSharedKey                        = ETT__.t "Network.TLS.Extension.extensionID_PreSharedKey" ETT__.$ 0x29 -- TLS 1.3
+extensionID_EarlyData                           = ETT__.t "Network.TLS.Extension.extensionID_EarlyData" ETT__.$ 0x2a -- TLS 1.3
+extensionID_SupportedVersions                   = ETT__.t "Network.TLS.Extension.extensionID_SupportedVersions" ETT__.$ 0x2b -- TLS 1.3
+extensionID_Cookie                              = ETT__.t "Network.TLS.Extension.extensionID_Cookie" ETT__.$ 0x2c -- TLS 1.3
+extensionID_PskKeyExchangeModes                 = ETT__.t "Network.TLS.Extension.extensionID_PskKeyExchangeModes" ETT__.$ 0x2d -- TLS 1.3
 -- Reserved                                       0x2e -- TLS 1.3
-extensionID_CertificateAuthorities              = 0x2f -- TLS 1.3
-extensionID_OidFilters                          = 0x30 -- TLS 1.3
-extensionID_PostHandshakeAuth                   = 0x31 -- TLS 1.3
-extensionID_SignatureAlgorithmsCert             = 0x32 -- TLS 1.3
-extensionID_KeyShare                            = 0x33 -- TLS 1.3
-extensionID_QuicTransportParameters             = 0x39 -- QUIC
-extensionID_SecureRenegotiation                 = 0xff01 -- RFC5746
+extensionID_CertificateAuthorities              = ETT__.t "Network.TLS.Extension.extensionID_CertificateAuthorities" ETT__.$ 0x2f -- TLS 1.3
+extensionID_OidFilters                          = ETT__.t "Network.TLS.Extension.extensionID_OidFilters" ETT__.$ 0x30 -- TLS 1.3
+extensionID_PostHandshakeAuth                   = ETT__.t "Network.TLS.Extension.extensionID_PostHandshakeAuth" ETT__.$ 0x31 -- TLS 1.3
+extensionID_SignatureAlgorithmsCert             = ETT__.t "Network.TLS.Extension.extensionID_SignatureAlgorithmsCert" ETT__.$ 0x32 -- TLS 1.3
+extensionID_KeyShare                            = ETT__.t "Network.TLS.Extension.extensionID_KeyShare" ETT__.$ 0x33 -- TLS 1.3
+extensionID_QuicTransportParameters             = ETT__.t "Network.TLS.Extension.extensionID_QuicTransportParameters" ETT__.$ 0x39 -- QUIC
+extensionID_SecureRenegotiation                 = ETT__.t "Network.TLS.Extension.extensionID_SecureRenegotiation" ETT__.$ 0xff01 -- RFC5746
 
 ------------------------------------------------------------
 
 definedExtensions :: [ExtensionID]
-definedExtensions =
+definedExtensions = ETT__.t "Network.TLS.Extension.definedExtensions" ETT__.$
     [ extensionID_ServerName
     , extensionID_MaxFragmentLength
     , extensionID_ClientCertificateUrl
@@ -208,7 +209,7 @@ definedExtensions =
 
 -- | all supported extensions by the implementation
 supportedExtensions :: [ExtensionID]
-supportedExtensions = [ extensionID_ServerName
+supportedExtensions = ETT__.t "Network.TLS.Extension.supportedExtensions" ETT__.$ [ extensionID_ServerName
                       , extensionID_MaxFragmentLength
                       , extensionID_ApplicationLayerProtocolNegotiation
                       , extensionID_ExtendedMasterSecret
@@ -265,7 +266,7 @@ instance Extension ServerName where
     extensionDecode _               = error "extensionDecode: ServerName"
 
 decodeServerName :: ByteString -> Maybe ServerName
-decodeServerName = runGetMaybe $ do
+decodeServerName = ETT__.t "Network.TLS.Extension.decodeServerName" ETT__.$ runGetMaybe $ do
     len <- fromIntegral <$> getWord16
     ServerName <$> getList len getServerName
   where
@@ -313,7 +314,7 @@ instance Extension MaxFragmentLength where
     extensionDecode _               = error "extensionDecode: MaxFragmentLength"
 
 decodeMaxFragmentLength :: ByteString -> Maybe MaxFragmentLength
-decodeMaxFragmentLength = runGetMaybe $ toMaxFragmentEnum <$> getWord8
+decodeMaxFragmentLength = ETT__.t "Network.TLS.Extension.decodeMaxFragmentLength" ETT__.$ runGetMaybe $ toMaxFragmentEnum <$> getWord8
   where
     toMaxFragmentEnum 1 = MaxFragmentLength MaxFragment512
     toMaxFragmentEnum 2 = MaxFragmentLength MaxFragment1024
@@ -354,7 +355,7 @@ instance Extension ApplicationLayerProtocolNegotiation where
     extensionDecode _               = error "extensionDecode: ApplicationLayerProtocolNegotiation"
 
 decodeApplicationLayerProtocolNegotiation :: ByteString -> Maybe ApplicationLayerProtocolNegotiation
-decodeApplicationLayerProtocolNegotiation = runGetMaybe $ do
+decodeApplicationLayerProtocolNegotiation = ETT__.t "Network.TLS.Extension.decodeApplicationLayerProtocolNegotiation" ETT__.$ runGetMaybe $ do
     len <- getWord16
     ApplicationLayerProtocolNegotiation <$> getList (fromIntegral len) getALPN
   where
@@ -388,7 +389,7 @@ instance Extension NegotiatedGroups where
     extensionDecode _               = error "extensionDecode: NegotiatedGroups"
 
 decodeNegotiatedGroups :: ByteString -> Maybe NegotiatedGroups
-decodeNegotiatedGroups =
+decodeNegotiatedGroups = ETT__.t "Network.TLS.Extension.decodeNegotiatedGroups" ETT__.$
     runGetMaybe (NegotiatedGroups . mapMaybe toEnumSafe16 <$> getWords16)
 
 ------------------------------------------------------------
@@ -420,7 +421,7 @@ instance Extension EcPointFormatsSupported where
     extensionDecode _ = error "extensionDecode: EcPointFormatsSupported"
 
 decodeEcPointFormatsSupported :: ByteString -> Maybe EcPointFormatsSupported
-decodeEcPointFormatsSupported =
+decodeEcPointFormatsSupported = ETT__.t "Network.TLS.Extension.decodeEcPointFormatsSupported" ETT__.$
     runGetMaybe (EcPointFormatsSupported . mapMaybe toEnumSafe8 <$> getWords8)
 
 ------------------------------------------------------------
@@ -462,7 +463,7 @@ instance Extension HeartBeat where
     extensionDecode _               = error "extensionDecode: HeartBeat"
 
 decodeHeartBeat :: ByteString -> Maybe HeartBeat
-decodeHeartBeat = runGetMaybe $ do
+decodeHeartBeat = ETT__.t "Network.TLS.Extension.decodeHeartBeat" ETT__.$ runGetMaybe $ do
     mm <- toEnumSafe8 <$> getWord8
     case mm of
       Just m  -> return $ HeartBeat m
@@ -481,7 +482,7 @@ instance Extension SignatureAlgorithms where
     extensionDecode _               = error "extensionDecode: SignatureAlgorithms"
 
 decodeSignatureAlgorithms :: ByteString -> Maybe SignatureAlgorithms
-decodeSignatureAlgorithms = runGetMaybe $ do
+decodeSignatureAlgorithms = ETT__.t "Network.TLS.Extension.decodeSignatureAlgorithms" ETT__.$ runGetMaybe $ do
     len <- getWord16
     sas <- getList (fromIntegral len) (getSignatureHashAlgorithm >>= \sh -> return (2, sh))
     leftoverLen <- remaining
@@ -511,7 +512,7 @@ instance Extension SignatureAlgorithmsCert where
     extensionDecode _               = error "extensionDecode: SignatureAlgorithmsCert"
 
 decodeSignatureAlgorithmsCert :: ByteString -> Maybe SignatureAlgorithmsCert
-decodeSignatureAlgorithmsCert = runGetMaybe $ do
+decodeSignatureAlgorithmsCert = ETT__.t "Network.TLS.Extension.decodeSignatureAlgorithmsCert" ETT__.$ runGetMaybe $ do
     len <- getWord16
     SignatureAlgorithmsCert <$> getList (fromIntegral len) (getSignatureHashAlgorithm >>= \sh -> return (2, sh))
 
@@ -551,7 +552,7 @@ data KeyShareEntry = KeyShareEntry {
   } deriving (Show,Eq)
 
 getKeyShareEntry :: Get (Int, Maybe KeyShareEntry)
-getKeyShareEntry = do
+getKeyShareEntry = ETT__.tm "Network.TLS.Extension.getKeyShareEntry" ETT__.$ do
     g <- getWord16
     l <- fromIntegral <$> getWord16
     key <- getBytes l
@@ -561,7 +562,7 @@ getKeyShareEntry = do
       Just grp -> return (len, Just $ KeyShareEntry grp key)
 
 putKeyShareEntry :: KeyShareEntry -> Put
-putKeyShareEntry (KeyShareEntry grp key) = do
+putKeyShareEntry (KeyShareEntry grp key) = ETT__.t "Network.TLS.Extension.putKeyShareEntry" ETT__.$ do
     putWord16 $ fromEnumSafe16 grp
     putWord16 $ fromIntegral $ B.length key
     putBytes key

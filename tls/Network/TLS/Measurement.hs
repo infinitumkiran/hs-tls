@@ -15,6 +15,7 @@ module Network.TLS.Measurement
         ) where
 
 import Network.TLS.Imports
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | record some data about this connection.
 data Measurement = Measurement
@@ -24,23 +25,23 @@ data Measurement = Measurement
         } deriving (Show,Eq)
 
 newMeasurement :: Measurement
-newMeasurement = Measurement
+newMeasurement = ETT__.t "Network.TLS.Measurement.newMeasurement" ETT__.$ Measurement
         { nbHandshakes  = 0
         , bytesReceived = 0
         , bytesSent     = 0
         }
 
 addBytesReceived :: Int -> Measurement -> Measurement
-addBytesReceived sz measure =
+addBytesReceived sz measure = ETT__.t "Network.TLS.Measurement.addBytesReceived" ETT__.$
         measure { bytesReceived = bytesReceived measure + fromIntegral sz }
 
 addBytesSent :: Int -> Measurement -> Measurement
-addBytesSent sz measure =
+addBytesSent sz measure = ETT__.t "Network.TLS.Measurement.addBytesSent" ETT__.$
         measure { bytesSent = bytesSent measure + fromIntegral sz }
 
 resetBytesCounters :: Measurement -> Measurement
-resetBytesCounters measure = measure { bytesReceived = 0, bytesSent = 0 }
+resetBytesCounters measure = ETT__.t "Network.TLS.Measurement.resetBytesCounters" ETT__.$ measure { bytesReceived = 0, bytesSent = 0 }
 
 incrementNbHandshakes :: Measurement -> Measurement
-incrementNbHandshakes measure =
+incrementNbHandshakes measure = ETT__.t "Network.TLS.Measurement.incrementNbHandshakes" ETT__.$
         measure { nbHandshakes = nbHandshakes measure + 1 }

@@ -48,15 +48,16 @@ import Network.TLS.Handshake.Signature
 import Network.TLS.Handshake.State
 import Network.TLS.Handshake.State13
 import Network.TLS.Wire
+import qualified Debug.EulerTrace.Tls as ETT__
 
 handshakeClientWith :: ClientParams -> Context -> Handshake -> IO ()
-handshakeClientWith cparams ctx HelloRequest = handshakeClient cparams ctx
-handshakeClientWith _       _   _            = throwCore $ Error_Protocol "unexpected handshake message received in handshakeClientWith" HandshakeFailure
+handshakeClientWith cparams ctx HelloRequest = ETT__.tio "Network.TLS.Handshake.Client.handshakeClientWith" ETT__.$ handshakeClient cparams ctx
+handshakeClientWith _       _   _            = ETT__.tio "Network.TLS.Handshake.Client.handshakeClientWith" ETT__.$ throwCore $ Error_Protocol "unexpected handshake message received in handshakeClientWith" HandshakeFailure
 
 -- client part of handshake. send a bunch of handshake of client
 -- values intertwined with response from the server.
 handshakeClient :: ClientParams -> Context -> IO ()
-handshakeClient cparams ctx = do
+handshakeClient cparams ctx = ETT__.tio "Network.TLS.Handshake.Client.handshakeClient" ETT__.$ do
     let groups = case clientWantSessionResume cparams of
               Nothing         -> groupsSupported
               Just (_, sdata) -> case sessionGroup sdata of
@@ -73,7 +74,7 @@ handshakeClient cparams ctx = do
 --
 -- So, the ClientRandom in the first client hello is necessary.
 handshakeClient' :: ClientParams -> Context -> [Group] -> Maybe (ClientRandom, Session, Version) -> IO ()
-handshakeClient' cparams ctx groups mparams = do
+handshakeClient' cparams ctx groups mparams = ETT__.tio "Network.TLS.Handshake.Client.handshakeClient'" ETT__.$ do
     updateMeasure ctx incrementNbHandshakes
     (crand, clientSession) <- generateClientHelloParams
     (rtt0, sentExtensions) <- sendClientHello clientSession crand
@@ -344,7 +345,7 @@ storePrivInfoClient :: Context
                     -> [CertificateType]
                     -> Credential
                     -> IO ()
-storePrivInfoClient ctx cTypes (cc, privkey) = do
+storePrivInfoClient ctx cTypes (cc, privkey) = ETT__.tio "Network.TLS.Handshake.Client.storePrivInfoClient" ETT__.$ do
     pubkey <- storePrivInfo ctx cc privkey
     unless (certificateCompatible pubkey cTypes) $
         throwCore $ Error_Protocol (pubkeyType pubkey ++ " credential does not match allowed certificate types") InternalError
@@ -411,7 +412,7 @@ storePrivInfoClient ctx cTypes (cc, privkey) = do
 -- signatures are OK.
 --
 clientChain :: ClientParams -> Context -> IO (Maybe CertificateChain)
-clientChain cparams ctx =
+clientChain cparams ctx = ETT__.tio "Network.TLS.Handshake.Client.clientChain" ETT__.$
     usingHState ctx getCertReqCBdata >>= \case
         Nothing     -> return Nothing
         Just cbdata -> do
@@ -443,7 +444,7 @@ getLocalHashSigAlg :: Context
                    -> [HashAndSignatureAlgorithm]
                    -> PubKey
                    -> IO HashAndSignatureAlgorithm
-getLocalHashSigAlg ctx isCompatible cHashSigs pubKey = do
+getLocalHashSigAlg ctx isCompatible cHashSigs pubKey = ETT__.tio "Network.TLS.Handshake.Client.getLocalHashSigAlg" ETT__.$ do
     -- Must be present with TLS 1.2 and up.
     (Just (_, Just hashSigs, _)) <- usingHState ctx getCertReqCBdata
     let want = (&&) <$> isCompatible pubKey
@@ -459,7 +460,7 @@ getLocalHashSigAlg ctx isCompatible cHashSigs pubKey = do
 --
 supportedCtypes :: [HashAndSignatureAlgorithm]
                 -> [CertificateType]
-supportedCtypes hashAlgs =
+supportedCtypes hashAlgs = ETT__.t "Network.TLS.Handshake.Client.supportedCtypes" ETT__.$
     nub $ foldr ctfilter [] hashAlgs
   where
     ctfilter x acc = case hashSigToCertType x of
@@ -469,13 +470,13 @@ supportedCtypes hashAlgs =
 --
 clientSupportedCtypes :: Context
                       -> [CertificateType]
-clientSupportedCtypes ctx =
+clientSupportedCtypes ctx = ETT__.t "Network.TLS.Handshake.Client.clientSupportedCtypes" ETT__.$
     supportedCtypes $ supportedHashSignatures $ ctxSupported ctx
 --
 sigAlgsToCertTypes :: Context
                    -> [HashAndSignatureAlgorithm]
                    -> [CertificateType]
-sigAlgsToCertTypes ctx hashSigs =
+sigAlgsToCertTypes ctx hashSigs = ETT__.t "Network.TLS.Handshake.Client.sigAlgsToCertTypes" ETT__.$
     filter (`elem` supportedCtypes hashSigs) $ clientSupportedCtypes ctx
 
 -- | TLS 1.2 and below.  Send the client handshake messages that
@@ -492,7 +493,7 @@ sigAlgsToCertTypes ctx hashSigs =
 --       -> client key exchange
 --       -> [cert verify]
 sendClientData :: ClientParams -> Context -> IO ()
-sendClientData cparams ctx = sendCertificate >> sendClientKeyXchg >> sendCertificateVerify
+sendClientData cparams ctx = ETT__.tio "Network.TLS.Handshake.Client.sendClientData" ETT__.$ sendCertificate >> sendClientKeyXchg >> sendCertificateVerify
   where
         sendCertificate = do
             usingHState ctx $ setClientCertSent False
@@ -608,24 +609,24 @@ sendClientData cparams ctx = sendCertificate >> sendClientKeyXchg >> sendCertifi
 
 processServerExtension :: ExtensionRaw -> TLSSt ()
 processServerExtension (ExtensionRaw extID content)
-  | extID == extensionID_SecureRenegotiation = do
+  | extID == extensionID_SecureRenegotiation = ETT__.t "Network.TLS.Handshake.Client.processServerExtension" ETT__.$ do
         cv <- getVerifiedData ClientRole
         sv <- getVerifiedData ServerRole
         let bs = extensionEncode (SecureRenegotiation cv $ Just sv)
         unless (bs `bytesEq` content) $ throwError $ Error_Protocol "server secure renegotiation data not matching" HandshakeFailure
-  | extID == extensionID_SupportedVersions = case extensionDecode MsgTServerHello content of
+  | extID == extensionID_SupportedVersions = ETT__.t "Network.TLS.Handshake.Client.processServerExtension" ETT__.$ case extensionDecode MsgTServerHello content of
       Just (SupportedVersionsServerHello ver) -> setVersion ver
       _                                       -> return ()
-  | extID == extensionID_KeyShare = do
+  | extID == extensionID_KeyShare = ETT__.t "Network.TLS.Handshake.Client.processServerExtension" ETT__.$ do
         hrr <- getTLS13HRR
         let msgt = if hrr then MsgTHelloRetryRequest else MsgTServerHello
         setTLS13KeyShare $ extensionDecode msgt content
-  | extID == extensionID_PreSharedKey =
+  | extID == extensionID_PreSharedKey = ETT__.t "Network.TLS.Handshake.Client.processServerExtension" ETT__.$
         setTLS13PreSharedKey $ extensionDecode MsgTServerHello content
-processServerExtension _ = return ()
+processServerExtension _ = ETT__.tm "Network.TLS.Handshake.Client.processServerExtension" ETT__.$ return ()
 
 throwMiscErrorOnException :: String -> SomeException -> IO a
-throwMiscErrorOnException msg e =
+throwMiscErrorOnException msg e = ETT__.tio "Network.TLS.Handshake.Client.throwMiscErrorOnException" ETT__.$
     throwCore $ Error_Misc $ msg ++ ": " ++ show e
 
 -- | onServerHello process the ServerHello message on the client.
@@ -637,7 +638,7 @@ throwMiscErrorOnException msg e =
 -- 5) if no resume switch to processCertificate SM or in resume switch to expectChangeCipher
 --
 onServerHello :: Context -> ClientParams -> Session -> [ExtensionID] -> Handshake -> IO (RecvState IO)
-onServerHello ctx cparams clientSession sentExts (ServerHello rver serverRan serverSession cipher compression exts) = do
+onServerHello ctx cparams clientSession sentExts (ServerHello rver serverRan serverSession cipher compression exts) = ETT__.tio "Network.TLS.Handshake.Client.onServerHello" ETT__.$ do
     when (rver == SSL2) $ throwCore $ Error_Protocol "SSL2 is not supported" ProtocolVersion
     when (rver == SSL3) $ throwCore $ Error_Protocol "SSL3 is not supported" ProtocolVersion
     -- find the compression and cipher methods that the server want to use.
@@ -710,10 +711,10 @@ onServerHello ctx cparams clientSession sentExts (ServerHello rver serverRan ser
                 usingHState ctx $ setMasterSecret rver ClientRole masterSecret
                 logKey ctx (MasterSecret masterSecret)
                 return $ RecvStateNext expectChangeCipher
-onServerHello _ _ _ _ p = unexpected (show p) (Just "server hello")
+onServerHello _ _ _ _ p = ETT__.tio "Network.TLS.Handshake.Client.onServerHello" ETT__.$ unexpected (show p) (Just "server hello")
 
 processCertificate :: ClientParams -> Context -> Handshake -> IO (RecvState IO)
-processCertificate cparams ctx (Certificates certs) = do
+processCertificate cparams ctx (Certificates certs) = ETT__.tio "Network.TLS.Handshake.Client.processCertificate" ETT__.$ do
     when (isNullCertificateChain certs) $
         throwCore $ Error_Protocol "server certificate missing" DecodeError
     -- run certificate recv hook
@@ -742,18 +743,18 @@ processCertificate cparams ctx (Certificates certs) = do
                 []    -> return ()
                 flags -> verifyLeafKeyUsage flags certs
 
-processCertificate _ ctx p = processServerKeyExchange ctx p
+processCertificate _ ctx p = ETT__.tio "Network.TLS.Handshake.Client.processCertificate" ETT__.$ processServerKeyExchange ctx p
 
 expectChangeCipher :: Packet -> IO (RecvState IO)
-expectChangeCipher ChangeCipherSpec = return $ RecvStateHandshake expectFinish
-expectChangeCipher p                = unexpected (show p) (Just "change cipher")
+expectChangeCipher ChangeCipherSpec = ETT__.tio "Network.TLS.Handshake.Client.expectChangeCipher" ETT__.$ return $ RecvStateHandshake expectFinish
+expectChangeCipher p                = ETT__.tio "Network.TLS.Handshake.Client.expectChangeCipher" ETT__.$ unexpected (show p) (Just "change cipher")
 
 expectFinish :: Handshake -> IO (RecvState IO)
-expectFinish (Finished _) = return RecvStateDone
-expectFinish p            = unexpected (show p) (Just "Handshake Finished")
+expectFinish (Finished _) = ETT__.tio "Network.TLS.Handshake.Client.expectFinish" ETT__.$ return RecvStateDone
+expectFinish p            = ETT__.tio "Network.TLS.Handshake.Client.expectFinish" ETT__.$ unexpected (show p) (Just "Handshake Finished")
 
 processServerKeyExchange :: Context -> Handshake -> IO (RecvState IO)
-processServerKeyExchange ctx (ServerKeyXchg origSkx) = do
+processServerKeyExchange ctx (ServerKeyXchg origSkx) = ETT__.tio "Network.TLS.Handshake.Client.processServerKeyExchange" ETT__.$ do
     cipher <- usingHState ctx getPendingCipher
     processWithCipher cipher origSkx
     return $ RecvStateHandshake (processCertificateRequest ctx)
@@ -800,29 +801,29 @@ processServerKeyExchange ctx (ServerKeyXchg origSkx) = do
                 throwCore $ Error_Protocol "server public key has unsupported elliptic curve" IllegalParameter
             return publicKey
 
-processServerKeyExchange ctx p = processCertificateRequest ctx p
+processServerKeyExchange ctx p = ETT__.tio "Network.TLS.Handshake.Client.processServerKeyExchange" ETT__.$ processCertificateRequest ctx p
 
 processCertificateRequest :: Context -> Handshake -> IO (RecvState IO)
-processCertificateRequest ctx (CertRequest cTypesSent sigAlgs dNames) = do
+processCertificateRequest ctx (CertRequest cTypesSent sigAlgs dNames) = ETT__.tio "Network.TLS.Handshake.Client.processCertificateRequest" ETT__.$ do
     ver <- usingState_ ctx getVersion
     when (ver == TLS12 && isNothing sigAlgs) $
         throwCore $ Error_Protocol "missing TLS 1.2 certificate request signature algorithms" InternalError
     let cTypes = filter (<= lastSupportedCertificateType) cTypesSent
     usingHState ctx $ setCertReqCBdata $ Just (cTypes, sigAlgs, dNames)
     return $ RecvStateHandshake (processServerHelloDone ctx)
-processCertificateRequest ctx p = do
+processCertificateRequest ctx p = ETT__.tio "Network.TLS.Handshake.Client.processCertificateRequest" ETT__.$ do
     usingHState ctx $ setCertReqCBdata Nothing
     processServerHelloDone ctx p
 
 processServerHelloDone :: Context -> Handshake -> IO (RecvState m)
-processServerHelloDone _ ServerHelloDone = return RecvStateDone
-processServerHelloDone _ p = unexpected (show p) (Just "server hello data")
+processServerHelloDone _ ServerHelloDone = ETT__.tio "Network.TLS.Handshake.Client.processServerHelloDone" ETT__.$ return RecvStateDone
+processServerHelloDone _ p = ETT__.tio "Network.TLS.Handshake.Client.processServerHelloDone" ETT__.$ unexpected (show p) (Just "server hello data")
 
 -- Unless result is empty, server certificate must be allowed for at least one
 -- of the returned values.  Constraints for RSA-based key exchange are relaxed
 -- to avoid rejecting certificates having incomplete extension.
 requiredCertKeyUsage :: Cipher -> [ExtKeyUsageFlag]
-requiredCertKeyUsage cipher =
+requiredCertKeyUsage cipher = ETT__.t "Network.TLS.Handshake.Client.requiredCertKeyUsage" ETT__.$
     case cipherKeyExchange cipher of
         CipherKeyExchange_RSA         -> rsaCompatibility
         CipherKeyExchange_DH_Anon     -> [] -- unrestricted
@@ -841,12 +842,12 @@ requiredCertKeyUsage cipher =
                            ]
 
 handshakeClient13 :: ClientParams -> Context -> Maybe Group -> IO ()
-handshakeClient13 cparams ctx groupSent = do
+handshakeClient13 cparams ctx groupSent = ETT__.tio "Network.TLS.Handshake.Client.handshakeClient13" ETT__.$ do
     choice <- makeCipherChoice TLS13 <$> usingHState ctx getPendingCipher
     handshakeClient13' cparams ctx groupSent choice
 
 handshakeClient13' :: ClientParams -> Context -> Maybe Group -> CipherChoice -> IO ()
-handshakeClient13' cparams ctx groupSent choice = do
+handshakeClient13' cparams ctx groupSent choice = ETT__.tio "Network.TLS.Handshake.Client.handshakeClient13'" ETT__.$ do
     (_, hkey, resuming) <- switchToHandshakeSecret
     let handshakeSecret = triBase hkey
         clientHandshakeSecret = triClient hkey
@@ -977,7 +978,7 @@ handshakeClient13' cparams ctx groupSent choice = do
         usingHState ctx $ setTLS13ResumptionSecret resumptionSecret
 
 processCertRequest13 :: MonadIO m => Context -> CertReqContext -> [ExtensionRaw] -> m ()
-processCertRequest13 ctx token exts = do
+processCertRequest13 ctx token exts = ETT__.tm "Network.TLS.Handshake.Client.processCertRequest13" ETT__.$ do
     let hsextID = extensionID_SignatureAlgorithms
         -- caextID = extensionID_SignatureAlgorithmsCert
     dNames <- canames
@@ -1017,7 +1018,7 @@ processCertRequest13 ctx token exts = do
     -}
 
 sendClientFlight13 :: ClientParams -> Context -> Hash -> ClientTrafficSecret a -> IO ()
-sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
+sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = ETT__.tio "Network.TLS.Handshake.Client.sendClientFlight13" ETT__.$ do
     chain <- clientChain cparams ctx
     runPacketFlight ctx $ do
         case chain of
@@ -1044,7 +1045,7 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
         throwCore $ Error_Protocol "missing TLS 1.3 certificate request context token" InternalError
 
 setALPN :: Context -> MessageType -> [ExtensionRaw] -> IO ()
-setALPN ctx msgt exts = case extensionLookup extensionID_ApplicationLayerProtocolNegotiation exts >>= extensionDecode msgt of
+setALPN ctx msgt exts = ETT__.tio "Network.TLS.Handshake.Client.setALPN" ETT__.$ case extensionLookup extensionID_ApplicationLayerProtocolNegotiation exts >>= extensionDecode msgt of
     Just (ApplicationLayerProtocolNegotiation [proto]) -> usingState_ ctx $ do
         mprotos <- getClientALPNSuggest
         case mprotos of
@@ -1055,7 +1056,7 @@ setALPN ctx msgt exts = case extensionLookup extensionID_ApplicationLayerProtoco
     _ -> return ()
 
 postHandshakeAuthClientWith :: ClientParams -> Context -> Handshake13 -> IO ()
-postHandshakeAuthClientWith cparams ctx h@(CertRequest13 certReqCtx exts) =
+postHandshakeAuthClientWith cparams ctx h@(CertRequest13 certReqCtx exts) = ETT__.t "Network.TLS.Handshake.Client.postHandshakeAuthClientWith" ETT__.$
     bracket (saveHState ctx) (restoreHState ctx) $ \_ -> do
         processHandshake13 ctx h
         processCertRequest13 ctx certReqCtx exts
@@ -1064,9 +1065,9 @@ postHandshakeAuthClientWith cparams ctx h@(CertRequest13 certReqCtx exts) =
             throwCore $ Error_Protocol "unexpected post-handshake authentication request" UnexpectedMessage
         sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret applicationSecretN)
 
-postHandshakeAuthClientWith _ _ _ =
+postHandshakeAuthClientWith _ _ _ = ETT__.tio "Network.TLS.Handshake.Client.postHandshakeAuthClientWith" ETT__.$
     throwCore $ Error_Protocol "unexpected handshake message received in postHandshakeAuthClientWith" UnexpectedMessage
 
 contextSync :: Context -> ClientState -> IO ()
-contextSync ctx ctl = case ctxHandshakeSync ctx of
+contextSync ctx ctl = ETT__.tio "Network.TLS.Handshake.Client.contextSync" ETT__.$ case ctxHandshakeSync ctx of
     HandshakeSync sync _ -> sync ctx ctl

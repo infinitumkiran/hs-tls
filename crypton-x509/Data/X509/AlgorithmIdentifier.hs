@@ -13,6 +13,7 @@ module Data.X509.AlgorithmIdentifier
 
 import Data.ASN1.Types
 import Data.List (find)
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | Hash Algorithm
 data HashALG =
@@ -61,7 +62,7 @@ instance OIDable PubKeyALG where
     getObjectID (PubKeyALG_Unknown oid) = oid
 
 sig_table :: [ (OID, SignatureALG) ]
-sig_table =
+sig_table = ETT__.t "Data.X509.AlgorithmIdentifier.sig_table" ETT__.$
         [ ([1,2,840,113549,1,1,5], SignatureALG HashSHA1 PubKeyALG_RSA)
         , ([1,2,840,113549,1,1,4], SignatureALG HashMD5 PubKeyALG_RSA)
         , ([1,2,840,113549,1,1,2], SignatureALG HashMD2 PubKeyALG_RSA)
@@ -86,19 +87,19 @@ sig_table =
         ]
 
 oidSig :: OID -> SignatureALG
-oidSig oid = maybe (SignatureALG_Unknown oid) id $ lookup oid sig_table
+oidSig oid = ETT__.t "Data.X509.AlgorithmIdentifier.oidSig" ETT__.$ maybe (SignatureALG_Unknown oid) id $ lookup oid sig_table
 
 sigOID :: SignatureALG -> OID
-sigOID (SignatureALG_Unknown oid) = oid
-sigOID sig = maybe (error ("unknown OID for " ++ show sig)) fst $ find ((==) sig . snd) sig_table
+sigOID (SignatureALG_Unknown oid) = ETT__.t "Data.X509.AlgorithmIdentifier.sigOID" ETT__.$ oid
+sigOID sig = ETT__.t "Data.X509.AlgorithmIdentifier.sigOID" ETT__.$ maybe (error ("unknown OID for " ++ show sig)) fst $ find ((==) sig . snd) sig_table
 
 -- | PSS salt length. Always assume ``-sigopt rsa_pss_saltlen:-1``
 saltLen :: HashALG -> Integer
-saltLen HashSHA256 = 32
-saltLen HashSHA384 = 48
-saltLen HashSHA512 = 64
-saltLen HashSHA224 = 28
-saltLen _          = error "toASN1: X509.SignatureAlg.HashAlg: Unknown hash"
+saltLen HashSHA256 = ETT__.t "Data.X509.AlgorithmIdentifier.saltLen" ETT__.$ 32
+saltLen HashSHA384 = ETT__.t "Data.X509.AlgorithmIdentifier.saltLen" ETT__.$ 48
+saltLen HashSHA512 = ETT__.t "Data.X509.AlgorithmIdentifier.saltLen" ETT__.$ 64
+saltLen HashSHA224 = ETT__.t "Data.X509.AlgorithmIdentifier.saltLen" ETT__.$ 28
+saltLen _          = ETT__.t "Data.X509.AlgorithmIdentifier.saltLen" ETT__.$ error "toASN1: X509.SignatureAlg.HashAlg: Unknown hash"
 
 instance ASN1Object SignatureALG where
     fromASN1 (Start Sequence:OID oid:Null:End Sequence:xs) =

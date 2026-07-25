@@ -18,6 +18,7 @@ import Data.X509 (CertificateChain)
 import Network.TLS.Struct
 import Network.TLS.Types
 import Network.TLS.Imports
+import qualified Debug.EulerTrace.Tls as ETT__
 
 data Packet13 =
       Handshake13 [Handshake13]
@@ -60,16 +61,16 @@ data HandshakeType13 =
     deriving (Show,Eq)
 
 typeOfHandshake13 :: Handshake13 -> HandshakeType13
-typeOfHandshake13 ClientHello13{}         = HandshakeType_ClientHello13
-typeOfHandshake13 ServerHello13{}         = HandshakeType_ServerHello13
-typeOfHandshake13 EndOfEarlyData13{}      = HandshakeType_EndOfEarlyData13
-typeOfHandshake13 NewSessionTicket13{}    = HandshakeType_NewSessionTicket13
-typeOfHandshake13 EncryptedExtensions13{} = HandshakeType_EncryptedExtensions13
-typeOfHandshake13 CertRequest13{}         = HandshakeType_CertRequest13
-typeOfHandshake13 Certificate13{}         = HandshakeType_Certificate13
-typeOfHandshake13 CertVerify13{}          = HandshakeType_CertVerify13
-typeOfHandshake13 Finished13{}            = HandshakeType_Finished13
-typeOfHandshake13 KeyUpdate13{}           = HandshakeType_KeyUpdate13
+typeOfHandshake13 ClientHello13{}         = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_ClientHello13
+typeOfHandshake13 ServerHello13{}         = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_ServerHello13
+typeOfHandshake13 EndOfEarlyData13{}      = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_EndOfEarlyData13
+typeOfHandshake13 NewSessionTicket13{}    = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_NewSessionTicket13
+typeOfHandshake13 EncryptedExtensions13{} = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_EncryptedExtensions13
+typeOfHandshake13 CertRequest13{}         = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_CertRequest13
+typeOfHandshake13 Certificate13{}         = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_Certificate13
+typeOfHandshake13 CertVerify13{}          = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_CertVerify13
+typeOfHandshake13 Finished13{}            = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_Finished13
+typeOfHandshake13 KeyUpdate13{}           = ETT__.t "Network.TLS.Struct13.typeOfHandshake13" ETT__.$ HandshakeType_KeyUpdate13
 
 instance TypeValuable HandshakeType13 where
   valOfType HandshakeType_ClientHello13         = 1
@@ -96,7 +97,7 @@ instance TypeValuable HandshakeType13 where
   valToType _  = Nothing
 
 contentType :: Packet13 -> ProtocolType
-contentType ChangeCipherSpec13 = ProtocolType_ChangeCipherSpec
-contentType (Handshake13 _)    = ProtocolType_Handshake
-contentType (Alert13 _)        = ProtocolType_Alert
-contentType (AppData13 _)      = ProtocolType_AppData
+contentType ChangeCipherSpec13 = ETT__.t "Network.TLS.Struct13.contentType" ETT__.$ ProtocolType_ChangeCipherSpec
+contentType (Handshake13 _)    = ETT__.t "Network.TLS.Struct13.contentType" ETT__.$ ProtocolType_Handshake
+contentType (Alert13 _)        = ETT__.t "Network.TLS.Struct13.contentType" ETT__.$ ProtocolType_Alert
+contentType (AppData13 _)      = ETT__.t "Network.TLS.Struct13.contentType" ETT__.$ ProtocolType_AppData

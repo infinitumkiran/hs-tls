@@ -25,6 +25,7 @@ import Data.X509.DistinguishedName
 import Data.X509.AlgorithmIdentifier
 import Data.X509.ExtensionRaw
 import Data.X509.Internal
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | Describe a Certificate revocation list
 data CRL = CRL
@@ -66,14 +67,14 @@ instance ASN1Object RevokedCertificate where
         xs
 
 parseSerialNumber :: ParseASN1 Integer
-parseSerialNumber = do
+parseSerialNumber = ETT__.tm "Data.X509.CRL.parseSerialNumber" ETT__.$ do
     n <- getNext
     case n of
         IntVal v -> return v
         _        -> throwParseError ("missing serial" ++ show n)
 
 parseCRL :: ParseASN1 CRL
-parseCRL = do
+parseCRL = ETT__.tm "Data.X509.CRL.parseCRL" ETT__.$ do
     CRL <$> (getNext >>= getVersion)
         <*> getObject
         <*> getObject
@@ -93,17 +94,17 @@ parseCRL = do
         timeOrNothing _                    = Nothing
 
 parseRevokedCertificates :: ParseASN1 [RevokedCertificate]
-parseRevokedCertificates =
+parseRevokedCertificates = ETT__.tm "Data.X509.CRL.parseRevokedCertificates" ETT__.$
     fmap (maybe [] id) $ onNextContainerMaybe Sequence $ getMany getObject
 
 parseCRLExtensions :: ParseASN1 Extensions
-parseCRLExtensions =
+parseCRLExtensions = ETT__.tm "Data.X509.CRL.parseCRLExtensions" ETT__.$
     fmap adapt $ onNextContainerMaybe (Container Context 0) $ getObject
   where adapt (Just e) = e
         adapt Nothing = Extensions Nothing
 
 encodeCRL :: CRL -> ASN1S
-encodeCRL crl xs =
+encodeCRL crl xs = ETT__.t "Data.X509.CRL.encodeCRL" ETT__.$
     [IntVal $ crlVersion crl] ++
     toASN1 (crlSignatureAlg crl) [] ++
     toASN1 (crlIssuer crl) [] ++

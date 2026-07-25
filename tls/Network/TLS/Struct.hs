@@ -66,6 +66,7 @@ import Network.TLS.Types
 import Network.TLS.Crypto
 import Network.TLS.Util.Serialization
 import Network.TLS.Imports
+import qualified Debug.EulerTrace.Tls as ETT__
 
 data ConnectionEnd = ConnectionServer | ConnectionClient
 data CipherType = CipherStream | CipherBlock | CipherAEAD
@@ -108,7 +109,7 @@ data CertificateType =
 -- via the client certificate request callback.
 --
 lastSupportedCertificateType :: CertificateType
-lastSupportedCertificateType = CertificateType_ECDSA_Sign
+lastSupportedCertificateType = ETT__.t "Network.TLS.Struct.lastSupportedCertificateType" ETT__.$ CertificateType_ECDSA_Sign
 
 
 data HashAlgorithm =
@@ -232,45 +233,45 @@ instance Show ExtensionRaw where
     show (ExtensionRaw eid bs) = "ExtensionRaw " ++ showEID eid ++ " " ++ showBytesHex bs
 
 showEID :: ExtensionID -> String
-showEID 0x0 = "ServerName"
-showEID 0x1 = "MaxFragmentLength"
-showEID 0x2 = "ClientCertificateUrl"
-showEID 0x3 = "TrustedCAKeys"
-showEID 0x4 = "TruncatedHMAC"
-showEID 0x5 = "StatusRequest"
-showEID 0x6 = "UserMapping"
-showEID 0x7 = "ClientAuthz"
-showEID 0x8 = "ServerAuthz"
-showEID 0x9 = "CertType"
-showEID 0xa = "NegotiatedGroups"
-showEID 0xb = "EcPointFormats"
-showEID 0xc = "SRP"
-showEID 0xd = "SignatureAlgorithm"
-showEID 0xe = "SRTP"
-showEID 0xf = "Heartbeat"
-showEID 0x10 = "ApplicationLayerProtocolNegotiation"
-showEID 0x11 = "StatusRequestv2"
-showEID 0x12 = "SignedCertificateTimestamp"
-showEID 0x13 = "ClientCertificateType"
-showEID 0x14 = "ServerCertificateType"
-showEID 0x15 = "Padding"
-showEID 0x16 = "EncryptThenMAC"
-showEID 0x17 = "ExtendedMasterSecret"
-showEID 0x23 = "SessionTicket"
-showEID 0x29 = "PreShardeKey"
-showEID 0x2a = "EarlyData"
-showEID 0x2b = "SupportedVersions"
-showEID 0x2c = "Cookie"
-showEID 0x2d = "PskKeyExchangeModes"
-showEID 0x2f = "CertificateAuthorities"
-showEID 0x30 = "OidFilters"
-showEID 0x31 = "PostHandshakeAuth"
-showEID 0x32 = "SignatureAlgorithmsCert"
-showEID 0x33 = "KeyShare"
-showEID 0x39 = "QuicTransportParameters"
-showEID 0xff01 = "SecureRenegotiation"
-showEID 0xffa5 = "QuicTransportParameters"
-showEID x      = show x
+showEID 0x0 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "ServerName"
+showEID 0x1 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "MaxFragmentLength"
+showEID 0x2 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "ClientCertificateUrl"
+showEID 0x3 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "TrustedCAKeys"
+showEID 0x4 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "TruncatedHMAC"
+showEID 0x5 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "StatusRequest"
+showEID 0x6 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "UserMapping"
+showEID 0x7 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "ClientAuthz"
+showEID 0x8 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "ServerAuthz"
+showEID 0x9 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "CertType"
+showEID 0xa = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "NegotiatedGroups"
+showEID 0xb = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "EcPointFormats"
+showEID 0xc = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "SRP"
+showEID 0xd = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "SignatureAlgorithm"
+showEID 0xe = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "SRTP"
+showEID 0xf = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "Heartbeat"
+showEID 0x10 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "ApplicationLayerProtocolNegotiation"
+showEID 0x11 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "StatusRequestv2"
+showEID 0x12 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "SignedCertificateTimestamp"
+showEID 0x13 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "ClientCertificateType"
+showEID 0x14 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "ServerCertificateType"
+showEID 0x15 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "Padding"
+showEID 0x16 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "EncryptThenMAC"
+showEID 0x17 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "ExtendedMasterSecret"
+showEID 0x23 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "SessionTicket"
+showEID 0x29 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "PreShardeKey"
+showEID 0x2a = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "EarlyData"
+showEID 0x2b = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "SupportedVersions"
+showEID 0x2c = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "Cookie"
+showEID 0x2d = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "PskKeyExchangeModes"
+showEID 0x2f = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "CertificateAuthorities"
+showEID 0x30 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "OidFilters"
+showEID 0x31 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "PostHandshakeAuth"
+showEID 0x32 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "SignatureAlgorithmsCert"
+showEID 0x33 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "KeyShare"
+showEID 0x39 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "QuicTransportParameters"
+showEID 0xff01 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "SecureRenegotiation"
+showEID 0xffa5 = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ "QuicTransportParameters"
+showEID x      = ETT__.t "Network.TLS.Struct.showEID" ETT__.$ show x
 
 data AlertLevel =
       AlertLevel_Warning
@@ -330,10 +331,10 @@ newtype BigNum = BigNum ByteString
     deriving (Show,Eq)
 
 bigNumToInteger :: BigNum -> Integer
-bigNumToInteger (BigNum b) = os2ip b
+bigNumToInteger (BigNum b) = ETT__.t "Network.TLS.Struct.bigNumToInteger" ETT__.$ os2ip b
 
 bigNumFromInteger :: Integer -> BigNum
-bigNumFromInteger i = BigNum $ i2osp i
+bigNumFromInteger i = ETT__.t "Network.TLS.Struct.bigNumFromInteger" ETT__.$ BigNum $ i2osp i
 
 data ServerDHParams = ServerDHParams
     { serverDHParams_p :: BigNum
@@ -342,18 +343,18 @@ data ServerDHParams = ServerDHParams
     } deriving (Show,Eq)
 
 serverDHParamsFrom :: DHParams -> DHPublic -> ServerDHParams
-serverDHParamsFrom params dhPub =
+serverDHParamsFrom params dhPub = ETT__.t "Network.TLS.Struct.serverDHParamsFrom" ETT__.$
     ServerDHParams (bigNumFromInteger $ dhParamsGetP params)
                    (bigNumFromInteger $ dhParamsGetG params)
                    (bigNumFromInteger $ dhUnwrapPublic dhPub)
 
 serverDHParamsToParams :: ServerDHParams -> DHParams
-serverDHParamsToParams serverParams =
+serverDHParamsToParams serverParams = ETT__.t "Network.TLS.Struct.serverDHParamsToParams" ETT__.$
     dhParams (bigNumToInteger $ serverDHParams_p serverParams)
              (bigNumToInteger $ serverDHParams_g serverParams)
 
 serverDHParamsToPublic :: ServerDHParams -> DHPublic
-serverDHParamsToPublic serverParams =
+serverDHParamsToPublic serverParams = ETT__.t "Network.TLS.Struct.serverDHParamsToPublic" ETT__.$
     dhPublic (bigNumToInteger $ serverDHParams_y serverParams)
 
 data ServerECDHParams = ServerECDHParams Group GroupPublic
@@ -399,39 +400,39 @@ data Handshake =
     deriving (Show,Eq)
 
 packetType :: Packet -> ProtocolType
-packetType (Handshake _)    = ProtocolType_Handshake
-packetType (Alert _)        = ProtocolType_Alert
-packetType ChangeCipherSpec = ProtocolType_ChangeCipherSpec
-packetType (AppData _)      = ProtocolType_AppData
+packetType (Handshake _)    = ETT__.t "Network.TLS.Struct.packetType" ETT__.$ ProtocolType_Handshake
+packetType (Alert _)        = ETT__.t "Network.TLS.Struct.packetType" ETT__.$ ProtocolType_Alert
+packetType ChangeCipherSpec = ETT__.t "Network.TLS.Struct.packetType" ETT__.$ ProtocolType_ChangeCipherSpec
+packetType (AppData _)      = ETT__.t "Network.TLS.Struct.packetType" ETT__.$ ProtocolType_AppData
 
 typeOfHandshake :: Handshake -> HandshakeType
-typeOfHandshake ClientHello{}             = HandshakeType_ClientHello
-typeOfHandshake ServerHello{}             = HandshakeType_ServerHello
-typeOfHandshake Certificates{}            = HandshakeType_Certificate
-typeOfHandshake HelloRequest              = HandshakeType_HelloRequest
-typeOfHandshake ServerHelloDone           = HandshakeType_ServerHelloDone
-typeOfHandshake ClientKeyXchg{}           = HandshakeType_ClientKeyXchg
-typeOfHandshake ServerKeyXchg{}           = HandshakeType_ServerKeyXchg
-typeOfHandshake CertRequest{}             = HandshakeType_CertRequest
-typeOfHandshake CertVerify{}              = HandshakeType_CertVerify
-typeOfHandshake Finished{}                = HandshakeType_Finished
+typeOfHandshake ClientHello{}             = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_ClientHello
+typeOfHandshake ServerHello{}             = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_ServerHello
+typeOfHandshake Certificates{}            = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_Certificate
+typeOfHandshake HelloRequest              = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_HelloRequest
+typeOfHandshake ServerHelloDone           = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_ServerHelloDone
+typeOfHandshake ClientKeyXchg{}           = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_ClientKeyXchg
+typeOfHandshake ServerKeyXchg{}           = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_ServerKeyXchg
+typeOfHandshake CertRequest{}             = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_CertRequest
+typeOfHandshake CertVerify{}              = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_CertVerify
+typeOfHandshake Finished{}                = ETT__.t "Network.TLS.Struct.typeOfHandshake" ETT__.$ HandshakeType_Finished
 
 numericalVer :: Version -> (Word8, Word8)
-numericalVer SSL2  = (2, 0)
-numericalVer SSL3  = (3, 0)
-numericalVer TLS10 = (3, 1)
-numericalVer TLS11 = (3, 2)
-numericalVer TLS12 = (3, 3)
-numericalVer TLS13 = (3, 4)
+numericalVer SSL2  = ETT__.t "Network.TLS.Struct.numericalVer" ETT__.$ (2, 0)
+numericalVer SSL3  = ETT__.t "Network.TLS.Struct.numericalVer" ETT__.$ (3, 0)
+numericalVer TLS10 = ETT__.t "Network.TLS.Struct.numericalVer" ETT__.$ (3, 1)
+numericalVer TLS11 = ETT__.t "Network.TLS.Struct.numericalVer" ETT__.$ (3, 2)
+numericalVer TLS12 = ETT__.t "Network.TLS.Struct.numericalVer" ETT__.$ (3, 3)
+numericalVer TLS13 = ETT__.t "Network.TLS.Struct.numericalVer" ETT__.$ (3, 4)
 
 verOfNum :: (Word8, Word8) -> Maybe Version
-verOfNum (2, 0) = Just SSL2
-verOfNum (3, 0) = Just SSL3
-verOfNum (3, 1) = Just TLS10
-verOfNum (3, 2) = Just TLS11
-verOfNum (3, 3) = Just TLS12
-verOfNum (3, 4) = Just TLS13
-verOfNum _      = Nothing
+verOfNum (2, 0) = ETT__.t "Network.TLS.Struct.verOfNum" ETT__.$ Just SSL2
+verOfNum (3, 0) = ETT__.t "Network.TLS.Struct.verOfNum" ETT__.$ Just SSL3
+verOfNum (3, 1) = ETT__.t "Network.TLS.Struct.verOfNum" ETT__.$ Just TLS10
+verOfNum (3, 2) = ETT__.t "Network.TLS.Struct.verOfNum" ETT__.$ Just TLS11
+verOfNum (3, 3) = ETT__.t "Network.TLS.Struct.verOfNum" ETT__.$ Just TLS12
+verOfNum (3, 4) = ETT__.t "Network.TLS.Struct.verOfNum" ETT__.$ Just TLS13
+verOfNum _      = ETT__.t "Network.TLS.Struct.verOfNum" ETT__.$ Nothing
 
 class TypeValuable a where
     valOfType :: a -> Word8

@@ -31,6 +31,7 @@ Library
                    , iproute >= 1.2.2
   Exposed-modules:   Data.X509.Validation
   Other-modules:     Data.X509.Validation.Signature
+                     Debug.EulerTrace.CryptonX509Validation
                      Data.X509.Validation.Fingerprint
                      Data.X509.Validation.Cache
                      Data.X509.Validation.Types

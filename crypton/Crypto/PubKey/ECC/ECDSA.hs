@@ -40,6 +40,7 @@ import Crypto.PubKey.ECC.Types
 import Crypto.PubKey.Internal (dsaTruncHashDigest)
 import Crypto.Random.HmacDRG
 import Crypto.Random.Types
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Represent a ECDSA signature namely R and S.
 data Signature = Signature
@@ -81,11 +82,11 @@ data KeyPair = KeyPair Curve PublicPoint PrivateNumber
 
 -- | Public key of a ECDSA Key pair.
 toPublicKey :: KeyPair -> PublicKey
-toPublicKey (KeyPair curve pub _) = PublicKey curve pub
+toPublicKey (KeyPair curve pub _) = ETT__.t "Crypto.PubKey.ECC.ECDSA.toPublicKey" ETT__.$ PublicKey curve pub
 
 -- | Private key of a ECDSA Key pair.
 toPrivateKey :: KeyPair -> PrivateKey
-toPrivateKey (KeyPair curve _ priv) = PrivateKey curve priv
+toPrivateKey (KeyPair curve _ priv) = ETT__.t "Crypto.PubKey.ECC.ECDSA.toPrivateKey" ETT__.$ PrivateKey curve priv
 
 -- | Sign digest using the private key and an explicit k number.
 --
@@ -99,7 +100,7 @@ signExtendedDigestWith
     -> Digest hash
     -- ^ digest to sign
     -> Maybe ExtendedSignature
-signExtendedDigestWith k (PrivateKey curve d) digest = do
+signExtendedDigestWith k (PrivateKey curve d) digest = ETT__.t "Crypto.PubKey.ECC.ECDSA.signExtendedDigestWith" ETT__.$ do
     let z = dsaTruncHashDigest digest n
         CurveCommon _ _ g n _ = common_curve curve
     (i, r, p) <- pointDecompose curve $ pointMul curve k g
@@ -123,7 +124,7 @@ signDigestWith
     -> Digest hash
     -- ^ digest to sign
     -> Maybe Signature
-signDigestWith k pk digest = signature <$> signExtendedDigestWith k pk digest
+signDigestWith k pk digest = ETT__.t "Crypto.PubKey.ECC.ECDSA.signDigestWith" ETT__.$ signature <$> signExtendedDigestWith k pk digest
 
 -- | Sign message using the private key and an explicit k number.
 --
@@ -139,7 +140,7 @@ signWith
     -> msg
     -- ^ message to sign
     -> Maybe Signature
-signWith k pk hashAlg msg = signDigestWith k pk (hashWith hashAlg msg)
+signWith k pk hashAlg msg = ETT__.t "Crypto.PubKey.ECC.ECDSA.signWith" ETT__.$ signDigestWith k pk (hashWith hashAlg msg)
 
 -- | Sign digest using the private key.
 --
@@ -147,7 +148,7 @@ signWith k pk hashAlg msg = signDigestWith k pk (hashWith hashAlg msg)
 signExtendedDigest
     :: (HashAlgorithm hash, MonadRandom m)
     => PrivateKey -> Digest hash -> m ExtendedSignature
-signExtendedDigest pk digest = do
+signExtendedDigest pk digest = ETT__.tm "Crypto.PubKey.ECC.ECDSA.signExtendedDigest" ETT__.$ do
     k <- generateBetween 1 (n - 1)
     case signExtendedDigestWith k pk digest of
         Nothing -> signExtendedDigest pk digest
@@ -161,7 +162,7 @@ signExtendedDigest pk digest = do
 signDigest
     :: (HashAlgorithm hash, MonadRandom m)
     => PrivateKey -> Digest hash -> m Signature
-signDigest pk digest = signature <$> signExtendedDigest pk digest
+signDigest pk digest = ETT__.tm "Crypto.PubKey.ECC.ECDSA.signDigest" ETT__.$ signature <$> signExtendedDigest pk digest
 
 -- | Sign message using the private key.
 --
@@ -169,15 +170,15 @@ signDigest pk digest = signature <$> signExtendedDigest pk digest
 sign
     :: (ByteArrayAccess msg, HashAlgorithm hash, MonadRandom m)
     => PrivateKey -> hash -> msg -> m Signature
-sign pk hashAlg msg = signDigest pk (hashWith hashAlg msg)
+sign pk hashAlg msg = ETT__.tm "Crypto.PubKey.ECC.ECDSA.sign" ETT__.$ signDigest pk (hashWith hashAlg msg)
 
 -- | Verify a digest using the public key.
 verifyDigest
     :: HashAlgorithm hash => PublicKey -> Signature -> Digest hash -> Bool
-verifyDigest (PublicKey _ PointO) _ _ = False
+verifyDigest (PublicKey _ PointO) _ _ = ETT__.t "Crypto.PubKey.ECC.ECDSA.verifyDigest" ETT__.$ False
 verifyDigest pk@(PublicKey curve q) (Signature r s) digest
-    | r < 1 || r >= n || s < 1 || s >= n = False
-    | otherwise = maybe False (r ==) $ do
+    | r < 1 || r >= n || s < 1 || s >= n = ETT__.t "Crypto.PubKey.ECC.ECDSA.verifyDigest" ETT__.$ False
+    | otherwise = ETT__.t "Crypto.PubKey.ECC.ECDSA.verifyDigest" ETT__.$ maybe False (r ==) $ do
         w <- inverse s n
         let z = dsaTruncHashDigest digest n
             u1 = z * w `mod` n
@@ -195,13 +196,13 @@ verifyDigest pk@(PublicKey curve q) (Signature r s) digest
 verify
     :: (ByteArrayAccess msg, HashAlgorithm hash)
     => hash -> PublicKey -> Signature -> msg -> Bool
-verify hashAlg pk sig msg = verifyDigest pk sig (hashWith hashAlg msg)
+verify hashAlg pk sig msg = ETT__.t "Crypto.PubKey.ECC.ECDSA.verify" ETT__.$ verifyDigest pk sig (hashWith hashAlg msg)
 
 -- | Recover the public key from an extended signature and a digest.
 recoverDigest
     :: HashAlgorithm hash
     => Curve -> ExtendedSignature -> Digest hash -> Maybe PublicKey
-recoverDigest curve (ExtendedSignature i p (Signature r s)) digest = do
+recoverDigest curve (ExtendedSignature i p (Signature r s)) digest = ETT__.t "Crypto.PubKey.ECC.ECDSA.recoverDigest" ETT__.$ do
     let CurveCommon _ _ g n _ = common_curve curve
     let z = dsaTruncHashDigest digest n
     w <- inverse r n
@@ -212,14 +213,14 @@ recoverDigest curve (ExtendedSignature i p (Signature r s)) digest = do
 recover
     :: (ByteArrayAccess msg, HashAlgorithm hash)
     => hash -> Curve -> ExtendedSignature -> msg -> Maybe PublicKey
-recover hashAlg curve sig msg = recoverDigest curve sig $ hashWith hashAlg msg
+recover hashAlg curve sig msg = ETT__.t "Crypto.PubKey.ECC.ECDSA.recover" ETT__.$ recoverDigest curve sig $ hashWith hashAlg msg
 
 -- | Deterministic nonce generation according to RFC 6979.
 -- Allows using different hash algorithms for the HMAC-based DRG and the message digest.
 deterministicNonce
     :: (HashAlgorithm hashDRG, HashAlgorithm hashDigest)
     => hashDRG -> PrivateKey -> Digest hashDigest -> (Integer -> Maybe a) -> a
-deterministicNonce alg (PrivateKey curve key) digest go = fst $ withDRG state run
+deterministicNonce alg (PrivateKey curve key) digest go = ETT__.t "Crypto.PubKey.ECC.ECDSA.deterministicNonce" ETT__.$ fst $ withDRG state run
   where
     state = update seed $ initial alg
       where

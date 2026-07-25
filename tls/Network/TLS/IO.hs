@@ -37,12 +37,13 @@ import Network.TLS.Sending
 import Network.TLS.State
 import Network.TLS.Struct
 import Network.TLS.Struct13
+import qualified Debug.EulerTrace.Tls as ETT__
 
 ----------------------------------------------------------------
 
 -- | Send one packet to the context
 sendPacket :: Context -> Packet -> IO ()
-sendPacket ctx@Context{ctxRecordLayer = recordLayer} pkt = do
+sendPacket ctx@Context{ctxRecordLayer = recordLayer} pkt = ETT__.t "Network.TLS.IO.sendPacket" ETT__.$ do
     -- in ver <= TLS1.0, block ciphers using CBC are using CBC residue as IV, which can be guessed
     -- by an attacker. Hence, an empty packet is sent before a normal data packet, to
     -- prevent guessability.
@@ -58,7 +59,7 @@ sendPacket ctx@Context{ctxRecordLayer = recordLayer} pkt = do
 
 writePacketBytes :: Monoid bytes
                  => Context -> RecordLayer bytes -> Packet -> IO bytes
-writePacketBytes ctx recordLayer pkt = do
+writePacketBytes ctx recordLayer pkt = ETT__.tio "Network.TLS.IO.writePacketBytes" ETT__.$ do
     withLog ctx $ \logging -> loggingPacketSent logging (show pkt)
     edataToSend <- encodePacket ctx recordLayer pkt
     either throwCore return edataToSend
@@ -66,12 +67,12 @@ writePacketBytes ctx recordLayer pkt = do
 ----------------------------------------------------------------
 
 sendPacket13 :: Context -> Packet13 -> IO ()
-sendPacket13 ctx@Context{ctxRecordLayer = recordLayer} pkt =
+sendPacket13 ctx@Context{ctxRecordLayer = recordLayer} pkt = ETT__.t "Network.TLS.IO.sendPacket13" ETT__.$
     writePacketBytes13 ctx recordLayer pkt >>= recordSendBytes recordLayer
 
 writePacketBytes13 :: Monoid bytes
                    => Context -> RecordLayer bytes -> Packet13 -> IO bytes
-writePacketBytes13 ctx recordLayer pkt = do
+writePacketBytes13 ctx recordLayer pkt = ETT__.tio "Network.TLS.IO.writePacketBytes13" ETT__.$ do
     withLog ctx $ \logging -> loggingPacketSent logging (show pkt)
     edataToSend <- encodePacket13 ctx recordLayer pkt
     either throwCore return edataToSend
@@ -81,7 +82,7 @@ writePacketBytes13 ctx recordLayer pkt = do
 -- many messages (many only in case of handshake). if will returns a
 -- TLSError if the packet is unexpected or malformed
 recvPacket :: Context -> IO (Either TLSError Packet)
-recvPacket ctx@Context{ctxRecordLayer = recordLayer} = do
+recvPacket ctx@Context{ctxRecordLayer = recordLayer} = ETT__.t "Network.TLS.IO.recvPacket" ETT__.$ do
     compatSSLv2 <- ctxHasSSLv2ClientHello ctx
     hrr         <- usingState_ ctx getTLS13HRR
     -- When a client sends 0-RTT data to a server which rejects and sends a HRR,
@@ -114,17 +115,17 @@ recvPacket ctx@Context{ctxRecordLayer = recordLayer} = do
                     return pkt
 
 isCCS :: Record a -> Bool
-isCCS (Record ProtocolType_ChangeCipherSpec _ _) = True
-isCCS _                                          = False
+isCCS (Record ProtocolType_ChangeCipherSpec _ _) = ETT__.t "Network.TLS.IO.isCCS" ETT__.$ True
+isCCS _                                          = ETT__.t "Network.TLS.IO.isCCS" ETT__.$ False
 
 isEmptyHandshake :: Either TLSError Packet -> Bool
-isEmptyHandshake (Right (Handshake [])) = True
-isEmptyHandshake _                      = False
+isEmptyHandshake (Right (Handshake [])) = ETT__.t "Network.TLS.IO.isEmptyHandshake" ETT__.$ True
+isEmptyHandshake _                      = ETT__.t "Network.TLS.IO.isEmptyHandshake" ETT__.$ False
 
 ----------------------------------------------------------------
 
 recvPacket13 :: Context -> IO (Either TLSError Packet13)
-recvPacket13 ctx@Context{ctxRecordLayer = recordLayer} = do
+recvPacket13 ctx@Context{ctxRecordLayer = recordLayer} = ETT__.t "Network.TLS.IO.recvPacket13" ETT__.$ do
     erecord <- recordRecv13 recordLayer
     case erecord of
         Left err@(Error_Protocol _ BadRecordMac) -> do
@@ -155,19 +156,19 @@ recvPacket13 ctx@Context{ctxRecordLayer = recordLayer} = do
                 return pkt
 
 isEmptyHandshake13 :: Either TLSError Packet13 -> Bool
-isEmptyHandshake13 (Right (Handshake13 [])) = True
-isEmptyHandshake13 _                        = False
+isEmptyHandshake13 (Right (Handshake13 [])) = ETT__.t "Network.TLS.IO.isEmptyHandshake13" ETT__.$ True
+isEmptyHandshake13 _                        = ETT__.t "Network.TLS.IO.isEmptyHandshake13" ETT__.$ False
 
 ----------------------------------------------------------------
 
 isRecvComplete :: Context -> IO Bool
-isRecvComplete ctx = usingState_ ctx $ do
+isRecvComplete ctx = ETT__.tio "Network.TLS.IO.isRecvComplete" ETT__.$ usingState_ ctx $ do
     cont <- gets stHandshakeRecordCont
     cont13 <- gets stHandshakeRecordCont13
     return $! isNothing cont && isNothing cont13
 
 checkValid :: Context -> IO ()
-checkValid ctx = do
+checkValid ctx = ETT__.tio "Network.TLS.IO.checkValid" ETT__.$ do
     established <- ctxEstablished ctx
     when (established == NotEstablished) $ throwIO ConnectionNotEstablished
     eofed <- ctxEOF ctx
@@ -186,18 +187,18 @@ newtype PacketFlightM b a = PacketFlightM (ReaderT (RecordLayer b, IORef (Builde
     deriving (Functor, Applicative, Monad, MonadFail, MonadIO)
 
 runPacketFlight :: Context -> (forall b . Monoid b => PacketFlightM b a) -> IO a
-runPacketFlight Context{ctxRecordLayer = recordLayer} (PacketFlightM f) = do
+runPacketFlight Context{ctxRecordLayer = recordLayer} (PacketFlightM f) = ETT__.t "Network.TLS.IO.runPacketFlight" ETT__.$ do
     ref <- newIORef id
     runReaderT f (recordLayer, ref) `finally` sendPendingFlight recordLayer ref
 
 sendPendingFlight :: Monoid b => RecordLayer b -> IORef (Builder b) -> IO ()
-sendPendingFlight recordLayer ref = do
+sendPendingFlight recordLayer ref = ETT__.tio "Network.TLS.IO.sendPendingFlight" ETT__.$ do
     build <- readIORef ref
     let bss = build []
     unless (null bss) $ recordSendBytes recordLayer $ mconcat bss
 
 loadPacket13 :: Monoid b => Context -> Packet13 -> PacketFlightM b ()
-loadPacket13 ctx pkt = PacketFlightM $ do
+loadPacket13 ctx pkt = ETT__.t "Network.TLS.IO.loadPacket13" ETT__.$ PacketFlightM $ do
     (recordLayer, ref) <- ask
     liftIO $ do
         bs <- writePacketBytes13 ctx recordLayer pkt

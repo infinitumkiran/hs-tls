@@ -8,9 +8,10 @@ import Gauge.Main
 #endif
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
+import qualified Debug.EulerTrace.HttpClientTls as ETT__
 
 main :: IO ()
-main = defaultMain [
+main = ETT__.tio "bench.Bench.main" ETT__.$ defaultMain [
       bgroup "newManager" [
             bench "defaultManagerSettings" $
                 whnfIO (newManager defaultManagerSettings)

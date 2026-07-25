@@ -27,6 +27,7 @@ import Crypto.Internal.ByteArray (
 import qualified Crypto.Internal.ByteArray as B
 import Crypto.MAC.HMAC
 import Data.Word
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Pseudo Random Key
 data PRK a = PRK (HMAC a) | PRK_NoExpand ScrubbedBytes
@@ -47,7 +48,7 @@ extract
     -- ^ Input Keying Material
     -> PRK a
     -- ^ Pseudo random key
-extract salt ikm = PRK $ hmac salt ikm
+extract salt ikm = ETT__.t "Crypto.KDF.HKDF.extract" ETT__.$ PRK $ hmac salt ikm
 
 -- | Create a PRK directly from the input key material.
 --
@@ -57,7 +58,7 @@ extractSkip
     :: ByteArrayAccess ikm
     => ikm
     -> PRK a
-extractSkip ikm = PRK_NoExpand $ B.convert ikm
+extractSkip ikm = ETT__.t "Crypto.KDF.HKDF.extractSkip" ETT__.$ PRK_NoExpand $ B.convert ikm
 
 -- | Expand key material of specific length out of the parameters
 expand
@@ -70,7 +71,7 @@ expand
     -- ^ Output length in bytes
     -> out
     -- ^ Output data
-expand prkAt infoAt outputLength =
+expand prkAt infoAt outputLength = ETT__.t "Crypto.KDF.HKDF.expand" ETT__.$
     let hF = hFGet prkAt
      in B.concat $ loop hF B.empty outputLength 1
   where
@@ -100,6 +101,6 @@ expand prkAt infoAt outputLength =
                     : loop hF ti r (i + 1)
 
 toPRK :: (HashAlgorithm a, ByteArrayAccess ba) => ba -> Maybe (PRK a)
-toPRK bs = case digestFromByteString bs of
+toPRK bs = ETT__.t "Crypto.KDF.HKDF.toPRK" ETT__.$ case digestFromByteString bs of
     Nothing -> Nothing
     Just digest -> Just $ PRK $ HMAC digest

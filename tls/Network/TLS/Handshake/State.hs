@@ -85,6 +85,7 @@ import Network.TLS.Imports
 import Control.Monad.State.Strict
 import Data.X509 (CertificateChain)
 import Data.ByteArray (ByteArrayAccess)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 data HandshakeKeyState = HandshakeKeyState
     { hksRemotePublicKey :: !(Maybe PubKey)
@@ -193,7 +194,7 @@ instance MonadState HandshakeState HandshakeM where
 
 -- create a new empty handshake state
 newEmptyHandshake :: Version -> ClientRandom -> HandshakeState
-newEmptyHandshake ver crand = HandshakeState
+newEmptyHandshake ver crand = ETT__.t "Network.TLS.Handshake.State.newEmptyHandshake" ETT__.$ HandshakeState
     { hstClientVersion       = ver
     , hstClientRandom        = crand
     , hstServerRandom        = Nothing
@@ -225,57 +226,57 @@ newEmptyHandshake ver crand = HandshakeState
     }
 
 runHandshake :: HandshakeState -> HandshakeM a -> (a, HandshakeState)
-runHandshake hst f = runState (runHandshakeM f) hst
+runHandshake hst f = ETT__.t "Network.TLS.Handshake.State.runHandshake" ETT__.$ runState (runHandshakeM f) hst
 
 setPublicKey :: PubKey -> HandshakeM ()
-setPublicKey pk = modify (\hst -> hst { hstKeyState = setPK (hstKeyState hst) })
+setPublicKey pk = ETT__.tm "Network.TLS.Handshake.State.setPublicKey" ETT__.$ modify (\hst -> hst { hstKeyState = setPK (hstKeyState hst) })
   where setPK hks = hks { hksRemotePublicKey = Just pk }
 
 setPublicPrivateKeys :: (PubKey, PrivKey) -> HandshakeM ()
-setPublicPrivateKeys keys = modify (\hst -> hst { hstKeyState = setKeys (hstKeyState hst) })
+setPublicPrivateKeys keys = ETT__.tm "Network.TLS.Handshake.State.setPublicPrivateKeys" ETT__.$ modify (\hst -> hst { hstKeyState = setKeys (hstKeyState hst) })
   where setKeys hks = hks { hksLocalPublicPrivateKeys = Just keys }
 
 getRemotePublicKey :: HandshakeM PubKey
-getRemotePublicKey = fromJust "remote public key" <$> gets (hksRemotePublicKey . hstKeyState)
+getRemotePublicKey = ETT__.tm "Network.TLS.Handshake.State.getRemotePublicKey" ETT__.$ fromJust "remote public key" <$> gets (hksRemotePublicKey . hstKeyState)
 
 getLocalPublicPrivateKeys :: HandshakeM (PubKey, PrivKey)
-getLocalPublicPrivateKeys = fromJust "local public/private key" <$> gets (hksLocalPublicPrivateKeys . hstKeyState)
+getLocalPublicPrivateKeys = ETT__.tm "Network.TLS.Handshake.State.getLocalPublicPrivateKeys" ETT__.$ fromJust "local public/private key" <$> gets (hksLocalPublicPrivateKeys . hstKeyState)
 
 setServerDHParams :: ServerDHParams -> HandshakeM ()
-setServerDHParams shp = modify (\hst -> hst { hstServerDHParams = Just shp })
+setServerDHParams shp = ETT__.tm "Network.TLS.Handshake.State.setServerDHParams" ETT__.$ modify (\hst -> hst { hstServerDHParams = Just shp })
 
 getServerDHParams :: HandshakeM ServerDHParams
-getServerDHParams = fromJust "server DH params" <$> gets hstServerDHParams
+getServerDHParams = ETT__.tm "Network.TLS.Handshake.State.getServerDHParams" ETT__.$ fromJust "server DH params" <$> gets hstServerDHParams
 
 setServerECDHParams :: ServerECDHParams -> HandshakeM ()
-setServerECDHParams shp = modify (\hst -> hst { hstServerECDHParams = Just shp })
+setServerECDHParams shp = ETT__.tm "Network.TLS.Handshake.State.setServerECDHParams" ETT__.$ modify (\hst -> hst { hstServerECDHParams = Just shp })
 
 getServerECDHParams :: HandshakeM ServerECDHParams
-getServerECDHParams = fromJust "server ECDH params" <$> gets hstServerECDHParams
+getServerECDHParams = ETT__.tm "Network.TLS.Handshake.State.getServerECDHParams" ETT__.$ fromJust "server ECDH params" <$> gets hstServerECDHParams
 
 setDHPrivate :: DHPrivate -> HandshakeM ()
-setDHPrivate shp = modify (\hst -> hst { hstDHPrivate = Just shp })
+setDHPrivate shp = ETT__.tm "Network.TLS.Handshake.State.setDHPrivate" ETT__.$ modify (\hst -> hst { hstDHPrivate = Just shp })
 
 getDHPrivate :: HandshakeM DHPrivate
-getDHPrivate = fromJust "server DH private" <$> gets hstDHPrivate
+getDHPrivate = ETT__.tm "Network.TLS.Handshake.State.getDHPrivate" ETT__.$ fromJust "server DH private" <$> gets hstDHPrivate
 
 getGroupPrivate :: HandshakeM GroupPrivate
-getGroupPrivate = fromJust "server ECDH private" <$> gets hstGroupPrivate
+getGroupPrivate = ETT__.tm "Network.TLS.Handshake.State.getGroupPrivate" ETT__.$ fromJust "server ECDH private" <$> gets hstGroupPrivate
 
 setGroupPrivate :: GroupPrivate -> HandshakeM ()
-setGroupPrivate shp = modify (\hst -> hst { hstGroupPrivate = Just shp })
+setGroupPrivate shp = ETT__.tm "Network.TLS.Handshake.State.setGroupPrivate" ETT__.$ modify (\hst -> hst { hstGroupPrivate = Just shp })
 
 setExtendedMasterSec :: Bool -> HandshakeM ()
-setExtendedMasterSec b = modify (\hst -> hst { hstExtendedMasterSec = b })
+setExtendedMasterSec b = ETT__.tm "Network.TLS.Handshake.State.setExtendedMasterSec" ETT__.$ modify (\hst -> hst { hstExtendedMasterSec = b })
 
 getExtendedMasterSec :: HandshakeM Bool
-getExtendedMasterSec = gets hstExtendedMasterSec
+getExtendedMasterSec = ETT__.tm "Network.TLS.Handshake.State.getExtendedMasterSec" ETT__.$ gets hstExtendedMasterSec
 
 setNegotiatedGroup :: Group -> HandshakeM ()
-setNegotiatedGroup g = modify (\hst -> hst { hstNegotiatedGroup = Just g })
+setNegotiatedGroup g = ETT__.tm "Network.TLS.Handshake.State.setNegotiatedGroup" ETT__.$ modify (\hst -> hst { hstNegotiatedGroup = Just g })
 
 getNegotiatedGroup :: HandshakeM (Maybe Group)
-getNegotiatedGroup = gets hstNegotiatedGroup
+getNegotiatedGroup = ETT__.tm "Network.TLS.Handshake.State.getNegotiatedGroup" ETT__.$ gets hstNegotiatedGroup
 
 -- | Type to show which handshake mode is used in TLS 1.3.
 data HandshakeMode13 =
@@ -290,10 +291,10 @@ data HandshakeMode13 =
     deriving (Show,Eq)
 
 setTLS13HandshakeMode :: HandshakeMode13 -> HandshakeM ()
-setTLS13HandshakeMode s = modify (\hst -> hst { hstTLS13HandshakeMode = s })
+setTLS13HandshakeMode s = ETT__.tm "Network.TLS.Handshake.State.setTLS13HandshakeMode" ETT__.$ modify (\hst -> hst { hstTLS13HandshakeMode = s })
 
 getTLS13HandshakeMode :: HandshakeM HandshakeMode13
-getTLS13HandshakeMode = gets hstTLS13HandshakeMode
+getTLS13HandshakeMode = ETT__.tm "Network.TLS.Handshake.State.getTLS13HandshakeMode" ETT__.$ gets hstTLS13HandshakeMode
 
 data RTT0Status = RTT0None
                 | RTT0Sent
@@ -302,83 +303,83 @@ data RTT0Status = RTT0None
                 deriving (Show,Eq)
 
 setTLS13RTT0Status :: RTT0Status -> HandshakeM ()
-setTLS13RTT0Status s = modify (\hst -> hst { hstTLS13RTT0Status = s })
+setTLS13RTT0Status s = ETT__.tm "Network.TLS.Handshake.State.setTLS13RTT0Status" ETT__.$ modify (\hst -> hst { hstTLS13RTT0Status = s })
 
 getTLS13RTT0Status :: HandshakeM RTT0Status
-getTLS13RTT0Status = gets hstTLS13RTT0Status
+getTLS13RTT0Status = ETT__.tm "Network.TLS.Handshake.State.getTLS13RTT0Status" ETT__.$ gets hstTLS13RTT0Status
 
 setTLS13EarlySecret :: BaseSecret EarlySecret -> HandshakeM ()
-setTLS13EarlySecret secret = modify (\hst -> hst { hstTLS13EarlySecret = Just secret })
+setTLS13EarlySecret secret = ETT__.tm "Network.TLS.Handshake.State.setTLS13EarlySecret" ETT__.$ modify (\hst -> hst { hstTLS13EarlySecret = Just secret })
 
 getTLS13EarlySecret :: HandshakeM (Maybe (BaseSecret EarlySecret))
-getTLS13EarlySecret = gets hstTLS13EarlySecret
+getTLS13EarlySecret = ETT__.tm "Network.TLS.Handshake.State.getTLS13EarlySecret" ETT__.$ gets hstTLS13EarlySecret
 
 setTLS13ResumptionSecret :: BaseSecret ResumptionSecret -> HandshakeM ()
-setTLS13ResumptionSecret secret = modify (\hst -> hst { hstTLS13ResumptionSecret = Just secret })
+setTLS13ResumptionSecret secret = ETT__.tm "Network.TLS.Handshake.State.setTLS13ResumptionSecret" ETT__.$ modify (\hst -> hst { hstTLS13ResumptionSecret = Just secret })
 
 getTLS13ResumptionSecret :: HandshakeM (Maybe (BaseSecret ResumptionSecret))
-getTLS13ResumptionSecret = gets hstTLS13ResumptionSecret
+getTLS13ResumptionSecret = ETT__.tm "Network.TLS.Handshake.State.getTLS13ResumptionSecret" ETT__.$ gets hstTLS13ResumptionSecret
 
 setCCS13Sent :: Bool -> HandshakeM ()
-setCCS13Sent sent = modify (\hst -> hst { hstCCS13Sent = sent })
+setCCS13Sent sent = ETT__.tm "Network.TLS.Handshake.State.setCCS13Sent" ETT__.$ modify (\hst -> hst { hstCCS13Sent = sent })
 
 getCCS13Sent :: HandshakeM Bool
-getCCS13Sent = gets hstCCS13Sent
+getCCS13Sent = ETT__.tm "Network.TLS.Handshake.State.getCCS13Sent" ETT__.$ gets hstCCS13Sent
 
 setCertReqSent :: Bool -> HandshakeM ()
-setCertReqSent b = modify (\hst -> hst { hstCertReqSent = b })
+setCertReqSent b = ETT__.tm "Network.TLS.Handshake.State.setCertReqSent" ETT__.$ modify (\hst -> hst { hstCertReqSent = b })
 
 getCertReqSent :: HandshakeM Bool
-getCertReqSent = gets hstCertReqSent
+getCertReqSent = ETT__.tm "Network.TLS.Handshake.State.getCertReqSent" ETT__.$ gets hstCertReqSent
 
 setClientCertSent :: Bool -> HandshakeM ()
-setClientCertSent b = modify (\hst -> hst { hstClientCertSent = b })
+setClientCertSent b = ETT__.tm "Network.TLS.Handshake.State.setClientCertSent" ETT__.$ modify (\hst -> hst { hstClientCertSent = b })
 
 getClientCertSent :: HandshakeM Bool
-getClientCertSent = gets hstClientCertSent
+getClientCertSent = ETT__.tm "Network.TLS.Handshake.State.getClientCertSent" ETT__.$ gets hstClientCertSent
 
 setClientCertChain :: CertificateChain -> HandshakeM ()
-setClientCertChain b = modify (\hst -> hst { hstClientCertChain = Just b })
+setClientCertChain b = ETT__.tm "Network.TLS.Handshake.State.setClientCertChain" ETT__.$ modify (\hst -> hst { hstClientCertChain = Just b })
 
 getClientCertChain :: HandshakeM (Maybe CertificateChain)
-getClientCertChain = gets hstClientCertChain
+getClientCertChain = ETT__.tm "Network.TLS.Handshake.State.getClientCertChain" ETT__.$ gets hstClientCertChain
 
 --
 setCertReqToken :: Maybe ByteString -> HandshakeM ()
-setCertReqToken token = modify $ \hst -> hst { hstCertReqToken = token }
+setCertReqToken token = ETT__.tm "Network.TLS.Handshake.State.setCertReqToken" ETT__.$ modify $ \hst -> hst { hstCertReqToken = token }
 
 getCertReqToken :: HandshakeM (Maybe ByteString)
-getCertReqToken = gets hstCertReqToken
+getCertReqToken = ETT__.tm "Network.TLS.Handshake.State.getCertReqToken" ETT__.$ gets hstCertReqToken
 
 --
 setCertReqCBdata :: Maybe CertReqCBdata -> HandshakeM ()
-setCertReqCBdata d = modify (\hst -> hst { hstCertReqCBdata = d })
+setCertReqCBdata d = ETT__.tm "Network.TLS.Handshake.State.setCertReqCBdata" ETT__.$ modify (\hst -> hst { hstCertReqCBdata = d })
 
 getCertReqCBdata :: HandshakeM (Maybe CertReqCBdata)
-getCertReqCBdata = gets hstCertReqCBdata
+getCertReqCBdata = ETT__.tm "Network.TLS.Handshake.State.getCertReqCBdata" ETT__.$ gets hstCertReqCBdata
 
 -- Dead code, until we find some use for the extension
 setCertReqSigAlgsCert :: Maybe [HashAndSignatureAlgorithm] -> HandshakeM ()
-setCertReqSigAlgsCert as = modify $ \hst -> hst { hstCertReqSigAlgsCert = as }
+setCertReqSigAlgsCert as = ETT__.tm "Network.TLS.Handshake.State.setCertReqSigAlgsCert" ETT__.$ modify $ \hst -> hst { hstCertReqSigAlgsCert = as }
 
 getCertReqSigAlgsCert :: HandshakeM (Maybe [HashAndSignatureAlgorithm])
-getCertReqSigAlgsCert = gets hstCertReqSigAlgsCert
+getCertReqSigAlgsCert = ETT__.tm "Network.TLS.Handshake.State.getCertReqSigAlgsCert" ETT__.$ gets hstCertReqSigAlgsCert
 
 --
 getPendingCipher :: HandshakeM Cipher
-getPendingCipher = fromJust "pending cipher" <$> gets hstPendingCipher
+getPendingCipher = ETT__.tm "Network.TLS.Handshake.State.getPendingCipher" ETT__.$ fromJust "pending cipher" <$> gets hstPendingCipher
 
 addHandshakeMessage :: ByteString -> HandshakeM ()
-addHandshakeMessage content = modify $ \hs -> hs { hstHandshakeMessages = content : hstHandshakeMessages hs}
+addHandshakeMessage content = ETT__.tm "Network.TLS.Handshake.State.addHandshakeMessage" ETT__.$ modify $ \hs -> hs { hstHandshakeMessages = content : hstHandshakeMessages hs}
 
 getHandshakeMessages :: HandshakeM [ByteString]
-getHandshakeMessages = gets (reverse . hstHandshakeMessages)
+getHandshakeMessages = ETT__.tm "Network.TLS.Handshake.State.getHandshakeMessages" ETT__.$ gets (reverse . hstHandshakeMessages)
 
 getHandshakeMessagesRev :: HandshakeM [ByteString]
-getHandshakeMessagesRev = gets hstHandshakeMessages
+getHandshakeMessagesRev = ETT__.tm "Network.TLS.Handshake.State.getHandshakeMessagesRev" ETT__.$ gets hstHandshakeMessages
 
 updateHandshakeDigest :: ByteString -> HandshakeM ()
-updateHandshakeDigest content = modify $ \hs -> hs
+updateHandshakeDigest content = ETT__.tm "Network.TLS.Handshake.State.updateHandshakeDigest" ETT__.$ modify $ \hs -> hs
     { hstHandshakeDigest = case hstHandshakeDigest hs of
         HandshakeMessages bytes        -> HandshakeMessages (content:bytes)
         HandshakeDigestContext hashCtx -> HandshakeDigestContext $ hashUpdate hashCtx content }
@@ -387,7 +388,7 @@ updateHandshakeDigest content = modify $ \hs -> hs
 -- takes the handshake digest as input and returns an encoded handshake message
 -- to replace the transcript with.
 foldHandshakeDigest :: Hash -> (ByteString -> ByteString) -> HandshakeM ()
-foldHandshakeDigest hashAlg f = modify $ \hs ->
+foldHandshakeDigest hashAlg f = ETT__.tm "Network.TLS.Handshake.State.foldHandshakeDigest" ETT__.$ modify $ \hs ->
     case hstHandshakeDigest hs of
         HandshakeMessages bytes ->
             let hashCtx  = foldl hashUpdate (hashInit hashAlg) $ reverse bytes
@@ -403,13 +404,13 @@ foldHandshakeDigest hashAlg f = modify $ \hs ->
                    }
 
 getSessionHash :: HandshakeM ByteString
-getSessionHash = gets $ \hst ->
+getSessionHash = ETT__.tm "Network.TLS.Handshake.State.getSessionHash" ETT__.$ gets $ \hst ->
     case hstHandshakeDigest hst of
         HandshakeDigestContext hashCtx -> hashFinal hashCtx
         HandshakeMessages _ -> error "un-initialized session hash"
 
 getHandshakeDigest :: Version -> Role -> HandshakeM ByteString
-getHandshakeDigest ver role = gets gen
+getHandshakeDigest ver role = ETT__.tm "Network.TLS.Handshake.State.getHandshakeDigest" ETT__.$ gets gen
   where gen hst = case hstHandshakeDigest hst of
                       HandshakeDigestContext hashCtx ->
                          let msecret = fromJust "master secret" $ hstMasterSecret hst
@@ -426,7 +427,7 @@ setMasterSecretFromPre :: ByteArrayAccess preMaster
                        -> Role      -- ^ the role (Client or Server) of the generating side
                        -> preMaster -- ^ the pre master secret
                        -> HandshakeM ByteString
-setMasterSecretFromPre ver role premasterSecret = do
+setMasterSecretFromPre ver role premasterSecret = ETT__.tm "Network.TLS.Handshake.State.setMasterSecretFromPre" ETT__.$ do
     ems <- getExtendedMasterSec
     secret <- if ems then get >>= genExtendedSecret else genSecret <$> get
     setMasterSecret ver role secret
@@ -444,14 +445,14 @@ setMasterSecretFromPre ver role premasterSecret = do
 -- | Set master secret and as a side effect generate the key block
 -- with all the right parameters, and setup the pending tx/rx state.
 setMasterSecret :: Version -> Role -> ByteString -> HandshakeM ()
-setMasterSecret ver role masterSecret = modify $ \hst ->
+setMasterSecret ver role masterSecret = ETT__.tm "Network.TLS.Handshake.State.setMasterSecret" ETT__.$ modify $ \hst ->
     let (pendingTx, pendingRx) = computeKeyBlock hst masterSecret ver role
      in hst { hstMasterSecret   = Just masterSecret
             , hstPendingTxState = Just pendingTx
             , hstPendingRxState = Just pendingRx }
 
 computeKeyBlock :: HandshakeState -> ByteString -> Version -> Role -> (RecordState, RecordState)
-computeKeyBlock hst masterSecret ver cc = (pendingTx, pendingRx)
+computeKeyBlock hst masterSecret ver cc = ETT__.t "Network.TLS.Handshake.State.computeKeyBlock" ETT__.$ (pendingTx, pendingRx)
   where cipher       = fromJust "cipher" $ hstPendingCipher hst
         keyblockSize = cipherKeyBlockSize cipher
 
@@ -499,7 +500,7 @@ setServerHelloParameters :: Version      -- ^ chosen version
                          -> Cipher
                          -> Compression
                          -> HandshakeM ()
-setServerHelloParameters ver sran cipher compression = do
+setServerHelloParameters ver sran cipher compression = ETT__.tm "Network.TLS.Handshake.State.setServerHelloParameters" ETT__.$ do
     modify $ \hst -> hst
                 { hstServerRandom       = Just sran
                 , hstPendingCipher      = Just cipher
@@ -514,6 +515,6 @@ setServerHelloParameters ver sran cipher compression = do
 -- instead of the default SHA256.
 getHash :: Version -> Cipher -> Hash
 getHash ver ciph
-    | ver < TLS12                              = SHA1_MD5
-    | maybe True (< TLS12) (cipherMinVer ciph) = SHA256
-    | otherwise                                = cipherHash ciph
+    | ver < TLS12                              = ETT__.t "Network.TLS.Handshake.State.getHash" ETT__.$ SHA1_MD5
+    | maybe True (< TLS12) (cipherMinVer ciph) = ETT__.t "Network.TLS.Handshake.State.getHash" ETT__.$ SHA256
+    | otherwise                                = ETT__.t "Network.TLS.Handshake.State.getHash" ETT__.$ cipherHash ciph

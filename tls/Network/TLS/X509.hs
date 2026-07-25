@@ -29,13 +29,14 @@ module Network.TLS.X509
 import Data.X509
 import Data.X509.Validation
 import Data.X509.CertificateStore
+import qualified Debug.EulerTrace.Tls as ETT__
 
 isNullCertificateChain :: CertificateChain -> Bool
-isNullCertificateChain (CertificateChain l) = null l
+isNullCertificateChain (CertificateChain l) = ETT__.t "Network.TLS.X509.isNullCertificateChain" ETT__.$ null l
 
 getCertificateChainLeaf :: CertificateChain -> SignedExact Certificate
-getCertificateChainLeaf (CertificateChain [])    = error "empty certificate chain"
-getCertificateChainLeaf (CertificateChain (x:_)) = x
+getCertificateChainLeaf (CertificateChain [])    = ETT__.t "Network.TLS.X509.getCertificateChainLeaf" ETT__.$ error "empty certificate chain"
+getCertificateChainLeaf (CertificateChain (x:_)) = ETT__.t "Network.TLS.X509.getCertificateChainLeaf" ETT__.$ x
 
 -- | Certificate and Chain rejection reason
 data CertificateRejectReason =
@@ -53,14 +54,14 @@ data CertificateUsage =
         deriving (Show,Eq)
 
 wrapCertificateChecks :: [FailedReason] -> CertificateUsage
-wrapCertificateChecks [] = CertificateUsageAccept
+wrapCertificateChecks [] = ETT__.t "Network.TLS.X509.wrapCertificateChecks" ETT__.$ CertificateUsageAccept
 wrapCertificateChecks l
-    | Expired `elem` l   = CertificateUsageReject   CertificateRejectExpired
-    | InFuture `elem` l  = CertificateUsageReject   CertificateRejectExpired
-    | UnknownCA `elem` l = CertificateUsageReject   CertificateRejectUnknownCA
-    | SelfSigned `elem` l = CertificateUsageReject  CertificateRejectUnknownCA
-    | EmptyChain `elem` l = CertificateUsageReject  CertificateRejectAbsent
-    | otherwise          = CertificateUsageReject $ CertificateRejectOther (show l)
+    | Expired `elem` l   = ETT__.t "Network.TLS.X509.wrapCertificateChecks" ETT__.$ CertificateUsageReject   CertificateRejectExpired
+    | InFuture `elem` l  = ETT__.t "Network.TLS.X509.wrapCertificateChecks" ETT__.$ CertificateUsageReject   CertificateRejectExpired
+    | UnknownCA `elem` l = ETT__.t "Network.TLS.X509.wrapCertificateChecks" ETT__.$ CertificateUsageReject   CertificateRejectUnknownCA
+    | SelfSigned `elem` l = ETT__.t "Network.TLS.X509.wrapCertificateChecks" ETT__.$ CertificateUsageReject  CertificateRejectUnknownCA
+    | EmptyChain `elem` l = ETT__.t "Network.TLS.X509.wrapCertificateChecks" ETT__.$ CertificateUsageReject  CertificateRejectAbsent
+    | otherwise          = ETT__.t "Network.TLS.X509.wrapCertificateChecks" ETT__.$ CertificateUsageReject $ CertificateRejectOther (show l)
 
 pubkeyType :: PubKey -> String
-pubkeyType = show . pubkeyToAlg
+pubkeyType = ETT__.t "Network.TLS.X509.pubkeyType" ETT__.$ show . pubkeyToAlg

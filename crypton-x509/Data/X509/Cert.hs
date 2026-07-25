@@ -19,6 +19,7 @@ import Data.X509.AlgorithmIdentifier
 import Data.X509.DistinguishedName
 import Data.X509.ExtensionRaw
 import Data.Hourglass
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 data CertKeyUsage =
           CertKeyUsageDigitalSignature
@@ -52,20 +53,20 @@ instance ASN1Object Certificate where
     fromASN1 s           = runParseASN1State parseCertificate s
 
 parseCertHeaderVersion :: ParseASN1 Int
-parseCertHeaderVersion =
+parseCertHeaderVersion = ETT__.tm "Data.X509.Cert.parseCertHeaderVersion" ETT__.$
     maybe 0 id <$> onNextContainerMaybe (Container Context 0) (getNext >>= getVer)
   where getVer (IntVal v) = return $ fromIntegral v
         getVer _          = throwParseError "unexpected type for version"
 
 parseCertHeaderSerial :: ParseASN1 Integer
-parseCertHeaderSerial = do
+parseCertHeaderSerial = ETT__.tm "Data.X509.Cert.parseCertHeaderSerial" ETT__.$ do
     n <- getNext
     case n of
         IntVal v -> return v
         _        -> throwParseError ("missing serial" ++ show n)
 
 parseCertHeaderValidity :: ParseASN1 (DateTime, DateTime)
-parseCertHeaderValidity = getNextContainer Sequence >>= toTimeBound
+parseCertHeaderValidity = ETT__.tm "Data.X509.Cert.parseCertHeaderValidity" ETT__.$ getNextContainer Sequence >>= toTimeBound
   where toTimeBound [ ASN1Time _ t1 _, ASN1Time _ t2 _ ] = return (t1,t2)
         toTimeBound _                                    = throwParseError "bad validity format"
 
@@ -87,12 +88,12 @@ parseCertHeaderValidity = getNextContainer Sequence >>= toTimeBound
 -}
 
 parseExtensions :: ParseASN1 Extensions
-parseExtensions = fmap adapt $ onNextContainerMaybe (Container Context 3) $ getObject
+parseExtensions = ETT__.tm "Data.X509.Cert.parseExtensions" ETT__.$ fmap adapt $ onNextContainerMaybe (Container Context 3) $ getObject
   where adapt (Just e) = e
         adapt Nothing = Extensions Nothing
 
 parseCertificate :: ParseASN1 Certificate
-parseCertificate =
+parseCertificate = ETT__.tm "Data.X509.Cert.parseCertificate" ETT__.$
     Certificate <$> parseCertHeaderVersion
                 <*> parseCertHeaderSerial
                 <*> getObject
@@ -103,7 +104,7 @@ parseCertificate =
                 <*> parseExtensions
 
 encodeCertificateHeader :: Certificate -> [ASN1]
-encodeCertificateHeader cert =
+encodeCertificateHeader cert = ETT__.t "Data.X509.Cert.encodeCertificateHeader" ETT__.$
     eVer ++ eSerial ++ eAlgId ++ eIssuer ++ eValidity ++ eSubject ++ epkinfo ++ eexts
   where eVer      = asn1Container (Container Context 0) [IntVal (fromIntegral $ certVersion cert)]
         eSerial   = [IntVal $ certSerial cert]

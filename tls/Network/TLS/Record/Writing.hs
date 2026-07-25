@@ -27,14 +27,15 @@ import Network.TLS.Struct
 import Control.Concurrent.MVar
 import Control.Monad.State.Strict
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.Tls as ETT__
 
 encodeRecord :: Context -> Record Plaintext -> IO (Either TLSError ByteString)
-encodeRecord ctx = prepareRecord ctx . encodeRecordM
+encodeRecord ctx = ETT__.t "Network.TLS.Record.Writing.encodeRecord" ETT__.$ prepareRecord ctx . encodeRecordM
 
 -- before TLS 1.1, the block cipher IV is made of the residual of the previous block,
 -- so we use cstIV as is, however in other case we generate an explicit IV
 prepareRecord :: Context -> RecordM a -> IO (Either TLSError a)
-prepareRecord ctx f = do
+prepareRecord ctx f = ETT__.tio "Network.TLS.Record.Writing.prepareRecord" ETT__.$ do
     ver     <- usingState_ ctx (getVersionWithDefault $ maximum $ supportedVersions $ ctxSupported ctx)
     txState <- readMVar $ ctxTxState ctx
     let sz = case stCipher txState of
@@ -48,7 +49,7 @@ prepareRecord ctx f = do
         else runTxState ctx f
 
 encodeRecordM :: Record Plaintext -> RecordM ByteString
-encodeRecordM record = do
+encodeRecordM record = ETT__.tm "Network.TLS.Record.Writing.encodeRecordM" ETT__.$ do
     erecord <- engageRecord record
     let (hdr, content) = recordToRaw erecord
     return $ B.concat [ encodeHeader hdr, content ]
@@ -56,14 +57,14 @@ encodeRecordM record = do
 ----------------------------------------------------------------
 
 encodeRecord13 :: Context -> Record Plaintext -> IO (Either TLSError ByteString)
-encodeRecord13 ctx = prepareRecord13 ctx . encodeRecordM
+encodeRecord13 ctx = ETT__.t "Network.TLS.Record.Writing.encodeRecord13" ETT__.$ prepareRecord13 ctx . encodeRecordM
 
 prepareRecord13 :: Context -> RecordM a -> IO (Either TLSError a)
-prepareRecord13 = runTxState
+prepareRecord13 = ETT__.t "Network.TLS.Record.Writing.prepareRecord13" ETT__.$ runTxState
 
 ----------------------------------------------------------------
 
 sendBytes :: Context -> ByteString -> IO ()
-sendBytes ctx dataToSend = do
+sendBytes ctx dataToSend = ETT__.tio "Network.TLS.Record.Writing.sendBytes" ETT__.$ do
     withLog ctx $ \logging -> loggingIOSent logging dataToSend
     contextSend ctx dataToSend

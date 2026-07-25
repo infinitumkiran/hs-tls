@@ -31,12 +31,13 @@ import Network.TLS.Struct
 import Network.TLS.Imports
 import qualified Data.ByteString as B
 import qualified Data.ByteArray as B (convert, xor)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 engageRecord :: Record Plaintext -> RecordM (Record Ciphertext)
-engageRecord = compressRecord >=> encryptRecord
+engageRecord = ETT__.t "Network.TLS.Record.Engage.engageRecord" ETT__.$ compressRecord >=> encryptRecord
 
 compressRecord :: Record Plaintext -> RecordM (Record Compressed)
-compressRecord record =
+compressRecord record = ETT__.tm "Network.TLS.Record.Engage.compressRecord" ETT__.$
     onRecordFragment record $ fragmentCompress $ \bytes -> do
         withCompression $ compressionDeflate bytes
 
@@ -44,7 +45,7 @@ compressRecord record =
 -- we just return the compress payload directly as the ciphered one
 --
 encryptRecord :: Record Compressed -> RecordM (Record Ciphertext)
-encryptRecord record@(Record ct ver fragment) = do
+encryptRecord record@(Record ct ver fragment) = ETT__.t "Network.TLS.Record.Engage.encryptRecord" ETT__.$ do
     st <- get
     case stCipher st of
         Nothing -> noEncryption
@@ -64,13 +65,13 @@ encryptRecord record@(Record ct ver fragment) = do
             onRecordFragment record' $ fragmentCipher (encryptContent True record')
 
 innerPlaintext :: ProtocolType -> ByteString -> ByteString
-innerPlaintext ct bytes = runPut $ do
+innerPlaintext ct bytes = ETT__.t "Network.TLS.Record.Engage.innerPlaintext" ETT__.$ runPut $ do
     putBytes bytes
     putWord8 $ valOfType ct -- non zero!
     -- fixme: zeros padding
 
 encryptContent :: Bool -> Record Compressed -> ByteString -> RecordM ByteString
-encryptContent tls13 record content = do
+encryptContent tls13 record content = ETT__.tm "Network.TLS.Record.Engage.encryptContent" ETT__.$ do
     cst  <- getCryptState
     bulk <- getBulk
     case cstKey cst of
@@ -88,7 +89,7 @@ encryptContent tls13 record content = do
             return content
 
 encryptBlock :: BulkBlock -> ByteString -> Bulk -> RecordM ByteString
-encryptBlock encryptF content bulk = do
+encryptBlock encryptF content bulk = ETT__.tm "Network.TLS.Record.Engage.encryptBlock" ETT__.$ do
     cst <- getCryptState
     ver <- getRecordVersion
     let blockSize = fromIntegral $ bulkBlockSize bulk
@@ -109,7 +110,7 @@ encryptBlock encryptF content bulk = do
             return e
 
 encryptStream :: BulkStream -> ByteString -> RecordM ByteString
-encryptStream (BulkStream encryptF) content = do
+encryptStream (BulkStream encryptF) content = ETT__.tm "Network.TLS.Record.Engage.encryptStream" ETT__.$ do
     cst <- getCryptState
     let (!e, !newBulkStream) = encryptF content
     modify $ \tstate -> tstate { stCryptState = cst { cstKey = BulkStateStream newBulkStream } }
@@ -120,7 +121,7 @@ encryptAead :: Bool
             -> BulkAEAD
             -> ByteString -> Record Compressed
             -> RecordM ByteString
-encryptAead tls13 bulk encryptF content record = do
+encryptAead tls13 bulk encryptF content record = ETT__.tm "Network.TLS.Record.Engage.encryptAead" ETT__.$ do
     let authTagLen  = bulkAuthTagLen bulk
         nonceExpLen = bulkExplicitIV bulk
     cst        <- getCryptState
@@ -143,4 +144,4 @@ encryptAead tls13 bulk encryptF content record = do
     return econtent
 
 getCryptState :: RecordM CryptState
-getCryptState = stCryptState <$> get
+getCryptState = ETT__.tm "Network.TLS.Record.Engage.getCryptState" ETT__.$ stCryptState <$> get

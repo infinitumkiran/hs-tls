@@ -235,6 +235,7 @@ library
         cbits/argon2/argon2.c
 
     other-modules:
+        Debug.EulerTrace.Crypton
         Crypto.Cipher.AES.Primitive
         Crypto.Cipher.Blowfish.Box
         Crypto.Cipher.Blowfish.Primitive

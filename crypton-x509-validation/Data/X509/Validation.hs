@@ -57,6 +57,7 @@ import Data.X509.Validation.Signature
 import Data.X509.Validation.Types
 import System.Hourglass
 import Text.Read (readMaybe)
+import qualified Debug.EulerTrace.CryptonX509Validation as ETT__
 
 -- | Possible reason of certificate and chain failure.
 --
@@ -173,7 +174,7 @@ data ValidationHooks = ValidationHooks
 -- * Leaf certificate is X.509 v3
 -- * Check that the FQHN match
 defaultChecks :: ValidationChecks
-defaultChecks =
+defaultChecks = ETT__.t "Data.X509.Validation.defaultChecks" ETT__.$
     ValidationChecks
         { checkTimeValidity = True
         , checkAtTime = Nothing
@@ -191,7 +192,7 @@ instance Default ValidationChecks where
 
 -- | Default hooks in the validation process
 defaultHooks :: ValidationHooks
-defaultHooks =
+defaultHooks = ETT__.t "Data.X509.Validation.defaultHooks" ETT__.$
     ValidationHooks
         { hookMatchSubjectIssuer = matchSI
         , hookValidateTime = validateTime
@@ -214,7 +215,7 @@ validateDefault
     -- ^ the certificate chain we want to validate
     -> IO [FailedReason]
     -- ^ the return failed reasons (empty list is no failure)
-validateDefault = validate HashSHA256 defaultHooks defaultChecks
+validateDefault = ETT__.t "Data.X509.Validation.validateDefault" ETT__.$ validate HashSHA256 defaultHooks defaultChecks
 
 -- | X509 validation
 --
@@ -238,8 +239,8 @@ validate
     -- ^ the certificate chain we want to validate
     -> IO [FailedReason]
     -- ^ the return failed reasons (empty list is no failure)
-validate _ _ _ _ _ _ (CertificateChain []) = return [EmptyChain]
-validate hashAlg hooks checks store cache ident cc@(CertificateChain (top : _)) = do
+validate _ _ _ _ _ _ (CertificateChain []) = ETT__.tio "Data.X509.Validation.validate" ETT__.$ return [EmptyChain]
+validate hashAlg hooks checks store cache ident cc@(CertificateChain (top : _)) = ETT__.t "Data.X509.Validation.validate" ETT__.$ do
     cacheResult <- (cacheQuery cache) ident fingerPrint (getCertificate top)
     case cacheResult of
         ValidationCachePass -> return []
@@ -270,8 +271,8 @@ validatePure
     -- ^ The certificate chain we want to validate
     -> [FailedReason]
     -- ^ the return failed reasons (empty list is no failure)
-validatePure _ _ _ _ _ (CertificateChain []) = [EmptyChain]
-validatePure validationTime hooks checks store (fqhn, _) (CertificateChain (top : rchain)) =
+validatePure _ _ _ _ _ (CertificateChain []) = ETT__.t "Data.X509.Validation.validatePure" ETT__.$ [EmptyChain]
+validatePure validationTime hooks checks store (fqhn, _) (CertificateChain (top : rchain)) = ETT__.t "Data.X509.Validation.validatePure" ETT__.$
     hookFilterReason hooks (doLeafChecks |> doCheckChain 0 top rchain)
   where
     isExhaustive = checkExhaustive checks
@@ -394,14 +395,14 @@ validatePure validationTime hooks checks store (fqhn, _) (CertificateChain (top 
 -- | Validate that the current time is between validity bounds
 validateTime :: DateTime -> Certificate -> [FailedReason]
 validateTime currentTime cert
-    | currentTime < before = [InFuture]
-    | currentTime > after = [Expired]
-    | otherwise = []
+    | currentTime < before = ETT__.t "Data.X509.Validation.validateTime" ETT__.$ [InFuture]
+    | currentTime > after = ETT__.t "Data.X509.Validation.validateTime" ETT__.$ [Expired]
+    | otherwise = ETT__.t "Data.X509.Validation.validateTime" ETT__.$ []
   where
     (before, after) = certValidity cert
 
 getNames :: Certificate -> (Maybe String, [String])
-getNames cert = (commonName >>= asn1CharacterToString, altNames)
+getNames cert = ETT__.t "Data.X509.Validation.getNames" ETT__.$ (commonName >>= asn1CharacterToString, altNames)
   where
     commonName = getDnElement DnCommonName $ certSubjectDN cert
     altNames = maybe [] toAltName $ extensionGet $ certExtensions cert
@@ -416,7 +417,7 @@ data IPAddress
     deriving (Eq)
 
 getIPs :: Certificate -> [IPAddress]
-getIPs cert = fromMaybe [] (toAltName <$> (extensionGet $ certExtensions cert))
+getIPs cert = ETT__.t "Data.X509.Validation.getIPs" ETT__.$ fromMaybe [] (toAltName <$> (extensionGet $ certExtensions cert))
   where
     toAltName (ExtSubjectAltName names) = catMaybes $ map unAltName names
 
@@ -442,9 +443,9 @@ getIPs cert = fromMaybe [] (toAltName <$> (extensionGet $ certExtensions cert))
     fuse a b = shiftL (fromIntegral a) 8 .|. (fromIntegral b)
 
 parseIPAddress :: HostName -> Maybe IPAddress
-parseIPAddress (readMaybe -> Just ipV4) = Just $ IPv4Address ipV4
-parseIPAddress (readMaybe -> Just ipV6) = Just $ IPv6Address ipV6
-parseIPAddress _ = Nothing
+parseIPAddress (readMaybe -> Just ipV4) = ETT__.t "Data.X509.Validation.parseIPAddress" ETT__.$ Just $ IPv4Address ipV4
+parseIPAddress (readMaybe -> Just ipV6) = ETT__.t "Data.X509.Validation.parseIPAddress" ETT__.$ Just $ IPv6Address ipV6
+parseIPAddress _ = ETT__.t "Data.X509.Validation.parseIPAddress" ETT__.$ Nothing
 
 -- | Validate that the fqhn is matched by at least one name in the certificate.
 -- If the subjectAltname extension is present, then the certificate commonName
@@ -457,14 +458,14 @@ parseIPAddress _ = Nothing
 -- in (non-transitional) IDNA2008 A-label form.
 validateCertificateName :: HostName -> Certificate -> [FailedReason]
 validateCertificateName fqhn cert
-    | not $ null altNames =
+    | not $ null altNames = ETT__.t "Data.X509.Validation.validateCertificateName" ETT__.$
         case parseIPAddress fqhn of
             Nothing -> findMatch [] $ map matchDomain altNames
             Just ip ->
                 if elem ip (getIPs cert)
                     then []
                     else [NameMismatch fqhn]
-    | otherwise =
+    | otherwise = ETT__.t "Data.X509.Validation.validateCertificateName" ETT__.$
         case commonName of
             Nothing -> [NoCommonName]
             Just cn -> findMatch [] $ [matchDomain cn]
@@ -510,16 +511,16 @@ validateCertificateName fqhn cert
 -- | return true if the 'subject' certificate's issuer match
 -- the 'issuer' certificate's subject
 matchSI :: DistinguishedName -> Certificate -> Bool
-matchSI issuerDN issuer = certSubjectDN issuer == issuerDN
+matchSI issuerDN issuer = ETT__.t "Data.X509.Validation.matchSI" ETT__.$ certSubjectDN issuer == issuerDN
 
 exhaustive :: Bool -> [FailedReason] -> [FailedReason] -> [FailedReason]
 exhaustive isExhaustive l1 l2
-    | null l1 = l2
-    | isExhaustive = l1 ++ l2
-    | otherwise = l1
+    | null l1 = ETT__.t "Data.X509.Validation.exhaustive" ETT__.$ l2
+    | isExhaustive = ETT__.t "Data.X509.Validation.exhaustive" ETT__.$ l1 ++ l2
+    | otherwise = ETT__.t "Data.X509.Validation.exhaustive" ETT__.$ l1
 
 exhaustiveList :: Bool -> [(Bool, [FailedReason])] -> [FailedReason]
-exhaustiveList _ [] = []
+exhaustiveList _ [] = ETT__.t "Data.X509.Validation.exhaustiveList" ETT__.$ []
 exhaustiveList isExhaustive ((performCheck, c) : cs)
-    | performCheck = exhaustive isExhaustive c (exhaustiveList isExhaustive cs)
-    | otherwise = exhaustiveList isExhaustive cs
+    | performCheck = ETT__.t "Data.X509.Validation.exhaustiveList" ETT__.$ exhaustive isExhaustive c (exhaustiveList isExhaustive cs)
+    | otherwise = ETT__.t "Data.X509.Validation.exhaustiveList" ETT__.$ exhaustiveList isExhaustive cs

@@ -11,6 +11,7 @@ module Network.TLS.Session
     ) where
 
 import Network.TLS.Types
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | A session manager
 data SessionManager = SessionManager
@@ -26,7 +27,7 @@ data SessionManager = SessionManager
 
 -- | The session manager to do nothing.
 noSessionManager :: SessionManager
-noSessionManager = SessionManager
+noSessionManager = ETT__.t "Network.TLS.Session.noSessionManager" ETT__.$ SessionManager
     { sessionResume         = \_   -> return Nothing
     , sessionResumeOnlyOnce = \_   -> return Nothing
     , sessionEstablish      = \_ _ -> return ()

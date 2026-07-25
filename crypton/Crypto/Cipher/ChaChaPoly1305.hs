@@ -73,6 +73,7 @@ import qualified Data.ByteArray.Pack as P
 import Data.Memory.Endian
 import Foreign.Ptr
 import Foreign.Storable
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | A ChaChaPoly1305 State.
 --
@@ -121,16 +122,16 @@ instance ByteArrayAccess XNonce where
 
 pad16 :: Word64 -> Bytes
 pad16 n
-    | modLen == 0 = B.empty
-    | otherwise = B.replicate (16 - modLen) 0
+    | modLen == 0 = ETT__.t "Crypto.Cipher.ChaChaPoly1305.pad16" ETT__.$ B.empty
+    | otherwise = ETT__.t "Crypto.Cipher.ChaChaPoly1305.pad16" ETT__.$ B.replicate (16 - modLen) 0
   where
     modLen = fromIntegral (n `mod` 16)
 
 -- | Nonce smart constructor 12 bytes IV, nonce constructor
 nonce12 :: ByteArrayAccess iv => iv -> CryptoFailable Nonce
 nonce12 iv
-    | B.length iv /= 12 = CryptoFailed CryptoError_IvSizeInvalid
-    | otherwise = CryptoPassed . Nonce12 . B.convert $ iv
+    | B.length iv /= 12 = ETT__.t "Crypto.Cipher.ChaChaPoly1305.nonce12" ETT__.$ CryptoFailed CryptoError_IvSizeInvalid
+    | otherwise = ETT__.t "Crypto.Cipher.ChaChaPoly1305.nonce12" ETT__.$ CryptoPassed . Nonce12 . B.convert $ iv
 
 -- | 8 bytes IV, nonce constructor
 nonce8
@@ -141,25 +142,25 @@ nonce8
     -- ^ 8 bytes IV
     -> CryptoFailable Nonce
 nonce8 constant iv
-    | B.length constant /= 4 = CryptoFailed CryptoError_IvSizeInvalid
-    | B.length iv /= 8 = CryptoFailed CryptoError_IvSizeInvalid
-    | otherwise = CryptoPassed . Nonce8 . B.concat $ [constant, iv]
+    | B.length constant /= 4 = ETT__.t "Crypto.Cipher.ChaChaPoly1305.nonce8" ETT__.$ CryptoFailed CryptoError_IvSizeInvalid
+    | B.length iv /= 8 = ETT__.t "Crypto.Cipher.ChaChaPoly1305.nonce8" ETT__.$ CryptoFailed CryptoError_IvSizeInvalid
+    | otherwise = ETT__.t "Crypto.Cipher.ChaChaPoly1305.nonce8" ETT__.$ CryptoPassed . Nonce8 . B.concat $ [constant, iv]
 
 -- | 24 bytes IV, extended nonce constructor
 nonce24
     :: ByteArrayAccess ba
     => ba -> CryptoFailable XNonce
 nonce24 iv
-    | B.length iv /= 24 = CryptoFailed CryptoError_IvSizeInvalid
-    | otherwise = CryptoPassed . Nonce24 . B.convert $ iv
+    | B.length iv /= 24 = ETT__.t "Crypto.Cipher.ChaChaPoly1305.nonce24" ETT__.$ CryptoFailed CryptoError_IvSizeInvalid
+    | otherwise = ETT__.t "Crypto.Cipher.ChaChaPoly1305.nonce24" ETT__.$ CryptoPassed . Nonce24 . B.convert $ iv
 
 -- | Increment a nonce
 incrementNonce :: Nonce -> Nonce
-incrementNonce (Nonce8 n) = Nonce8 $ incrementNonce' n 4
-incrementNonce (Nonce12 n) = Nonce12 $ incrementNonce' n 0
+incrementNonce (Nonce8 n) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.incrementNonce" ETT__.$ Nonce8 $ incrementNonce' n 4
+incrementNonce (Nonce12 n) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.incrementNonce" ETT__.$ Nonce12 $ incrementNonce' n 0
 
 incrementNonce' :: Bytes -> Int -> Bytes
-incrementNonce' b offset = B.copyAndFreeze b $ \s ->
+incrementNonce' b offset = ETT__.t "Crypto.Cipher.ChaChaPoly1305.incrementNonce'" ETT__.$ B.copyAndFreeze b $ \s ->
     loop s (s `plusPtr` offset)
   where
     loop :: Ptr Word8 -> Ptr Word8 -> IO ()
@@ -177,20 +178,20 @@ incrementNonce' b offset = B.copyAndFreeze b $ \s ->
 initialize
     :: ByteArrayAccess key
     => key -> Nonce -> CryptoFailable State
-initialize key (Nonce8 nonce) = initialize' key nonce
-initialize key (Nonce12 nonce) = initialize' key nonce
+initialize key (Nonce8 nonce) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.initialize" ETT__.$ initialize' key nonce
+initialize key (Nonce12 nonce) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.initialize" ETT__.$ initialize' key nonce
 
 initialize'
     :: ByteArrayAccess key
     => key -> Bytes -> CryptoFailable State
 initialize' key nonce
-    | B.length key /= 32 = CryptoFailed CryptoError_KeySizeInvalid
-    | otherwise = CryptoPassed $ initFromRootState rootState
+    | B.length key /= 32 = ETT__.t "Crypto.Cipher.ChaChaPoly1305.initialize'" ETT__.$ CryptoFailed CryptoError_KeySizeInvalid
+    | otherwise = ETT__.t "Crypto.Cipher.ChaChaPoly1305.initialize'" ETT__.$ CryptoPassed $ initFromRootState rootState
   where
     rootState = ChaCha.initialize 20 key nonce
 
 initFromRootState :: ChaCha.State -> State
-initFromRootState rootState = State encState polyState 0 0
+initFromRootState rootState = ETT__.t "Crypto.Cipher.ChaChaPoly1305.initFromRootState" ETT__.$ State encState polyState 0 0
   where
     (polyKey, encState) = ChaCha.generate rootState 64
     polyState =
@@ -204,8 +205,8 @@ initializeX
     :: ByteArrayAccess key
     => key -> XNonce -> CryptoFailable State
 initializeX key (Nonce24 nonce)
-    | B.length key /= 32 = CryptoFailed CryptoError_KeySizeInvalid
-    | otherwise = CryptoPassed $ initFromRootState rootState
+    | B.length key /= 32 = ETT__.t "Crypto.Cipher.ChaChaPoly1305.initializeX" ETT__.$ CryptoFailed CryptoError_KeySizeInvalid
+    | otherwise = ETT__.t "Crypto.Cipher.ChaChaPoly1305.initializeX" ETT__.$ CryptoPassed $ initFromRootState rootState
   where
     rootState = ChaCha.initializeX 20 key nonce
 
@@ -215,7 +216,7 @@ initializeX key (Nonce24 nonce)
 -- Once no further call to this function need to be make,
 -- the user should call 'finalizeAAD'
 appendAAD :: ByteArrayAccess ba => ba -> State -> State
-appendAAD ba (State encState macState aadLength plainLength) =
+appendAAD ba (State encState macState aadLength plainLength) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.appendAAD" ETT__.$
     State encState newMacState newLength plainLength
   where
     newMacState = Poly1305.update macState ba
@@ -223,7 +224,7 @@ appendAAD ba (State encState macState aadLength plainLength) =
 
 -- | Finalize the Authenticated Data and return the finalized State
 finalizeAAD :: State -> State
-finalizeAAD (State encState macState aadLength plainLength) =
+finalizeAAD (State encState macState aadLength plainLength) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.finalizeAAD" ETT__.$
     State encState newMacState aadLength plainLength
   where
     newMacState = Poly1305.update macState $ pad16 aadLength
@@ -231,7 +232,7 @@ finalizeAAD (State encState macState aadLength plainLength) =
 -- | Encrypt a piece of data and returns the encrypted Data and the
 -- updated State.
 encrypt :: ByteArray ba => ba -> State -> (ba, State)
-encrypt input (State encState macState aadLength plainLength) =
+encrypt input (State encState macState aadLength plainLength) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.encrypt" ETT__.$
     (output, State newEncState newMacState aadLength newPlainLength)
   where
     (output, newEncState) = ChaCha.combine encState input
@@ -241,7 +242,7 @@ encrypt input (State encState macState aadLength plainLength) =
 -- | Decrypt a piece of data and returns the decrypted Data and the
 -- updated State.
 decrypt :: ByteArray ba => ba -> State -> (ba, State)
-decrypt input (State encState macState aadLength plainLength) =
+decrypt input (State encState macState aadLength plainLength) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.decrypt" ETT__.$
     (output, State newEncState newMacState aadLength newPlainLength)
   where
     (output, newEncState) = ChaCha.combine encState input
@@ -250,7 +251,7 @@ decrypt input (State encState macState aadLength plainLength) =
 
 -- | Generate an authentication tag from the State.
 finalize :: State -> Poly1305.Auth
-finalize (State _ macState aadLength plainLength) =
+finalize (State _ macState aadLength plainLength) = ETT__.t "Crypto.Cipher.ChaChaPoly1305.finalize" ETT__.$
     Poly1305.finalize $
         Poly1305.updates
             macState
@@ -263,7 +264,7 @@ finalize (State _ macState aadLength plainLength) =
 aeadChacha20poly1305Init
     :: (ByteArrayAccess k, ByteArrayAccess n)
     => k -> n -> CryptoFailable (AEAD ChaCha20Poly1305)
-aeadChacha20poly1305Init key nonce = do
+aeadChacha20poly1305Init key nonce = ETT__.t "Crypto.Cipher.ChaChaPoly1305.aeadChacha20poly1305Init" ETT__.$ do
     st0 <- nonce12 nonce >>= initialize key
     return $ AEAD model st0
   where

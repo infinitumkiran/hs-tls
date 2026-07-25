@@ -36,6 +36,7 @@ import Network.HTTP.Client.Headers (parseStatusHeaders)
 import Network.HTTP.Proxy
 import Data.KeyedPool
 import Data.Maybe (isJust)
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 -- | A value for the @managerRawConnection@ setting, but also allows you to
 -- modify the underlying @Socket@ to set additional settings. For a motivating
@@ -44,14 +45,14 @@ import Data.Maybe (isJust)
 -- Since 0.3.8
 rawConnectionModifySocket :: (NS.Socket -> IO ())
                           -> IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
-rawConnectionModifySocket = return . openSocketConnection
+rawConnectionModifySocket = ETT__.t "Network.HTTP.Client.Manager.rawConnectionModifySocket" ETT__.$ return . openSocketConnection
 
 -- | Same as @rawConnectionModifySocket@, but also takes in a chunk size.
 --
 -- @since 0.5.2
 rawConnectionModifySocketSize :: (NS.Socket -> IO ())
                               -> IO (Int -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
-rawConnectionModifySocketSize = return . openSocketConnectionSize
+rawConnectionModifySocketSize = ETT__.t "Network.HTTP.Client.Manager.rawConnectionModifySocketSize" ETT__.$ return . openSocketConnectionSize
 
 
 -- | Default value for @ManagerSettings@.
@@ -62,7 +63,7 @@ rawConnectionModifySocketSize = return . openSocketConnectionSize
 --
 -- Since 0.1.0
 defaultManagerSettings :: ManagerSettings
-defaultManagerSettings = ManagerSettings
+defaultManagerSettings = ETT__.t "Network.HTTP.Client.Manager.defaultManagerSettings" ETT__.$ ManagerSettings
     { managerConnCount = 10
     , managerRawConnection = return $ openSocketConnection (const $ return ())
     , managerTlsConnection = return $ \_ _ _ -> throwHttp TlsNotSupported
@@ -107,7 +108,7 @@ defaultManagerSettings = ManagerSettings
 --
 -- Since 0.1.0
 newManager :: ManagerSettings -> IO Manager
-newManager ms = do
+newManager ms = ETT__.tio "Network.HTTP.Client.Manager.newManager" ETT__.$ do
     NS.withSocketsDo $ return ()
 
     httpProxy <- runProxyOverride (managerProxyInsecure ms) False
@@ -180,25 +181,25 @@ newManager ms = do
 --
 -- Since 0.1.0
 closeManager :: Manager -> IO ()
-closeManager _ = return ()
+closeManager _ = ETT__.tio "Network.HTTP.Client.Manager.closeManager" ETT__.$ return ()
 {-# DEPRECATED closeManager "Manager will be closed for you automatically when no longer in use" #-}
 
 -- | Create, use and close a 'Manager'.
 --
 -- Since 0.2.1
 withManager :: ManagerSettings -> (Manager -> IO a) -> IO a
-withManager settings f = newManager settings >>= f
+withManager settings f = ETT__.tio "Network.HTTP.Client.Manager.withManager" ETT__.$ newManager settings >>= f
 {-# DEPRECATED withManager "Use newManager instead" #-}
 
 -- | Drop the Proxy-Authorization header from the request if we're using a
 -- secure proxy.
 dropProxyAuthSecure :: Request -> Request
 dropProxyAuthSecure req
-    | secure req && useProxy' = req
+    | secure req && useProxy' = ETT__.t "Network.HTTP.Client.Manager.dropProxyAuthSecure" ETT__.$ req
         { requestHeaders = filter (\(k, _) -> k /= "Proxy-Authorization")
                                   (requestHeaders req)
         }
-    | otherwise = req
+    | otherwise = ETT__.t "Network.HTTP.Client.Manager.dropProxyAuthSecure" ETT__.$ req
   where
     useProxy' = isJust (proxy req)
 
@@ -208,21 +209,21 @@ getConn :: Request
 getConn req m
     -- Stop Mac OS X from getting high:
     -- https://github.com/snoyberg/http-client/issues/40#issuecomment-39117909
-    | S8.null h = throwHttp $ InvalidDestinationHost h
-    | otherwise = takeKeyedPool (mConns m) connkey
+    | S8.null h = ETT__.t "Network.HTTP.Client.Manager.getConn" ETT__.$ throwHttp $ InvalidDestinationHost h
+    | otherwise = ETT__.t "Network.HTTP.Client.Manager.getConn" ETT__.$ takeKeyedPool (mConns m) connkey
   where
     h = host req
     connkey = connKey req
 
 connKey :: Request -> ConnKey
-connKey req@Request { proxy = Nothing, secure = False } =
+connKey req@Request { proxy = Nothing, secure = False } = ETT__.t "Network.HTTP.Client.Manager.connKey" ETT__.$
   CKRaw (hostAddress req) (host req) (port req)
-connKey req@Request { proxy = Nothing, secure = True  } =
+connKey req@Request { proxy = Nothing, secure = True  } = ETT__.t "Network.HTTP.Client.Manager.connKey" ETT__.$
   CKSecure (hostAddress req) (host req) (port req)
-connKey Request { proxy = Just p, secure = False } =
+connKey Request { proxy = Just p, secure = False } = ETT__.t "Network.HTTP.Client.Manager.connKey" ETT__.$
   CKRaw Nothing (proxyHost p) (proxyPort p)
 connKey req@Request { proxy = Just p, secure = True,
-                      proxySecureMode = ProxySecureWithConnect  } =
+                      proxySecureMode = ProxySecureWithConnect  } = ETT__.t "Network.HTTP.Client.Manager.connKey" ETT__.$
   CKProxy
     (proxyHost p)
     (proxyPort p)
@@ -230,11 +231,11 @@ connKey req@Request { proxy = Just p, secure = True,
     (host req)
     (port req)
 connKey Request { proxy = Just p, secure = True,
-                  proxySecureMode = ProxySecureWithoutConnect  } =
+                  proxySecureMode = ProxySecureWithoutConnect  } = ETT__.t "Network.HTTP.Client.Manager.connKey" ETT__.$
   CKRaw Nothing (proxyHost p) (proxyPort p)
 
 mkCreateConnection :: ManagerSettings -> IO (ConnKey -> IO Connection)
-mkCreateConnection ms = do
+mkCreateConnection ms = ETT__.tio "Network.HTTP.Client.Manager.mkCreateConnection" ETT__.$ do
     rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
     tlsProxyConnection <- managerTlsProxyConnection ms
@@ -281,26 +282,26 @@ mkCreateConnection ms = do
 --
 -- Since 0.4.7
 proxyFromRequest :: ProxyOverride
-proxyFromRequest = ProxyOverride $ const $ return id
+proxyFromRequest = ETT__.t "Network.HTTP.Client.Manager.proxyFromRequest" ETT__.$ ProxyOverride $ const $ return id
 
 -- | Never connect using a proxy, regardless of the proxy value in the @Request@.
 --
 -- Since 0.4.7
 noProxy :: ProxyOverride
-noProxy = ProxyOverride $ const $ return $ \req -> req { proxy = Nothing }
+noProxy = ETT__.t "Network.HTTP.Client.Manager.noProxy" ETT__.$ ProxyOverride $ const $ return $ \req -> req { proxy = Nothing }
 
 -- | Use the given proxy settings, regardless of the proxy value in the @Request@.
 --
 -- Since 0.4.7
 useProxy :: Proxy -> ProxyOverride
-useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
+useProxy p = ETT__.t "Network.HTTP.Client.Manager.useProxy" ETT__.$ ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
 
 -- | Send secure requests to the proxy in plain text rather than using CONNECT,
 -- regardless of the value in the @Request@.
 --
 -- @since 0.7.2
 useProxySecureWithoutConnect :: Proxy -> ProxyOverride
-useProxySecureWithoutConnect p = ProxyOverride $
+useProxySecureWithoutConnect p = ETT__.t "Network.HTTP.Client.Manager.useProxySecureWithoutConnect" ETT__.$ ProxyOverride $
   const $ return $ \req -> req { proxy = Just p,
                                  proxySecureMode = ProxySecureWithoutConnect }
 
@@ -312,7 +313,7 @@ useProxySecureWithoutConnect p = ProxyOverride $
 -- Since 0.4.7
 proxyEnvironment :: Maybe Proxy -- ^ fallback if no environment set
                  -> ProxyOverride
-proxyEnvironment mp = ProxyOverride $ \secure' ->
+proxyEnvironment mp = ETT__.t "Network.HTTP.Client.Manager.proxyEnvironment" ETT__.$ ProxyOverride $ \secure' ->
     systemProxyHelper Nothing (httpProtocol secure') $ maybe EHNoProxy EHUseProxy mp
 
 -- | Same as 'proxyEnvironment', but instead of default environment variable
@@ -323,12 +324,12 @@ proxyEnvironmentNamed
     :: Text -- ^ environment variable name
     -> Maybe Proxy -- ^ fallback if no environment set
     -> ProxyOverride
-proxyEnvironmentNamed name mp = ProxyOverride $ \secure' ->
+proxyEnvironmentNamed name mp = ETT__.t "Network.HTTP.Client.Manager.proxyEnvironmentNamed" ETT__.$ ProxyOverride $ \secure' ->
     systemProxyHelper (Just name) (httpProtocol secure') $ maybe EHNoProxy EHUseProxy mp
 
 -- | The default proxy settings for a manager. In particular: if the @http_proxy@ (or @https_proxy@) environment variable is set, use it. Otherwise, use the values in the @Request@.
 --
 -- Since 0.4.7
 defaultProxy :: ProxyOverride
-defaultProxy = ProxyOverride $ \secure' ->
+defaultProxy = ETT__.t "Network.HTTP.Client.Manager.defaultProxy" ETT__.$ ProxyOverride $ \secure' ->
     systemProxyHelper Nothing (httpProtocol secure') EHFromRequest

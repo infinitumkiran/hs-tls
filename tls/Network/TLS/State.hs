@@ -74,6 +74,7 @@ import Control.Monad.State.Strict
 import Network.TLS.ErrT
 import Crypto.Random
 import Data.X509 (CertificateChain)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 data TLSState = TLSState
     { stSession             :: Session
@@ -110,10 +111,10 @@ instance MonadState TLSState TLSSt where
     state f = TLSSt (lift $ state f)
 
 runTLSState :: TLSSt a -> TLSState -> (Either TLSError a, TLSState)
-runTLSState f st = runState (runErrT (runTLSSt f)) st
+runTLSState f st = ETT__.t "Network.TLS.State.runTLSState" ETT__.$ runState (runErrT (runTLSSt f)) st
 
 newTLSState :: StateRNG -> Role -> TLSState
-newTLSState rng clientContext = TLSState
+newTLSState rng clientContext = ETT__.t "Network.TLS.State.newTLSState" ETT__.$ TLSState
     { stSession             = Session Nothing
     , stSessionResuming     = False
     , stSecureRenegotiation = False
@@ -140,157 +141,157 @@ newTLSState rng clientContext = TLSState
     }
 
 updateVerifiedData :: Role -> ByteString -> TLSSt ()
-updateVerifiedData sending bs = do
+updateVerifiedData sending bs = ETT__.tm "Network.TLS.State.updateVerifiedData" ETT__.$ do
     cc <- isClientContext
     if cc /= sending
         then modify (\st -> st { stServerVerifiedData = bs })
         else modify (\st -> st { stClientVerifiedData = bs })
 
 finishHandshakeTypeMaterial :: HandshakeType -> Bool
-finishHandshakeTypeMaterial HandshakeType_ClientHello     = True
-finishHandshakeTypeMaterial HandshakeType_ServerHello     = True
-finishHandshakeTypeMaterial HandshakeType_Certificate     = True
-finishHandshakeTypeMaterial HandshakeType_HelloRequest    = False
-finishHandshakeTypeMaterial HandshakeType_ServerHelloDone = True
-finishHandshakeTypeMaterial HandshakeType_ClientKeyXchg   = True
-finishHandshakeTypeMaterial HandshakeType_ServerKeyXchg   = True
-finishHandshakeTypeMaterial HandshakeType_CertRequest     = True
-finishHandshakeTypeMaterial HandshakeType_CertVerify      = True
-finishHandshakeTypeMaterial HandshakeType_Finished        = True
+finishHandshakeTypeMaterial HandshakeType_ClientHello     = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
+finishHandshakeTypeMaterial HandshakeType_ServerHello     = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
+finishHandshakeTypeMaterial HandshakeType_Certificate     = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
+finishHandshakeTypeMaterial HandshakeType_HelloRequest    = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ False
+finishHandshakeTypeMaterial HandshakeType_ServerHelloDone = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
+finishHandshakeTypeMaterial HandshakeType_ClientKeyXchg   = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
+finishHandshakeTypeMaterial HandshakeType_ServerKeyXchg   = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
+finishHandshakeTypeMaterial HandshakeType_CertRequest     = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
+finishHandshakeTypeMaterial HandshakeType_CertVerify      = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
+finishHandshakeTypeMaterial HandshakeType_Finished        = ETT__.t "Network.TLS.State.finishHandshakeTypeMaterial" ETT__.$ True
 
 finishHandshakeMaterial :: Handshake -> Bool
-finishHandshakeMaterial = finishHandshakeTypeMaterial . typeOfHandshake
+finishHandshakeMaterial = ETT__.t "Network.TLS.State.finishHandshakeMaterial" ETT__.$ finishHandshakeTypeMaterial . typeOfHandshake
 
 certVerifyHandshakeTypeMaterial :: HandshakeType -> Bool
-certVerifyHandshakeTypeMaterial HandshakeType_ClientHello     = True
-certVerifyHandshakeTypeMaterial HandshakeType_ServerHello     = True
-certVerifyHandshakeTypeMaterial HandshakeType_Certificate     = True
-certVerifyHandshakeTypeMaterial HandshakeType_HelloRequest    = False
-certVerifyHandshakeTypeMaterial HandshakeType_ServerHelloDone = True
-certVerifyHandshakeTypeMaterial HandshakeType_ClientKeyXchg   = True
-certVerifyHandshakeTypeMaterial HandshakeType_ServerKeyXchg   = True
-certVerifyHandshakeTypeMaterial HandshakeType_CertRequest     = True
-certVerifyHandshakeTypeMaterial HandshakeType_CertVerify      = False
-certVerifyHandshakeTypeMaterial HandshakeType_Finished        = False
+certVerifyHandshakeTypeMaterial HandshakeType_ClientHello     = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ True
+certVerifyHandshakeTypeMaterial HandshakeType_ServerHello     = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ True
+certVerifyHandshakeTypeMaterial HandshakeType_Certificate     = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ True
+certVerifyHandshakeTypeMaterial HandshakeType_HelloRequest    = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ False
+certVerifyHandshakeTypeMaterial HandshakeType_ServerHelloDone = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ True
+certVerifyHandshakeTypeMaterial HandshakeType_ClientKeyXchg   = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ True
+certVerifyHandshakeTypeMaterial HandshakeType_ServerKeyXchg   = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ True
+certVerifyHandshakeTypeMaterial HandshakeType_CertRequest     = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ True
+certVerifyHandshakeTypeMaterial HandshakeType_CertVerify      = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ False
+certVerifyHandshakeTypeMaterial HandshakeType_Finished        = ETT__.t "Network.TLS.State.certVerifyHandshakeTypeMaterial" ETT__.$ False
 
 certVerifyHandshakeMaterial :: Handshake -> Bool
-certVerifyHandshakeMaterial = certVerifyHandshakeTypeMaterial . typeOfHandshake
+certVerifyHandshakeMaterial = ETT__.t "Network.TLS.State.certVerifyHandshakeMaterial" ETT__.$ certVerifyHandshakeTypeMaterial . typeOfHandshake
 
 setSession :: Session -> Bool -> TLSSt ()
-setSession session resuming = modify (\st -> st { stSession = session, stSessionResuming = resuming })
+setSession session resuming = ETT__.tm "Network.TLS.State.setSession" ETT__.$ modify (\st -> st { stSession = session, stSessionResuming = resuming })
 
 getSession :: TLSSt Session
-getSession = gets stSession
+getSession = ETT__.tm "Network.TLS.State.getSession" ETT__.$ gets stSession
 
 isSessionResuming :: TLSSt Bool
-isSessionResuming = gets stSessionResuming
+isSessionResuming = ETT__.tm "Network.TLS.State.isSessionResuming" ETT__.$ gets stSessionResuming
 
 setVersion :: Version -> TLSSt ()
-setVersion ver = modify (\st -> st { stVersion = Just ver })
+setVersion ver = ETT__.tm "Network.TLS.State.setVersion" ETT__.$ modify (\st -> st { stVersion = Just ver })
 
 setVersionIfUnset :: Version -> TLSSt ()
-setVersionIfUnset ver = modify maybeSet
+setVersionIfUnset ver = ETT__.tm "Network.TLS.State.setVersionIfUnset" ETT__.$ modify maybeSet
   where maybeSet st = case stVersion st of
                            Nothing -> st { stVersion = Just ver }
                            Just _  -> st
 
 getVersion :: TLSSt Version
-getVersion = fromMaybe (error "internal error: version hasn't been set yet") <$> gets stVersion
+getVersion = ETT__.tm "Network.TLS.State.getVersion" ETT__.$ fromMaybe (error "internal error: version hasn't been set yet") <$> gets stVersion
 
 getVersionWithDefault :: Version -> TLSSt Version
-getVersionWithDefault defaultVer = fromMaybe defaultVer <$> gets stVersion
+getVersionWithDefault defaultVer = ETT__.tm "Network.TLS.State.getVersionWithDefault" ETT__.$ fromMaybe defaultVer <$> gets stVersion
 
 setSecureRenegotiation :: Bool -> TLSSt ()
-setSecureRenegotiation b = modify (\st -> st { stSecureRenegotiation = b })
+setSecureRenegotiation b = ETT__.tm "Network.TLS.State.setSecureRenegotiation" ETT__.$ modify (\st -> st { stSecureRenegotiation = b })
 
 getSecureRenegotiation :: TLSSt Bool
-getSecureRenegotiation = gets stSecureRenegotiation
+getSecureRenegotiation = ETT__.tm "Network.TLS.State.getSecureRenegotiation" ETT__.$ gets stSecureRenegotiation
 
 setExtensionALPN :: Bool -> TLSSt ()
-setExtensionALPN b = modify (\st -> st { stExtensionALPN = b })
+setExtensionALPN b = ETT__.tm "Network.TLS.State.setExtensionALPN" ETT__.$ modify (\st -> st { stExtensionALPN = b })
 
 getExtensionALPN :: TLSSt Bool
-getExtensionALPN = gets stExtensionALPN
+getExtensionALPN = ETT__.tm "Network.TLS.State.getExtensionALPN" ETT__.$ gets stExtensionALPN
 
 setNegotiatedProtocol :: B.ByteString -> TLSSt ()
-setNegotiatedProtocol s = modify (\st -> st { stNegotiatedProtocol = Just s })
+setNegotiatedProtocol s = ETT__.tm "Network.TLS.State.setNegotiatedProtocol" ETT__.$ modify (\st -> st { stNegotiatedProtocol = Just s })
 
 getNegotiatedProtocol :: TLSSt (Maybe B.ByteString)
-getNegotiatedProtocol = gets stNegotiatedProtocol
+getNegotiatedProtocol = ETT__.tm "Network.TLS.State.getNegotiatedProtocol" ETT__.$ gets stNegotiatedProtocol
 
 setClientALPNSuggest :: [B.ByteString] -> TLSSt ()
-setClientALPNSuggest ps = modify (\st -> st { stClientALPNSuggest = Just ps})
+setClientALPNSuggest ps = ETT__.tm "Network.TLS.State.setClientALPNSuggest" ETT__.$ modify (\st -> st { stClientALPNSuggest = Just ps})
 
 getClientALPNSuggest :: TLSSt (Maybe [B.ByteString])
-getClientALPNSuggest = gets stClientALPNSuggest
+getClientALPNSuggest = ETT__.tm "Network.TLS.State.getClientALPNSuggest" ETT__.$ gets stClientALPNSuggest
 
 setClientEcPointFormatSuggest :: [EcPointFormat] -> TLSSt ()
-setClientEcPointFormatSuggest epf = modify (\st -> st { stClientEcPointFormatSuggest = Just epf})
+setClientEcPointFormatSuggest epf = ETT__.tm "Network.TLS.State.setClientEcPointFormatSuggest" ETT__.$ modify (\st -> st { stClientEcPointFormatSuggest = Just epf})
 
 getClientEcPointFormatSuggest :: TLSSt (Maybe [EcPointFormat])
-getClientEcPointFormatSuggest = gets stClientEcPointFormatSuggest
+getClientEcPointFormatSuggest = ETT__.tm "Network.TLS.State.getClientEcPointFormatSuggest" ETT__.$ gets stClientEcPointFormatSuggest
 
 setClientCertificateChain :: CertificateChain -> TLSSt ()
-setClientCertificateChain s = modify (\st -> st { stClientCertificateChain = Just s })
+setClientCertificateChain s = ETT__.tm "Network.TLS.State.setClientCertificateChain" ETT__.$ modify (\st -> st { stClientCertificateChain = Just s })
 
 getClientCertificateChain :: TLSSt (Maybe CertificateChain)
-getClientCertificateChain = gets stClientCertificateChain
+getClientCertificateChain = ETT__.tm "Network.TLS.State.getClientCertificateChain" ETT__.$ gets stClientCertificateChain
 
 setClientSNI :: HostName -> TLSSt ()
-setClientSNI hn = modify (\st -> st { stClientSNI = Just hn })
+setClientSNI hn = ETT__.tm "Network.TLS.State.setClientSNI" ETT__.$ modify (\st -> st { stClientSNI = Just hn })
 
 getClientSNI :: TLSSt (Maybe HostName)
-getClientSNI = gets stClientSNI
+getClientSNI = ETT__.tm "Network.TLS.State.getClientSNI" ETT__.$ gets stClientSNI
 
 getVerifiedData :: Role -> TLSSt ByteString
-getVerifiedData client = gets (if client == ClientRole then stClientVerifiedData else stServerVerifiedData)
+getVerifiedData client = ETT__.tm "Network.TLS.State.getVerifiedData" ETT__.$ gets (if client == ClientRole then stClientVerifiedData else stServerVerifiedData)
 
 isClientContext :: TLSSt Role
-isClientContext = gets stClientContext
+isClientContext = ETT__.tm "Network.TLS.State.isClientContext" ETT__.$ gets stClientContext
 
 genRandom :: Int -> TLSSt ByteString
-genRandom n = do
+genRandom n = ETT__.tm "Network.TLS.State.genRandom" ETT__.$ do
     withRNG (getRandomBytes n)
 
 withRNG :: MonadPseudoRandom StateRNG a -> TLSSt a
-withRNG f = do
+withRNG f = ETT__.tm "Network.TLS.State.withRNG" ETT__.$ do
     st <- get
     let (a,rng') = withTLSRNG (stRandomGen st) f
     put (st { stRandomGen = rng' })
     return a
 
 setExporterMasterSecret :: ByteString -> TLSSt ()
-setExporterMasterSecret key = modify (\st -> st { stExporterMasterSecret = Just key })
+setExporterMasterSecret key = ETT__.tm "Network.TLS.State.setExporterMasterSecret" ETT__.$ modify (\st -> st { stExporterMasterSecret = Just key })
 
 getExporterMasterSecret :: TLSSt (Maybe ByteString)
-getExporterMasterSecret = gets stExporterMasterSecret
+getExporterMasterSecret = ETT__.tm "Network.TLS.State.getExporterMasterSecret" ETT__.$ gets stExporterMasterSecret
 
 setTLS13KeyShare :: Maybe KeyShare -> TLSSt ()
-setTLS13KeyShare mks = modify (\st -> st { stTLS13KeyShare = mks })
+setTLS13KeyShare mks = ETT__.tm "Network.TLS.State.setTLS13KeyShare" ETT__.$ modify (\st -> st { stTLS13KeyShare = mks })
 
 getTLS13KeyShare :: TLSSt (Maybe KeyShare)
-getTLS13KeyShare = gets stTLS13KeyShare
+getTLS13KeyShare = ETT__.tm "Network.TLS.State.getTLS13KeyShare" ETT__.$ gets stTLS13KeyShare
 
 setTLS13PreSharedKey :: Maybe PreSharedKey -> TLSSt ()
-setTLS13PreSharedKey mpsk = modify (\st -> st { stTLS13PreSharedKey = mpsk })
+setTLS13PreSharedKey mpsk = ETT__.tm "Network.TLS.State.setTLS13PreSharedKey" ETT__.$ modify (\st -> st { stTLS13PreSharedKey = mpsk })
 
 getTLS13PreSharedKey :: TLSSt (Maybe PreSharedKey)
-getTLS13PreSharedKey = gets stTLS13PreSharedKey
+getTLS13PreSharedKey = ETT__.tm "Network.TLS.State.getTLS13PreSharedKey" ETT__.$ gets stTLS13PreSharedKey
 
 setTLS13HRR :: Bool -> TLSSt ()
-setTLS13HRR b = modify (\st -> st { stTLS13HRR = b })
+setTLS13HRR b = ETT__.tm "Network.TLS.State.setTLS13HRR" ETT__.$ modify (\st -> st { stTLS13HRR = b })
 
 getTLS13HRR :: TLSSt Bool
-getTLS13HRR = gets stTLS13HRR
+getTLS13HRR = ETT__.tm "Network.TLS.State.getTLS13HRR" ETT__.$ gets stTLS13HRR
 
 setTLS13Cookie :: Maybe Cookie -> TLSSt ()
-setTLS13Cookie mcookie = modify (\st -> st { stTLS13Cookie = mcookie })
+setTLS13Cookie mcookie = ETT__.tm "Network.TLS.State.setTLS13Cookie" ETT__.$ modify (\st -> st { stTLS13Cookie = mcookie })
 
 getTLS13Cookie :: TLSSt (Maybe Cookie)
-getTLS13Cookie = gets stTLS13Cookie
+getTLS13Cookie = ETT__.tm "Network.TLS.State.getTLS13Cookie" ETT__.$ gets stTLS13Cookie
 
 setClientSupportsPHA :: Bool -> TLSSt ()
-setClientSupportsPHA b = modify (\st -> st { stClientSupportsPHA = b })
+setClientSupportsPHA b = ETT__.tm "Network.TLS.State.setClientSupportsPHA" ETT__.$ modify (\st -> st { stClientSupportsPHA = b })
 
 getClientSupportsPHA :: TLSSt Bool
-getClientSupportsPHA = gets stClientSupportsPHA
+getClientSupportsPHA = ETT__.tm "Network.TLS.State.getClientSupportsPHA" ETT__.$ gets stClientSupportsPHA

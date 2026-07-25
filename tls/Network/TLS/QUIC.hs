@@ -88,9 +88,10 @@ import Network.TLS.Struct
 import Network.TLS.Types
 
 import Data.Default.Class
+import qualified Debug.EulerTrace.Tls as ETT__
 
 nullBackend :: Backend
-nullBackend = Backend {
+nullBackend = ETT__.t "Network.TLS.QUIC.nullBackend" ETT__.$ Backend {
     backendFlush = return ()
   , backendClose = return ()
   , backendSend  = \_ -> return ()
@@ -155,18 +156,18 @@ data QUICCallbacks = QUICCallbacks
     }
 
 getTxLevel :: Context -> IO CryptLevel
-getTxLevel ctx = do
+getTxLevel ctx = ETT__.tio "Network.TLS.QUIC.getTxLevel" ETT__.$ do
     (_, _, level, _) <- getTxState ctx
     return level
 
 getRxLevel :: Context -> IO CryptLevel
-getRxLevel ctx = do
+getRxLevel ctx = ETT__.tio "Network.TLS.QUIC.getRxLevel" ETT__.$ do
     (_, _, level, _) <- getRxState ctx
     return level
 
 newRecordLayer :: Context -> QUICCallbacks
                -> RecordLayer [(CryptLevel, ByteString)]
-newRecordLayer ctx callbacks = newTransparentRecordLayer get send recv
+newRecordLayer ctx callbacks = ETT__.t "Network.TLS.QUIC.newRecordLayer" ETT__.$ newTransparentRecordLayer get send recv
   where
     get     = getTxLevel ctx
     send    = quicSend callbacks
@@ -176,7 +177,7 @@ newRecordLayer ctx callbacks = newTransparentRecordLayer get send recv
 -- specified TLS parameters and call the provided callback functions to send and
 -- receive handshake data.
 tlsQUICClient :: ClientParams -> QUICCallbacks -> IO ()
-tlsQUICClient cparams callbacks = do
+tlsQUICClient cparams callbacks = ETT__.tio "Network.TLS.QUIC.tlsQUICClient" ETT__.$ do
     ctx0 <- contextNew nullBackend cparams
     let ctx1 = ctx0
            { ctxHandshakeSync = HandshakeSync sync (\_ _ -> return ())
@@ -204,7 +205,7 @@ tlsQUICClient cparams callbacks = do
 -- specified TLS parameters and call the provided callback functions to send and
 -- receive handshake data.
 tlsQUICServer :: ServerParams -> QUICCallbacks -> IO ()
-tlsQUICServer sparams callbacks = do
+tlsQUICServer sparams callbacks = ETT__.tio "Network.TLS.QUIC.tlsQUICServer" ETT__.$ do
     ctx0 <- contextNew nullBackend sparams
     let ctx1 = ctx0
           { ctxHandshakeSync = HandshakeSync (\_ _ -> return ()) sync
@@ -227,28 +228,28 @@ tlsQUICServer sparams callbacks = do
         quicInstallKeys callbacks ctx (InstallApplicationKeys appSecInfo)
 
 filterQTP :: [ExtensionRaw] -> [ExtensionRaw]
-filterQTP = filter (\(ExtensionRaw eid _) -> eid == extensionID_QuicTransportParameters || eid == 0xffa5) -- to be deleted
+filterQTP = ETT__.t "Network.TLS.QUIC.filterQTP" ETT__.$ filter (\(ExtensionRaw eid _) -> eid == extensionID_QuicTransportParameters || eid == 0xffa5) -- to be deleted
 
 -- | Can be used by callbacks to signal an unexpected condition.  This will then
 -- generate an "internal_error" alert in the TLS stack.
 errorTLS :: String -> IO a
-errorTLS msg = throwCore $ Error_Protocol msg InternalError
+errorTLS msg = ETT__.tio "Network.TLS.QUIC.errorTLS" ETT__.$ throwCore $ Error_Protocol msg InternalError
 
 -- | Return the alert that a TLS endpoint would send to the peer for the
 -- specified library error.
 errorToAlertDescription :: TLSError -> AlertDescription
-errorToAlertDescription = snd . errorToAlert
+errorToAlertDescription = ETT__.t "Network.TLS.QUIC.errorToAlertDescription" ETT__.$ snd . errorToAlert
 
 -- | Encode an alert to the assigned value.
 fromAlertDescription :: AlertDescription -> Word8
-fromAlertDescription = valOfType
+fromAlertDescription = ETT__.t "Network.TLS.QUIC.fromAlertDescription" ETT__.$ valOfType
 
 -- | Decode an alert from the assigned value.
 toAlertDescription :: Word8 -> Maybe AlertDescription
-toAlertDescription = valToType
+toAlertDescription = ETT__.t "Network.TLS.QUIC.toAlertDescription" ETT__.$ valToType
 
 defaultSupported :: Supported
-defaultSupported = def
+defaultSupported = ETT__.t "Network.TLS.QUIC.defaultSupported" ETT__.$ def
     { supportedVersions       = [TLS13]
     , supportedCiphers        = [ cipher_TLS13_AES256GCM_SHA384
                                 , cipher_TLS13_AES128GCM_SHA256
@@ -259,4 +260,4 @@ defaultSupported = def
 
 -- | Max early data size for QUIC.
 quicMaxEarlyDataSize :: Int
-quicMaxEarlyDataSize = 0xffffffff
+quicMaxEarlyDataSize = ETT__.t "Network.TLS.QUIC.quicMaxEarlyDataSize" ETT__.$ 0xffffffff

@@ -12,8 +12,9 @@ module Network.TLS.Cap
     ) where
 
 import Network.TLS.Types
+import qualified Debug.EulerTrace.Tls as ETT__
 
 hasHelloExtensions, hasExplicitBlockIV :: Version -> Bool
 
-hasHelloExtensions ver = ver >= SSL3
-hasExplicitBlockIV ver = ver >= TLS11
+hasHelloExtensions ver = ETT__.t "Network.TLS.Cap.hasHelloExtensions" ETT__.$ ver >= SSL3
+hasExplicitBlockIV ver = ETT__.t "Network.TLS.Cap.hasExplicitBlockIV" ETT__.$ ver >= TLS11

@@ -45,6 +45,7 @@ import Data.X509.ExtensionRaw
 import Data.X509.DistinguishedName
 import Control.Applicative
 import Control.Monad
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | key usage flag that is found in the key usage extension field.
 data ExtKeyUsageFlag =
@@ -90,8 +91,8 @@ class Extension a where
 
 -- | Get a specific extension from a lists of raw extensions
 extensionGet :: Extension a => Extensions -> Maybe a
-extensionGet (Extensions Nothing)  = Nothing
-extensionGet (Extensions (Just l)) = findExt l
+extensionGet (Extensions Nothing)  = ETT__.t "Data.X509.Ext.extensionGet" ETT__.$ Nothing
+extensionGet (Extensions (Just l)) = ETT__.t "Data.X509.Ext.extensionGet" ETT__.$ findExt l
   where findExt []     = Nothing
         findExt (x:xs) = case extensionDecode x of
                             Just (Right e) -> Just e
@@ -99,8 +100,8 @@ extensionGet (Extensions (Just l)) = findExt l
 
 -- | Get a specific extension from a lists of raw extensions
 extensionGetE :: Extension a => Extensions -> Maybe (Either String a)
-extensionGetE (Extensions Nothing)  = Nothing
-extensionGetE (Extensions (Just l)) = findExt l
+extensionGetE (Extensions Nothing)  = ETT__.t "Data.X509.Ext.extensionGetE" ETT__.$ Nothing
+extensionGetE (Extensions (Just l)) = ETT__.t "Data.X509.Ext.extensionGetE" ETT__.$ findExt l
   where findExt []     = Nothing
         findExt (x:xs) = case extensionDecode x of
                             Just r         -> Just r
@@ -114,15 +115,15 @@ extensionGetE (Extensions (Just l)) = findExt l
 -- * Just Right, the OID matched, and the extension has been succesfully decoded
 extensionDecode :: forall a . Extension a => ExtensionRaw -> Maybe (Either String a)
 extensionDecode er@(ExtensionRaw oid _ content)
-    | extOID (undefined :: a) /= oid      = Nothing
-    | extHasNestedASN1 (Proxy :: Proxy a) = Just (tryExtRawASN1 er >>= extDecode)
-    | otherwise                           = Just (extDecodeBs content)
+    | extOID (undefined :: a) /= oid      = ETT__.t "Data.X509.Ext.extensionDecode" ETT__.$ Nothing
+    | extHasNestedASN1 (Proxy :: Proxy a) = ETT__.t "Data.X509.Ext.extensionDecode" ETT__.$ Just (tryExtRawASN1 er >>= extDecode)
+    | otherwise                           = ETT__.t "Data.X509.Ext.extensionDecode" ETT__.$ Just (extDecodeBs content)
 
 -- | Encode an Extension to extensionRaw
 extensionEncode :: forall a . Extension a => Bool -> a -> ExtensionRaw
 extensionEncode critical ext
-    | extHasNestedASN1 (Proxy :: Proxy a) = ExtensionRaw (extOID ext) critical (encodeASN1' DER $ extEncode ext)
-    | otherwise                           = ExtensionRaw (extOID ext) critical (extEncodeBs ext)
+    | extHasNestedASN1 (Proxy :: Proxy a) = ETT__.t "Data.X509.Ext.extensionEncode" ETT__.$ ExtensionRaw (extOID ext) critical (encodeASN1' DER $ extEncode ext)
+    | otherwise                           = ETT__.t "Data.X509.Ext.extensionEncode" ETT__.$ ExtensionRaw (extOID ext) critical (extEncodeBs ext)
 
 -- | Basic Constraints
 data ExtBasicConstraints = ExtBasicConstraints Bool (Maybe Integer)
@@ -164,7 +165,7 @@ data ExtKeyUsagePurpose =
     deriving (Show,Eq,Ord)
 
 extKeyUsagePurposedOID :: [(OID, ExtKeyUsagePurpose)]
-extKeyUsagePurposedOID =
+extKeyUsagePurposedOID = ETT__.t "Data.X509.Ext.extKeyUsagePurposedOID" ETT__.$
     [(keyUsagePurposePrefix 1, KeyUsagePurpose_ServerAuth)
     ,(keyUsagePurposePrefix 2, KeyUsagePurpose_ClientAuth)
     ,(keyUsagePurposePrefix 3, KeyUsagePurpose_CodeSigning)
@@ -275,7 +276,7 @@ instance Extension ExtCrlDistributionPoints where
     --extEncode (ExtCrlDistributionPoints )
 
 parseGeneralNames :: ParseASN1 [AltName]
-parseGeneralNames = onNextContainer Sequence $ getMany getAddr
+parseGeneralNames = ETT__.tm "Data.X509.Ext.parseGeneralNames" ETT__.$ onNextContainer Sequence $ getMany getAddr
   where
         getAddr = do
             m <- onNextContainerMaybe (Container Context 0) getComposedAddr
@@ -314,7 +315,7 @@ parseGeneralNames = onNextContainer Sequence $ getMany getAddr
                 _                   -> throwParseError ("GeneralNames: not coping with unknown stream " ++ show n)
 
 encodeGeneralNames :: [AltName] -> [ASN1]
-encodeGeneralNames names =
+encodeGeneralNames names = ETT__.t "Data.X509.Ext.encodeGeneralNames" ETT__.$
     [Start Sequence]
     ++ concatMap encodeAltName names
     ++ [End Sequence]
@@ -330,12 +331,12 @@ encodeGeneralNames names =
                                           ,End (Container Context 0)]
 
 bitsToFlags :: Enum a => BitArray -> [a]
-bitsToFlags bits = concat $ flip map [0..(bitArrayLength bits-1)] $ \i -> do
+bitsToFlags bits = ETT__.t "Data.X509.Ext.bitsToFlags" ETT__.$ concat $ flip map [0..(bitArrayLength bits-1)] $ \i -> do
         let isSet = bitArrayGetBit bits i
         if isSet then [toEnum $ fromIntegral i] else []
 
 flagsToBits :: Enum a => [a] -> BitArray
-flagsToBits flags = foldl bitArraySetBit bitArrayEmpty $ map (fromIntegral . fromEnum) flags
+flagsToBits flags = ETT__.t "Data.X509.Ext.flagsToBits" ETT__.$ foldl bitArraySetBit bitArrayEmpty $ map (fromIntegral . fromEnum) flags
   where bitArrayEmpty = toBitArray (B.pack [0,0]) 7
 
 data ExtNetscapeComment = ExtNetscapeComment B.ByteString

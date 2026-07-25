@@ -26,6 +26,7 @@ module Network.TLS.Compression
 import Network.TLS.Types (CompressionID)
 import Network.TLS.Imports
 import Control.Arrow (first)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | supported compression algorithms need to be part of this class
 class CompressionC a where
@@ -38,17 +39,17 @@ data Compression = forall a . CompressionC a => Compression a
 
 -- | return the associated ID for this algorithm
 compressionID :: Compression -> CompressionID
-compressionID (Compression c) = compressionCID c
+compressionID (Compression c) = ETT__.t "Network.TLS.Compression.compressionID" ETT__.$ compressionCID c
 
 -- | deflate (compress) a bytestring using a compression context and return the result
 -- along with the new compression context.
 compressionDeflate :: ByteString -> Compression -> (Compression, ByteString)
-compressionDeflate bytes (Compression c) = first Compression $ compressionCDeflate c bytes
+compressionDeflate bytes (Compression c) = ETT__.t "Network.TLS.Compression.compressionDeflate" ETT__.$ first Compression $ compressionCDeflate c bytes
 
 -- | inflate (decompress) a bytestring using a compression context and return the result
 -- along the new compression context.
 compressionInflate :: ByteString -> Compression -> (Compression, ByteString)
-compressionInflate bytes (Compression c) = first Compression $ compressionCInflate c bytes
+compressionInflate bytes (Compression c) = ETT__.t "Network.TLS.Compression.compressionInflate" ETT__.$ first Compression $ compressionCInflate c bytes
 
 instance Show Compression where
     show = show . compressionID
@@ -59,7 +60,7 @@ instance Eq Compression where
 -- the function keeps the list of compression in order, to be able to find quickly the prefered
 -- compression.
 compressionIntersectID :: [Compression] -> [Word8] -> [Compression]
-compressionIntersectID l ids = filter (\c -> compressionID c `elem` ids) l
+compressionIntersectID l ids = ETT__.t "Network.TLS.Compression.compressionIntersectID" ETT__.$ filter (\c -> compressionID c `elem` ids) l
 
 -- | This is the default compression which is a NOOP.
 data NullCompression = NullCompression
@@ -71,4 +72,4 @@ instance CompressionC NullCompression where
 
 -- | default null compression
 nullCompression :: Compression
-nullCompression = Compression NullCompression
+nullCompression = ETT__.t "Network.TLS.Compression.nullCompression" ETT__.$ Compression NullCompression

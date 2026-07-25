@@ -20,6 +20,7 @@ import Data.ASN1.Encoding
 import Data.ASN1.BinaryEncoding
 import Data.X509.Internal
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | An undecoded extension
 data ExtensionRaw = ExtensionRaw
@@ -29,13 +30,13 @@ data ExtensionRaw = ExtensionRaw
     } deriving (Show,Eq)
 
 tryExtRawASN1 :: ExtensionRaw -> Either String [ASN1]
-tryExtRawASN1 (ExtensionRaw oid _ content) =
+tryExtRawASN1 (ExtensionRaw oid _ content) = ETT__.t "Data.X509.ExtensionRaw.tryExtRawASN1" ETT__.$
     case decodeASN1' BER content of
         Left err -> Left $ "fromASN1: X509.ExtensionRaw: OID=" ++ show oid ++ ": cannot decode data: " ++ show err
         Right r  -> Right r
 
 extRawASN1 :: ExtensionRaw -> [ASN1]
-extRawASN1 extRaw = either error id $ tryExtRawASN1 extRaw
+extRawASN1 extRaw = ETT__.t "Data.X509.ExtensionRaw.extRawASN1" ETT__.$ either error id $ tryExtRawASN1 extRaw
 {-# DEPRECATED extRawASN1 "use tryExtRawASN1 instead" #-}
 
 -- | a Set of 'ExtensionRaw'
@@ -60,5 +61,5 @@ instance ASN1Object ExtensionRaw where
         Left ("fromASN1: X509.ExtensionRaw: unknown format:" ++ show l)
 
 encodeExt :: ExtensionRaw -> [ASN1]
-encodeExt (ExtensionRaw oid critical content) =
+encodeExt (ExtensionRaw oid critical content) = ETT__.t "Data.X509.ExtensionRaw.encodeExt" ETT__.$
     asn1Container Sequence ([OID oid] ++ (if critical then [Boolean True] else []) ++ [OctetString content])

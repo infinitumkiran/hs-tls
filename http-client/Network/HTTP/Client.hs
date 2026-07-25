@@ -231,6 +231,7 @@ import Network.HTTP.Types (statusCode)
 import GHC.Generics (Generic)
 import Data.Typeable (Typeable)
 import Control.Exception (bracket, catch, handle, throwIO)
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 -- | A datatype holding information on redirected requests and the final response.
 --
@@ -258,7 +259,7 @@ data HistoriedResponse body = HistoriedResponse
 --
 -- Since 0.4.1
 responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
-responseOpenHistory reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ do
+responseOpenHistory reqOrig man0 = ETT__.tio "Network.HTTP.Client.responseOpenHistory" ETT__.$ handle (throwIO . toHttpException reqOrig) $ do
     reqRef <- newIORef reqOrig
     historyRef <- newIORef id
     let go req0 = do
@@ -299,7 +300,7 @@ withResponseHistory :: Request
                     -> Manager
                     -> (HistoriedResponse BodyReader -> IO a)
                     -> IO a
-withResponseHistory req man = bracket
+withResponseHistory req man = ETT__.t "Network.HTTP.Client.withResponseHistory" ETT__.$ bracket
     (responseOpenHistory req man)
     (responseClose . hrFinalResponse)
 
@@ -307,29 +308,29 @@ withResponseHistory req man = bracket
 --
 -- Since 0.4.7
 managerSetInsecureProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
-managerSetInsecureProxy po m = m { managerProxyInsecure = po }
+managerSetInsecureProxy po m = ETT__.t "Network.HTTP.Client.managerSetInsecureProxy" ETT__.$ m { managerProxyInsecure = po }
 
 -- | Set the proxy override value, only for HTTPS (secure) connections.
 --
 -- Since 0.4.7
 managerSetSecureProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
-managerSetSecureProxy po m = m { managerProxySecure = po }
+managerSetSecureProxy po m = ETT__.t "Network.HTTP.Client.managerSetSecureProxy" ETT__.$ m { managerProxySecure = po }
 
 -- | Set the proxy override value, for both HTTP (insecure) and HTTPS
 -- (insecure) connections.
 --
 -- Since 0.4.7
 managerSetProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
-managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
+managerSetProxy po = ETT__.t "Network.HTTP.Client.managerSetProxy" ETT__.$ managerSetInsecureProxy po . managerSetSecureProxy po
 
 -- @since 0.7.17
 managerSetMaxHeaderLength :: Int -> ManagerSettings -> ManagerSettings
-managerSetMaxHeaderLength l manager = manager
+managerSetMaxHeaderLength l manager = ETT__.t "Network.HTTP.Client.managerSetMaxHeaderLength" ETT__.$ manager
     { managerMaxHeaderLength = Just $ MaxHeaderLength l }
 
 -- @since 0.7.18
 managerSetMaxNumberHeaders :: Int -> ManagerSettings -> ManagerSettings
-managerSetMaxNumberHeaders n manager = manager
+managerSetMaxNumberHeaders n manager = ETT__.t "Network.HTTP.Client.managerSetMaxNumberHeaders" ETT__.$ manager
     { managerMaxNumberHeaders = Just $ MaxNumberHeaders n }
 
 -- $example1
@@ -383,13 +384,13 @@ managerSetMaxNumberHeaders n manager = manager
 --
 -- @since 0.5.0
 responseTimeoutMicro :: Int -> ResponseTimeout
-responseTimeoutMicro = ResponseTimeoutMicro
+responseTimeoutMicro = ETT__.t "Network.HTTP.Client.responseTimeoutMicro" ETT__.$ ResponseTimeoutMicro
 
 -- | Do not have a response timeout
 --
 -- @since 0.5.0
 responseTimeoutNone :: ResponseTimeout
-responseTimeoutNone = ResponseTimeoutNone
+responseTimeoutNone = ETT__.t "Network.HTTP.Client.responseTimeoutNone" ETT__.$ ResponseTimeoutNone
 
 -- | Use the default response timeout
 --
@@ -399,7 +400,7 @@ responseTimeoutNone = ResponseTimeoutNone
 --
 -- @since 0.5.0
 responseTimeoutDefault :: ResponseTimeout
-responseTimeoutDefault = ResponseTimeoutDefault
+responseTimeoutDefault = ETT__.t "Network.HTTP.Client.responseTimeoutDefault" ETT__.$ ResponseTimeoutDefault
 
 -- $parsing-request
 --

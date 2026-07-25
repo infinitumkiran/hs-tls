@@ -43,6 +43,7 @@ import qualified Crypto.Internal.ByteArray as B
 import Crypto.Internal.Compat
 import Crypto.Internal.Imports
 import Crypto.Random
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | A Curve25519 Secret key
 newtype SecretKey = SecretKey ScrubbedBytes
@@ -60,20 +61,20 @@ newtype DhSecret = DhSecret ScrubbedBytes
 -- | Try to build a public key from a bytearray
 publicKey :: ByteArrayAccess bs => bs -> CryptoFailable PublicKey
 publicKey bs
-    | B.length bs == 32 =
+    | B.length bs == 32 = ETT__.t "Crypto.PubKey.Curve25519.publicKey" ETT__.$
         CryptoPassed $ PublicKey $ B.copyAndFreeze bs (\_ -> return ())
-    | otherwise = CryptoFailed CryptoError_PublicKeySizeInvalid
+    | otherwise = ETT__.t "Crypto.PubKey.Curve25519.publicKey" ETT__.$ CryptoFailed CryptoError_PublicKeySizeInvalid
 
 -- | Try to build a secret key from a bytearray
 secretKey :: ByteArrayAccess bs => bs -> CryptoFailable SecretKey
 secretKey bs
-    | B.length bs == 32 = unsafeDoIO $ do
+    | B.length bs == 32 = ETT__.t "Crypto.PubKey.Curve25519.secretKey" ETT__.$ unsafeDoIO $ do
         withByteArray bs $ \inp -> do
             valid <- isValidPtr inp
             if valid
                 then (CryptoPassed . SecretKey) <$> B.copy bs (\_ -> return ())
                 else return $ CryptoFailed CryptoError_SecretKeyStructureInvalid
-    | otherwise = CryptoFailed CryptoError_SecretKeySizeInvalid
+    | otherwise = ETT__.t "Crypto.PubKey.Curve25519.secretKey" ETT__.$ CryptoFailed CryptoError_SecretKeySizeInvalid
   where
     --  e[0] &= 0xf8;
     --  e[31] &= 0x7f;
@@ -96,16 +97,16 @@ secretKey bs
 -- | Create a DhSecret from a bytearray object
 dhSecret :: ByteArrayAccess b => b -> CryptoFailable DhSecret
 dhSecret bs
-    | B.length bs == 32 =
+    | B.length bs == 32 = ETT__.t "Crypto.PubKey.Curve25519.dhSecret" ETT__.$
         CryptoPassed $ DhSecret $ B.copyAndFreeze bs (\_ -> return ())
-    | otherwise = CryptoFailed CryptoError_SharedSecretSizeInvalid
+    | otherwise = ETT__.t "Crypto.PubKey.Curve25519.dhSecret" ETT__.$ CryptoFailed CryptoError_SharedSecretSizeInvalid
 
 -- | Compute the Diffie Hellman secret from a public key and a secret key.
 --
 -- This implementation may return an all-zero value as it does not check for
 -- the condition.
 dh :: PublicKey -> SecretKey -> DhSecret
-dh (PublicKey pub) (SecretKey sec) = DhSecret
+dh (PublicKey pub) (SecretKey sec) = ETT__.t "Crypto.PubKey.Curve25519.dh" ETT__.$ DhSecret
     <$> B.allocAndFreeze 32
     $ \result ->
         withByteArray sec $ \psec ->
@@ -115,7 +116,7 @@ dh (PublicKey pub) (SecretKey sec) = DhSecret
 
 -- | Create a public key from a secret key
 toPublic :: SecretKey -> PublicKey
-toPublic (SecretKey sec) = PublicKey
+toPublic (SecretKey sec) = ETT__.t "Crypto.PubKey.Curve25519.toPublic" ETT__.$ PublicKey
     <$> B.allocAndFreeze 32
     $ \result ->
         withByteArray sec $ \psec ->
@@ -128,7 +129,7 @@ toPublic (SecretKey sec) = PublicKey
 
 -- | Generate a secret key.
 generateSecretKey :: MonadRandom m => m SecretKey
-generateSecretKey = tweakToSecretKey <$> getRandomBytes 32
+generateSecretKey = ETT__.tm "Crypto.PubKey.Curve25519.generateSecretKey" ETT__.$ tweakToSecretKey <$> getRandomBytes 32
   where
     tweakToSecretKey :: ScrubbedBytes -> SecretKey
     tweakToSecretKey bin = SecretKey $ B.copyAndFreeze bin $ \inp -> do

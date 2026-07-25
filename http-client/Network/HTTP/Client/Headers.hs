@@ -21,17 +21,18 @@ import           Network.HTTP.Client.Connection
 import           Network.HTTP.Client.Types
 import           Network.HTTP.Types
 import           System.Timeout                 (timeout)
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 charSpace, charColon, charPeriod :: Word8
-charSpace = 32
-charColon = 58
-charPeriod = 46
+charSpace = ETT__.t "Network.HTTP.Client.Headers.charSpace" ETT__.$ 32
+charColon = ETT__.t "Network.HTTP.Client.Headers.charColon" ETT__.$ 58
+charPeriod = ETT__.t "Network.HTTP.Client.Headers.charPeriod" ETT__.$ 46
 
 
 parseStatusHeaders :: Maybe MaxHeaderLength -> Maybe MaxNumberHeaders -> Connection -> Maybe Int -> ([Header] -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
 parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
-    | Just k <- cont = getStatusExpectContinue k
-    | otherwise      = getStatus
+    | Just k <- cont = ETT__.t "Network.HTTP.Client.Headers.parseStatusHeaders" ETT__.$ getStatusExpectContinue k
+    | otherwise      = ETT__.t "Network.HTTP.Client.Headers.parseStatusHeaders" ETT__.$ getStatus
   where
     withTimeout = case timeout' of
         Nothing -> id
@@ -139,7 +140,7 @@ data HeadersValidationResult
     | BadHeaders S.ByteString -- contains a message with the reason
 
 validateHeaders :: RequestHeaders -> HeadersValidationResult
-validateHeaders headers =
+validateHeaders headers = ETT__.t "Network.HTTP.Client.Headers.validateHeaders" ETT__.$
     case mapMaybe validateHeader headers of
         [] -> GoodHeaders
         reasons -> BadHeaders (S8.unlines reasons)

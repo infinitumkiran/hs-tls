@@ -76,24 +76,25 @@ import Network.TLS.Wire
 import Control.Concurrent.MVar
 import Control.Monad.State.Strict
 import Data.IORef (writeIORef)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 ----------------------------------------------------------------
 
 makeFinished :: MonadIO m => Context -> Hash -> ByteString -> m Handshake13
-makeFinished ctx usedHash baseKey = do
+makeFinished ctx usedHash baseKey = ETT__.tm "Network.TLS.Handshake.Common13.makeFinished" ETT__.$ do
     finished <- makeVerifyData usedHash baseKey <$> transcriptHash ctx
     liftIO $ writeIORef (ctxFinished ctx) (Just finished)
     pure $ Finished13 finished
 
 checkFinished :: MonadIO m => Context -> Hash -> ByteString -> ByteString -> ByteString -> m ()
-checkFinished ctx usedHash baseKey hashValue verifyData = do
+checkFinished ctx usedHash baseKey hashValue verifyData = ETT__.tm "Network.TLS.Handshake.Common13.checkFinished" ETT__.$ do
     let verifyData' = makeVerifyData usedHash baseKey hashValue
     when (B.length verifyData /= B.length verifyData') $ throwCore $ Error_Protocol "broken Finished" DecodeError
     unless (verifyData' == verifyData) $ decryptError "cannot verify finished"
     liftIO $ writeIORef (ctxPeerFinished ctx) (Just verifyData)
 
 makeVerifyData :: Hash -> ByteString -> ByteString -> ByteString
-makeVerifyData usedHash baseKey = hmac usedHash finishedKey
+makeVerifyData usedHash baseKey = ETT__.t "Network.TLS.Handshake.Common13.makeVerifyData" ETT__.$ hmac usedHash finishedKey
   where
     hashSize = hashDigestSize usedHash
     finishedKey = hkdfExpandLabel usedHash baseKey "finished" "" hashSize
@@ -101,7 +102,7 @@ makeVerifyData usedHash baseKey = hmac usedHash finishedKey
 ----------------------------------------------------------------
 
 makeServerKeyShare :: Context -> KeyShareEntry -> IO (ByteString, KeyShareEntry)
-makeServerKeyShare ctx (KeyShareEntry grp wcpub) = case ecpub of
+makeServerKeyShare ctx (KeyShareEntry grp wcpub) = ETT__.tio "Network.TLS.Handshake.Common13.makeServerKeyShare" ETT__.$ case ecpub of
   Left  e    -> throwCore $ Error_Protocol (show e) IllegalParameter
   Right cpub -> do
       ecdhePair <- generateECDHEShared ctx cpub
@@ -116,14 +117,14 @@ makeServerKeyShare ctx (KeyShareEntry grp wcpub) = case ecpub of
     msgInvalidPublic = "invalid client " ++ show grp ++ " public key"
 
 makeClientKeyShare :: Context -> Group -> IO (IES.GroupPrivate, KeyShareEntry)
-makeClientKeyShare ctx grp = do
+makeClientKeyShare ctx grp = ETT__.tio "Network.TLS.Handshake.Common13.makeClientKeyShare" ETT__.$ do
     (cpri, cpub) <- generateECDHE ctx grp
     let wcpub = IES.encodeGroupPublic cpub
         clientKeyShare = KeyShareEntry grp wcpub
     return (cpri, clientKeyShare)
 
 fromServerKeyShare :: KeyShareEntry -> IES.GroupPrivate -> IO ByteString
-fromServerKeyShare (KeyShareEntry grp wspub) cpri = case espub of
+fromServerKeyShare (KeyShareEntry grp wspub) cpri = ETT__.tio "Network.TLS.Handshake.Common13.fromServerKeyShare" ETT__.$ case espub of
   Left  e    -> throwCore $ Error_Protocol (show e) IllegalParameter
   Right spub -> case IES.groupGetShared spub cpri of
     Just shared -> return $ BA.convert shared
@@ -134,13 +135,13 @@ fromServerKeyShare (KeyShareEntry grp wspub) cpri = case espub of
 ----------------------------------------------------------------
 
 serverContextString :: ByteString
-serverContextString = "TLS 1.3, server CertificateVerify"
+serverContextString = ETT__.t "Network.TLS.Handshake.Common13.serverContextString" ETT__.$ "TLS 1.3, server CertificateVerify"
 
 clientContextString :: ByteString
-clientContextString = "TLS 1.3, client CertificateVerify"
+clientContextString = ETT__.t "Network.TLS.Handshake.Common13.clientContextString" ETT__.$ "TLS 1.3, client CertificateVerify"
 
 makeCertVerify :: MonadIO m => Context -> PubKey -> HashAndSignatureAlgorithm -> ByteString -> m Handshake13
-makeCertVerify ctx pub hs hashValue = do
+makeCertVerify ctx pub hs hashValue = ETT__.tm "Network.TLS.Handshake.Common13.makeCertVerify" ETT__.$ do
     cc <- liftIO $ usingState_ ctx isClientContext
     let ctxStr | cc == ClientRole = clientContextString
                | otherwise        = serverContextString
@@ -149,26 +150,26 @@ makeCertVerify ctx pub hs hashValue = do
 
 checkCertVerify :: MonadIO m => Context -> PubKey -> HashAndSignatureAlgorithm -> Signature -> ByteString -> m Bool
 checkCertVerify ctx pub hs signature hashValue
-    | pub `signatureCompatible13` hs = liftIO $ do
+    | pub `signatureCompatible13` hs = ETT__.t "Network.TLS.Handshake.Common13.checkCertVerify" ETT__.$ liftIO $ do
         cc <- usingState_ ctx isClientContext
-        let ctxStr | cc == ClientRole = serverContextString -- opposite context
-                | otherwise        = clientContextString
+        let ctxStr | cc == ClientRole = ETT__.t "Network.TLS.Handshake.Common13.checkCertVerify" ETT__.$ serverContextString -- opposite context
+                | otherwise        = ETT__.t "Network.TLS.Handshake.Common13.checkCertVerify" ETT__.$ clientContextString
             target = makeTarget ctxStr hashValue
             sigParams = signatureParams pub (Just hs)
         checkHashSignatureValid13 hs
         checkSupportedHashSignature ctx (Just hs)
         verifyPublic ctx sigParams target signature
-    | otherwise = return False
+    | otherwise = ETT__.t "Network.TLS.Handshake.Common13.checkCertVerify" ETT__.$ return False
 
 makeTarget :: ByteString -> ByteString -> ByteString
-makeTarget contextString hashValue = runPut $ do
+makeTarget contextString hashValue = ETT__.t "Network.TLS.Handshake.Common13.makeTarget" ETT__.$ runPut $ do
     putBytes $ B.replicate 64 32
     putBytes contextString
     putWord8 0
     putBytes hashValue
 
 sign :: MonadIO m => Context -> PubKey -> HashAndSignatureAlgorithm -> ByteString -> m Signature
-sign ctx pub hs target = liftIO $ do
+sign ctx pub hs target = ETT__.tm "Network.TLS.Handshake.Common13.sign" ETT__.$ liftIO $ do
     cc <- usingState_ ctx isClientContext
     let sigParams = signatureParams pub (Just hs)
     signPrivate ctx cc sigParams target
@@ -176,7 +177,7 @@ sign ctx pub hs target = liftIO $ do
 ----------------------------------------------------------------
 
 makePSKBinder :: Context -> BaseSecret EarlySecret -> Hash -> Int -> Maybe ByteString -> IO ByteString
-makePSKBinder ctx (BaseSecret sec) usedHash truncLen mch = do
+makePSKBinder ctx (BaseSecret sec) usedHash truncLen mch = ETT__.tio "Network.TLS.Handshake.Common13.makePSKBinder" ETT__.$ do
     rmsgs0 <- usingHState ctx getHandshakeMessagesRev -- fixme
     let rmsgs = case mch of
           Just ch -> trunc ch : rmsgs0
@@ -191,7 +192,7 @@ makePSKBinder ctx (BaseSecret sec) usedHash truncLen mch = do
         takeLen = totalLen - truncLen
 
 replacePSKBinder :: ByteString -> ByteString -> ByteString
-replacePSKBinder pskz binder = identities `B.append` binders
+replacePSKBinder pskz binder = ETT__.t "Network.TLS.Handshake.Common13.replacePSKBinder" ETT__.$ identities `B.append` binders
   where
     bindersSize = B.length binder + 3
     identities  = B.take (B.length pskz - bindersSize) pskz
@@ -200,7 +201,7 @@ replacePSKBinder pskz binder = identities `B.append` binders
 ----------------------------------------------------------------
 
 sendChangeCipherSpec13 :: Monoid b => Context -> PacketFlightM b ()
-sendChangeCipherSpec13 ctx = do
+sendChangeCipherSpec13 ctx = ETT__.t "Network.TLS.Handshake.Common13.sendChangeCipherSpec13" ETT__.$ do
     sent <- usingHState ctx $ do
                 b <- getCCS13Sent
                 unless b $ setCCS13Sent True
@@ -215,7 +216,7 @@ sendChangeCipherSpec13 ctx = do
 -- state attributes are preserved, necessary for TLS13 handshake modes, session
 -- tickets and post-handshake authentication.
 handshakeTerminate13 :: Context -> IO ()
-handshakeTerminate13 ctx = do
+handshakeTerminate13 ctx = ETT__.tio "Network.TLS.Handshake.Common13.handshakeTerminate13" ETT__.$ do
     -- forget most handshake data
     liftIO $ modifyMVar_ (ctxHandshake ctx) $ \ mhshake ->
         case mhshake of
@@ -240,7 +241,7 @@ handshakeTerminate13 ctx = do
 ----------------------------------------------------------------
 
 makeCertRequest :: ServerParams -> Context -> CertReqContext -> Handshake13
-makeCertRequest sparams ctx certReqCtx =
+makeCertRequest sparams ctx certReqCtx = ETT__.t "Network.TLS.Handshake.Common13.makeCertRequest" ETT__.$
     let sigAlgs = extensionEncode $ SignatureAlgorithms $ supportedHashSignatures $ ctxSupported ctx
         caDns = map extractCAname $ serverCACertificates sparams
         caDnsEncoded = extensionEncode $ CertificateAuthorities caDns
@@ -253,7 +254,7 @@ makeCertRequest sparams ctx certReqCtx =
 ----------------------------------------------------------------
 
 createTLS13TicketInfo :: Second -> Either Context Second -> Maybe Millisecond -> IO TLS13TicketInfo
-createTLS13TicketInfo life ecw mrtt = do
+createTLS13TicketInfo life ecw mrtt = ETT__.tio "Network.TLS.Handshake.Common13.createTLS13TicketInfo" ETT__.$ do
     -- Left:  serverSendTime
     -- Right: clientReceiveTime
     bTime <- getCurrentTimeFromBase
@@ -265,26 +266,26 @@ createTLS13TicketInfo life ecw mrtt = do
     x *+ y = x * 256 + fromIntegral y
 
 ageToObfuscatedAge :: Second -> TLS13TicketInfo -> Second
-ageToObfuscatedAge age tinfo = obfage
+ageToObfuscatedAge age tinfo = ETT__.t "Network.TLS.Handshake.Common13.ageToObfuscatedAge" ETT__.$ obfage
   where
     !obfage = age + ageAdd tinfo
 
 obfuscatedAgeToAge :: Second -> TLS13TicketInfo -> Second
-obfuscatedAgeToAge obfage tinfo = age
+obfuscatedAgeToAge obfage tinfo = ETT__.t "Network.TLS.Handshake.Common13.obfuscatedAgeToAge" ETT__.$ age
   where
     !age = obfage - ageAdd tinfo
 
 isAgeValid :: Second -> TLS13TicketInfo -> Bool
-isAgeValid age tinfo = age <= lifetime tinfo * 1000
+isAgeValid age tinfo = ETT__.t "Network.TLS.Handshake.Common13.isAgeValid" ETT__.$ age <= lifetime tinfo * 1000
 
 getAge :: TLS13TicketInfo -> IO Second
-getAge tinfo = do
+getAge tinfo = ETT__.tio "Network.TLS.Handshake.Common13.getAge" ETT__.$ do
     let clientReceiveTime = txrxTime tinfo
     clientSendTime <- getCurrentTimeFromBase
     return $! fromIntegral (clientSendTime - clientReceiveTime) -- milliseconds
 
 checkFreshness :: TLS13TicketInfo -> Second -> IO Bool
-checkFreshness tinfo obfAge = do
+checkFreshness tinfo obfAge = ETT__.tio "Network.TLS.Handshake.Common13.checkFreshness" ETT__.$ do
     serverReceiveTime <- getCurrentTimeFromBase
     let freshness = if expectedArrivalTime > serverReceiveTime
                     then expectedArrivalTime - serverReceiveTime
@@ -302,10 +303,10 @@ checkFreshness tinfo obfAge = do
     isAlive = isAgeValid age tinfo
 
 getCurrentTimeFromBase :: IO Millisecond
-getCurrentTimeFromBase = millisecondsFromBase <$> getUnixTime
+getCurrentTimeFromBase = ETT__.tio "Network.TLS.Handshake.Common13.getCurrentTimeFromBase" ETT__.$ millisecondsFromBase <$> getUnixTime
 
 millisecondsFromBase :: UnixTime -> Millisecond
-millisecondsFromBase (UnixTime (CTime s) us) =
+millisecondsFromBase (UnixTime (CTime s) us) = ETT__.t "Network.TLS.Handshake.Common13.millisecondsFromBase" ETT__.$
     fromIntegral ((s - base) * 1000) + fromIntegral (us `div` 1000)
   where
     base = 1483228800
@@ -314,7 +315,7 @@ millisecondsFromBase (UnixTime (CTime s) us) =
 ----------------------------------------------------------------
 
 getSessionData13 :: Context -> Cipher -> TLS13TicketInfo -> Int -> ByteString -> IO SessionData
-getSessionData13 ctx usedCipher tinfo maxSize psk = do
+getSessionData13 ctx usedCipher tinfo maxSize psk = ETT__.tio "Network.TLS.Handshake.Common13.getSessionData13" ETT__.$ do
     ver   <- usingState_ ctx getVersion
     malpn <- usingState_ ctx getNegotiatedProtocol
     sni   <- usingState_ ctx getClientSNI
@@ -335,7 +336,7 @@ getSessionData13 ctx usedCipher tinfo maxSize psk = do
 ----------------------------------------------------------------
 
 ensureNullCompression :: MonadIO m => CompressionID -> m ()
-ensureNullCompression compression =
+ensureNullCompression compression = ETT__.tm "Network.TLS.Handshake.Common13.ensureNullCompression" ETT__.$
     when (compression /= compressionID nullCompression) $
         throwCore $ Error_Protocol "compression is not allowed in TLS 1.3" IllegalParameter
 
@@ -345,9 +346,9 @@ ensureNullCompression compression =
 -- If Int is 32 bits, 2^31 or larger may be converted into minus numbers.
 safeNonNegative32 :: (Num a, Ord a, FiniteBits a) => a -> a
 safeNonNegative32 x
-  | x <= 0                = 0
-  | finiteBitSize x <= 32 = x
-  | otherwise             = x `min` fromIntegral (maxBound :: Word32)
+  | x <= 0                = ETT__.t "Network.TLS.Handshake.Common13.safeNonNegative32" ETT__.$ 0
+  | finiteBitSize x <= 32 = ETT__.t "Network.TLS.Handshake.Common13.safeNonNegative32" ETT__.$ x
+  | otherwise             = ETT__.t "Network.TLS.Handshake.Common13.safeNonNegative32" ETT__.$ x `min` fromIntegral (maxBound :: Word32)
 ----------------------------------------------------------------
 
 newtype RecvHandshake13M m a = RecvHandshake13M (StateT [Handshake13] m a)
@@ -357,18 +358,18 @@ recvHandshake13 :: MonadIO m
                 => Context
                 -> (Handshake13 -> RecvHandshake13M m a)
                 -> RecvHandshake13M m a
-recvHandshake13 ctx f = getHandshake13 ctx >>= f
+recvHandshake13 ctx f = ETT__.t "Network.TLS.Handshake.Common13.recvHandshake13" ETT__.$ getHandshake13 ctx >>= f
 
 recvHandshake13hash :: MonadIO m
                     => Context
                     -> (ByteString -> Handshake13 -> RecvHandshake13M m a)
                     -> RecvHandshake13M m a
-recvHandshake13hash ctx f = do
+recvHandshake13hash ctx f = ETT__.t "Network.TLS.Handshake.Common13.recvHandshake13hash" ETT__.$ do
     d <- transcriptHash ctx
     getHandshake13 ctx >>= f d
 
 getHandshake13 :: MonadIO m => Context -> RecvHandshake13M m Handshake13
-getHandshake13 ctx = RecvHandshake13M $ do
+getHandshake13 ctx = ETT__.t "Network.TLS.Handshake.Common13.getHandshake13" ETT__.$ RecvHandshake13M $ do
     currentState <- get
     case currentState of
         (h:hs) -> found h hs
@@ -385,7 +386,7 @@ getHandshake13 ctx = RecvHandshake13M $ do
             Left err                   -> throwCore err
 
 runRecvHandshake13 :: MonadIO m => RecvHandshake13M m a -> m a
-runRecvHandshake13 (RecvHandshake13M f) = do
+runRecvHandshake13 (RecvHandshake13M f) = ETT__.tm "Network.TLS.Handshake.Common13.runRecvHandshake13" ETT__.$ do
     (result, new) <- runStateT f []
     unless (null new) $ unexpected "spurious handshake 13" Nothing
     return result
@@ -395,13 +396,13 @@ runRecvHandshake13 (RecvHandshake13M f) = do
 -- some hash/signature combinations have been deprecated in TLS13 and should
 -- not be used
 checkHashSignatureValid13 :: HashAndSignatureAlgorithm -> IO ()
-checkHashSignatureValid13 hs =
+checkHashSignatureValid13 hs = ETT__.tio "Network.TLS.Handshake.Common13.checkHashSignatureValid13" ETT__.$
     unless (isHashSignatureValid13 hs) $
         let msg = "invalid TLS13 hash and signature algorithm: " ++ show hs
          in throwCore $ Error_Protocol msg IllegalParameter
 
 isHashSignatureValid13 :: HashAndSignatureAlgorithm -> Bool
-isHashSignatureValid13 (HashIntrinsic, s) =
+isHashSignatureValid13 (HashIntrinsic, s) = ETT__.t "Network.TLS.Handshake.Common13.isHashSignatureValid13" ETT__.$
     s `elem` [ SignatureRSApssRSAeSHA256
              , SignatureRSApssRSAeSHA384
              , SignatureRSApssRSAeSHA512
@@ -411,9 +412,9 @@ isHashSignatureValid13 (HashIntrinsic, s) =
              , SignatureRSApsspssSHA384
              , SignatureRSApsspssSHA512
              ]
-isHashSignatureValid13 (h, SignatureECDSA) =
+isHashSignatureValid13 (h, SignatureECDSA) = ETT__.t "Network.TLS.Handshake.Common13.isHashSignatureValid13" ETT__.$
     h `elem` [ HashSHA256, HashSHA384, HashSHA512 ]
-isHashSignatureValid13 _ = False
+isHashSignatureValid13 _ = ETT__.t "Network.TLS.Handshake.Common13.isHashSignatureValid13" ETT__.$ False
 
 data CipherChoice = CipherChoice {
     cVersion :: Version
@@ -423,7 +424,7 @@ data CipherChoice = CipherChoice {
   }
 
 makeCipherChoice :: Version -> Cipher -> CipherChoice
-makeCipherChoice ver cipher = CipherChoice ver cipher h zero
+makeCipherChoice ver cipher = ETT__.t "Network.TLS.Handshake.Common13.makeCipherChoice" ETT__.$ CipherChoice ver cipher h zero
   where
     h = cipherHash cipher
     zero = B.replicate (hashDigestSize h) 0
@@ -433,7 +434,7 @@ makeCipherChoice ver cipher = CipherChoice ver cipher h zero
 calculateEarlySecret :: Context -> CipherChoice
                      -> Either ByteString (BaseSecret EarlySecret)
                      -> Bool -> IO (SecretPair EarlySecret)
-calculateEarlySecret ctx choice maux initialized = do
+calculateEarlySecret ctx choice maux initialized = ETT__.tio "Network.TLS.Handshake.Common13.calculateEarlySecret" ETT__.$ do
     hCh <- if initialized then
                transcriptHash ctx
              else do
@@ -451,7 +452,7 @@ calculateEarlySecret ctx choice maux initialized = do
     zero = cZero choice
 
 initEarlySecret :: CipherChoice -> Maybe ByteString -> BaseSecret EarlySecret
-initEarlySecret choice mpsk = BaseSecret sec
+initEarlySecret choice mpsk = ETT__.t "Network.TLS.Handshake.Common13.initEarlySecret" ETT__.$ BaseSecret sec
   where
     sec = hkdfExtract usedHash zero zeroOrPSK
     usedHash = cHash choice
@@ -462,7 +463,7 @@ initEarlySecret choice mpsk = BaseSecret sec
 
 calculateHandshakeSecret :: Context -> CipherChoice -> BaseSecret EarlySecret -> ByteString
                          -> IO (SecretTriple HandshakeSecret)
-calculateHandshakeSecret ctx choice (BaseSecret sec) ecdhe = do
+calculateHandshakeSecret ctx choice (BaseSecret sec) ecdhe = ETT__.tio "Network.TLS.Handshake.Common13.calculateHandshakeSecret" ETT__.$ do
         hChSh <- transcriptHash ctx
         let handshakeSecret = hkdfExtract usedHash (deriveSecret usedHash sec "derived" (hash usedHash "")) ecdhe
         let clientHandshakeSecret = deriveSecret usedHash handshakeSecret "c hs traffic" hChSh
@@ -477,7 +478,7 @@ calculateHandshakeSecret ctx choice (BaseSecret sec) ecdhe = do
 
 calculateApplicationSecret :: Context -> CipherChoice -> BaseSecret HandshakeSecret -> ByteString
                            -> IO (SecretTriple ApplicationSecret)
-calculateApplicationSecret ctx choice (BaseSecret sec) hChSf = do
+calculateApplicationSecret ctx choice (BaseSecret sec) hChSf = ETT__.tio "Network.TLS.Handshake.Common13.calculateApplicationSecret" ETT__.$ do
     let applicationSecret = hkdfExtract usedHash (deriveSecret usedHash sec "derived" (hash usedHash "")) zero
     let clientApplicationSecret0 = deriveSecret usedHash applicationSecret "c ap traffic" hChSf
         serverApplicationSecret0 = deriveSecret usedHash applicationSecret "s ap traffic" hChSf
@@ -494,7 +495,7 @@ calculateApplicationSecret ctx choice (BaseSecret sec) hChSf = do
 
 calculateResumptionSecret :: Context -> CipherChoice -> BaseSecret ApplicationSecret
                           -> IO (BaseSecret ResumptionSecret)
-calculateResumptionSecret ctx choice (BaseSecret sec) = do
+calculateResumptionSecret ctx choice (BaseSecret sec) = ETT__.tio "Network.TLS.Handshake.Common13.calculateResumptionSecret" ETT__.$ do
     hChCf <- transcriptHash ctx
     let resumptionMasterSecret = deriveSecret usedHash sec "res master" hChCf
     return $ BaseSecret resumptionMasterSecret
@@ -502,7 +503,7 @@ calculateResumptionSecret ctx choice (BaseSecret sec) = do
     usedHash = cHash choice
 
 derivePSK :: CipherChoice -> BaseSecret ResumptionSecret -> ByteString -> ByteString
-derivePSK choice (BaseSecret sec) nonce =
+derivePSK choice (BaseSecret sec) nonce = ETT__.t "Network.TLS.Handshake.Common13.derivePSK" ETT__.$
     hkdfExpandLabel usedHash sec "resumption" nonce hashSize
   where
     usedHash = cHash choice
@@ -511,19 +512,19 @@ derivePSK choice (BaseSecret sec) nonce =
 ----------------------------------------------------------------
 
 checkKeyShareKeyLength :: KeyShareEntry -> Bool
-checkKeyShareKeyLength ks = keyShareKeyLength grp == B.length key
+checkKeyShareKeyLength ks = ETT__.t "Network.TLS.Handshake.Common13.checkKeyShareKeyLength" ETT__.$ keyShareKeyLength grp == B.length key
   where
     grp = keyShareEntryGroup ks
     key = keyShareEntryKeyExchange ks
 
 keyShareKeyLength :: Group -> Int
-keyShareKeyLength P256      =   65 -- 32 * 2 + 1
-keyShareKeyLength P384      =   97 -- 48 * 2 + 1
-keyShareKeyLength P521      =  133 -- 66 * 2 + 1
-keyShareKeyLength X25519    =   32
-keyShareKeyLength X448      =   56
-keyShareKeyLength FFDHE2048 =  256
-keyShareKeyLength FFDHE3072 =  384
-keyShareKeyLength FFDHE4096 =  512
-keyShareKeyLength FFDHE6144 =  768
-keyShareKeyLength FFDHE8192 = 1024
+keyShareKeyLength P256      = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$   65 -- 32 * 2 + 1
+keyShareKeyLength P384      = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$   97 -- 48 * 2 + 1
+keyShareKeyLength P521      = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$  133 -- 66 * 2 + 1
+keyShareKeyLength X25519    = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$   32
+keyShareKeyLength X448      = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$   56
+keyShareKeyLength FFDHE2048 = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$  256
+keyShareKeyLength FFDHE3072 = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$  384
+keyShareKeyLength FFDHE4096 = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$  512
+keyShareKeyLength FFDHE6144 = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$  768
+keyShareKeyLength FFDHE8192 = ETT__.t "Network.TLS.Handshake.Common13.keyShareKeyLength" ETT__.$ 1024

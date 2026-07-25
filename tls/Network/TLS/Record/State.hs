@@ -41,6 +41,7 @@ import Network.TLS.Imports
 import Network.TLS.Types
 
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.Tls as ETT__
 
 data CryptState = CryptState
     { cstKey        :: !BulkState
@@ -103,10 +104,10 @@ instance Functor RecordM where
                     Right (a, st2) -> Right (f a, st2)
 
 getRecordOptions :: RecordM RecordOptions
-getRecordOptions = RecordM $ \opt st -> Right (opt, st)
+getRecordOptions = ETT__.tm "Network.TLS.Record.State.getRecordOptions" ETT__.$ RecordM $ \opt st -> Right (opt, st)
 
 getRecordVersion :: RecordM Version
-getRecordVersion = recordVersion <$> getRecordOptions
+getRecordVersion = ETT__.tm "Network.TLS.Record.State.getRecordVersion" ETT__.$ recordVersion <$> getRecordOptions
 
 instance MonadState RecordState RecordM where
     put x = RecordM $ \_  _  -> Right ((), x)
@@ -121,7 +122,7 @@ instance MonadError TLSError RecordM where
                             r        -> r
 
 newRecordState :: RecordState
-newRecordState = RecordState
+newRecordState = ETT__.t "Network.TLS.Record.State.newRecordState" ETT__.$ RecordState
     { stCipher      = Nothing
     , stCompression = nullCompression
     , stCryptLevel  = CryptInitial
@@ -130,21 +131,21 @@ newRecordState = RecordState
     }
 
 incrRecordState :: RecordState -> RecordState
-incrRecordState ts = ts { stMacState = MacState (ms + 1) }
+incrRecordState ts = ETT__.t "Network.TLS.Record.State.incrRecordState" ETT__.$ ts { stMacState = MacState (ms + 1) }
   where (MacState ms) = stMacState ts
 
 setRecordIV :: ByteString -> RecordState -> RecordState
-setRecordIV iv st = st { stCryptState = (stCryptState st) { cstIV = iv } }
+setRecordIV iv st = ETT__.t "Network.TLS.Record.State.setRecordIV" ETT__.$ st { stCryptState = (stCryptState st) { cstIV = iv } }
 
 withCompression :: (Compression -> (Compression, a)) -> RecordM a
-withCompression f = do
+withCompression f = ETT__.tm "Network.TLS.Record.State.withCompression" ETT__.$ do
     st <- get
     let (nc, a) = f $ stCompression st
     put $ st { stCompression = nc }
     return a
 
 computeDigest :: Version -> RecordState -> Header -> ByteString -> (ByteString, RecordState)
-computeDigest ver tstate hdr content = (digest, incrRecordState tstate)
+computeDigest ver tstate hdr content = ETT__.t "Network.TLS.Record.State.computeDigest" ETT__.$ (digest, incrRecordState tstate)
   where digest = macF (cstMacSecret cst) msg
         cst    = stCryptState tstate
         cipher = fromJust "cipher" $ stCipher tstate
@@ -156,7 +157,7 @@ computeDigest ver tstate hdr content = (digest, incrRecordState tstate)
             | otherwise   = (hmac hashA, B.concat [ encodedSeq, encodeHeader hdr, content ])
 
 makeDigest :: Header -> ByteString -> RecordM ByteString
-makeDigest hdr content = do
+makeDigest hdr content = ETT__.tm "Network.TLS.Record.State.makeDigest" ETT__.$ do
     ver <- getRecordVersion
     st <- get
     let (digest, nstate) = computeDigest ver st hdr content
@@ -164,7 +165,7 @@ makeDigest hdr content = do
     return digest
 
 getBulk :: RecordM Bulk
-getBulk = cipherBulk . fromJust "cipher" . stCipher <$> get
+getBulk = ETT__.tm "Network.TLS.Record.State.getBulk" ETT__.$ cipherBulk . fromJust "cipher" . stCipher <$> get
 
 getMacSequence :: RecordM Word64
-getMacSequence = msSequence . stMacState <$> get
+getMacSequence = ETT__.tm "Network.TLS.Record.State.getMacSequence" ETT__.$ msSequence . stMacState <$> get

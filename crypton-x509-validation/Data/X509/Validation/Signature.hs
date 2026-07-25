@@ -29,6 +29,7 @@ import Data.ASN1.Types
 import Data.ByteString (ByteString)
 import Data.X509
 import Data.X509.EC
+import qualified Debug.EulerTrace.CryptonX509Validation as ETT__
 
 -- | A set of possible return from signature verification.
 --
@@ -60,7 +61,7 @@ verifySignedSignature
     => SignedExact a
     -> PubKey
     -> SignatureVerification
-verifySignedSignature signedObj pubKey =
+verifySignedSignature signedObj pubKey = ETT__.t "Data.X509.Validation.Signature.verifySignedSignature" ETT__.$
     verifySignature
         (signedAlg signed)
         pubKey
@@ -80,8 +81,8 @@ verifySignature
     -> ByteString
     -- ^ Signature to verify
     -> SignatureVerification
-verifySignature (SignatureALG_Unknown _) _ _ _ = SignatureFailed SignatureUnimplemented
-verifySignature (SignatureALG hashALG PubKeyALG_RSAPSS) pubkey cdata signature = case verifyF pubkey of
+verifySignature (SignatureALG_Unknown _) _ _ _ = ETT__.t "Data.X509.Validation.Signature.verifySignature" ETT__.$ SignatureFailed SignatureUnimplemented
+verifySignature (SignatureALG hashALG PubKeyALG_RSAPSS) pubkey cdata signature = ETT__.t "Data.X509.Validation.Signature.verifySignature" ETT__.$ case verifyF pubkey of
     Nothing -> SignatureFailed SignatureUnimplemented
     Just f ->
         if f cdata signature
@@ -96,13 +97,13 @@ verifySignature (SignatureALG hashALG PubKeyALG_RSAPSS) pubkey cdata signature =
         | otherwise = Nothing
     verifyF _ = Nothing
 verifySignature (SignatureALG hashALG pubkeyALG) pubkey cdata signature
-    | pubkeyToAlg pubkey == pubkeyALG = case verifyF pubkey of
+    | pubkeyToAlg pubkey == pubkeyALG = ETT__.t "Data.X509.Validation.Signature.verifySignature" ETT__.$ case verifyF pubkey of
         Nothing -> SignatureFailed SignatureUnimplemented
         Just f ->
             if f cdata signature
                 then SignaturePass
                 else SignatureFailed SignatureInvalid
-    | otherwise = SignatureFailed SignaturePubkeyMismatch
+    | otherwise = ETT__.t "Data.X509.Validation.Signature.verifySignature" ETT__.$ SignatureFailed SignaturePubkeyMismatch
   where
     verifyF (PubKeyRSA key) = Just $ rsaVerify hashALG key
     verifyF (PubKeyDSA key)
@@ -137,8 +138,8 @@ verifySignature (SignatureALG hashALG pubkeyALG) pubkey cdata signature
     rsaVerify HashSHA384 = RSA.verify (Just SHA384)
     rsaVerify HashSHA512 = RSA.verify (Just SHA512)
 verifySignature (SignatureALG_IntrinsicHash pubkeyALG) pubkey cdata signature
-    | pubkeyToAlg pubkey == pubkeyALG = doVerify pubkey
-    | otherwise = SignatureFailed SignaturePubkeyMismatch
+    | pubkeyToAlg pubkey == pubkeyALG = ETT__.t "Data.X509.Validation.Signature.verifySignature" ETT__.$ doVerify pubkey
+    | otherwise = ETT__.t "Data.X509.Validation.Signature.verifySignature" ETT__.$ SignatureFailed SignaturePubkeyMismatch
   where
     doVerify (PubKeyEd25519 key) = eddsa Ed25519.verify Ed25519.signature key
     doVerify (PubKeyEd448 key) = eddsa Ed448.verify Ed448.signature key
@@ -152,7 +153,7 @@ verifySignature (SignatureALG_IntrinsicHash pubkeyALG) pubkey cdata signature
             CryptoFailed _ -> SignatureFailed SignatureInvalid
 
 verifyECDSA :: HashALG -> PubKeyEC -> Maybe (ByteString -> ByteString -> Bool)
-verifyECDSA hashALG key =
+verifyECDSA hashALG key = ETT__.t "Data.X509.Validation.Signature.verifyECDSA" ETT__.$
     ecPubKeyCurveName key >>= verifyCurve (pubkeyEC_pub key)
   where
     verifyCurve pub curveName = Just $ \msg sigBS ->

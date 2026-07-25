@@ -32,6 +32,7 @@ import Foreign.Ptr
 
 import Crypto.Internal.Compat
 import Crypto.Internal.Imports
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | The encryption state for RC4
 --
@@ -75,7 +76,7 @@ initialize
     -- ^ The key
     -> State
     -- ^ The RC4 context with the key mixed in
-initialize key = unsafeDoIO $ do
+initialize key = ETT__.t "Crypto.Cipher.RC4.initialize" ETT__.$ unsafeDoIO $ do
     st <- B.alloc 264 $ \stPtr ->
         B.withByteArray key $ \keyPtr -> c_rc4_init keyPtr (fromIntegral $ B.length key) (castPtr stPtr)
     return $ State st
@@ -83,7 +84,7 @@ initialize key = unsafeDoIO $ do
 -- | generate the next len bytes of the rc4 stream without combining
 -- it to anything.
 generate :: ByteArray ba => State -> Int -> (State, ba)
-generate ctx len = combine ctx (B.zero len)
+generate ctx len = ETT__.t "Crypto.Cipher.RC4.generate" ETT__.$ combine ctx (B.zero len)
 
 -- | RC4 xor combination of the rc4 stream with an input
 combine
@@ -94,7 +95,7 @@ combine
     -- ^ input
     -> (State, ba)
     -- ^ new rc4 context, and the output
-combine (State prevSt) clearText = unsafeDoIO $
+combine (State prevSt) clearText = ETT__.t "Crypto.Cipher.RC4.combine" ETT__.$ unsafeDoIO $
     B.allocRet len $ \outptr ->
         B.withByteArray clearText $ \clearPtr -> do
             st <- B.copy prevSt $ \stPtr ->

@@ -13,6 +13,7 @@ module Network.TLS.RNG
 
 import Crypto.Random.Types
 import Crypto.Random
+import qualified Debug.EulerTrace.Tls as ETT__
 
 newtype StateRNG = StateRNG ChaChaDRG
     deriving (DRG)
@@ -23,7 +24,7 @@ instance Show StateRNG where
 withTLSRNG :: StateRNG
            -> MonadPseudoRandom StateRNG a
            -> (a, StateRNG)
-withTLSRNG rng f = withDRG rng f
+withTLSRNG rng f = ETT__.t "Network.TLS.RNG.withTLSRNG" ETT__.$ withDRG rng f
 
 newStateRNG :: Seed -> StateRNG
-newStateRNG seed = StateRNG $ drgNewSeed seed
+newStateRNG seed = ETT__.t "Network.TLS.RNG.newStateRNG" ETT__.$ StateRNG $ drgNewSeed seed

@@ -42,6 +42,7 @@ import Network.TLS.Imports
 import Network.TLS.Types (HostName)
 import Data.Default.Class
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.Tls as ETT__
 
 
 type CommonParams = (Supported, Shared, DebugParams)
@@ -71,7 +72,7 @@ data DebugParams = DebugParams
     }
 
 defaultDebugParams :: DebugParams
-defaultDebugParams = DebugParams
+defaultDebugParams = ETT__.t "Network.TLS.Parameters.defaultDebugParams" ETT__.$ DebugParams
     { debugSeed = Nothing
     , debugPrintSeed = const (return ())
     , debugVersionForced = Nothing
@@ -129,7 +130,7 @@ data ClientParams = ClientParams
     } deriving (Show)
 
 defaultParamsClient :: HostName -> ByteString -> ClientParams
-defaultParamsClient serverName serverId = ClientParams
+defaultParamsClient serverName serverId = ETT__.t "Network.TLS.Parameters.defaultParamsClient" ETT__.$ ClientParams
     { clientUseMaxFragmentLength    = Nothing
     , clientServerIdentification    = (serverName, serverId)
     , clientUseServerNameIndication = True
@@ -186,7 +187,7 @@ data ServerParams = ServerParams
     } deriving (Show)
 
 defaultParamsServer :: ServerParams
-defaultParamsServer = ServerParams
+defaultParamsServer = ETT__.t "Network.TLS.Parameters.defaultParamsServer" ETT__.$ ServerParams
     { serverWantClientCert   = False
     , serverCACertificates   = []
     , serverDHEParams        = Nothing
@@ -331,7 +332,7 @@ data EMSMode
     deriving (Show,Eq)
 
 defaultSupported :: Supported
-defaultSupported = Supported
+defaultSupported = ETT__.t "Network.TLS.Parameters.defaultSupported" ETT__.$ Supported
     { supportedVersions       = [TLS13,TLS12,TLS11,TLS10]
     , supportedCiphers        = []
     , supportedCompressions   = [nullCompression]
@@ -428,12 +429,12 @@ data GroupUsage =
 
 defaultGroupUsage :: Int -> DHParams -> DHPublic -> IO GroupUsage
 defaultGroupUsage minBits params public
-    | even $ dhParamsGetP params                   = return $ GroupUsageUnsupported "invalid odd prime"
-    | not $ dhValid params (dhParamsGetG params)   = return $ GroupUsageUnsupported "invalid generator"
-    | not $ dhValid params (dhUnwrapPublic public) = return   GroupUsageInvalidPublic
+    | even $ dhParamsGetP params                   = ETT__.t "Network.TLS.Parameters.defaultGroupUsage" ETT__.$ return $ GroupUsageUnsupported "invalid odd prime"
+    | not $ dhValid params (dhParamsGetG params)   = ETT__.t "Network.TLS.Parameters.defaultGroupUsage" ETT__.$ return $ GroupUsageUnsupported "invalid generator"
+    | not $ dhValid params (dhUnwrapPublic public) = ETT__.t "Network.TLS.Parameters.defaultGroupUsage" ETT__.$ return   GroupUsageInvalidPublic
     -- To prevent Logjam attack
-    | dhParamsGetBits params < minBits             = return   GroupUsageInsecure
-    | otherwise                                    = return   GroupUsageValid
+    | dhParamsGetBits params < minBits             = ETT__.t "Network.TLS.Parameters.defaultGroupUsage" ETT__.$ return   GroupUsageInsecure
+    | otherwise                                    = ETT__.t "Network.TLS.Parameters.defaultGroupUsage" ETT__.$ return   GroupUsageValid
 
 -- | Type for 'onCertificateRequest'. This type synonym is to make
 --   document readable.
@@ -537,7 +538,7 @@ data ClientHooks = ClientHooks
     }
 
 defaultClientHooks :: ClientHooks
-defaultClientHooks = ClientHooks
+defaultClientHooks = ETT__.t "Network.TLS.Parameters.defaultClientHooks" ETT__.$ ClientHooks
     { onCertificateRequest = \ _ -> return Nothing
     , onServerCertificate  = validateDefault
     , onSuggestALPN        = return Nothing
@@ -620,7 +621,7 @@ data ServerHooks = ServerHooks
     }
 
 defaultServerHooks :: ServerHooks
-defaultServerHooks = ServerHooks
+defaultServerHooks = ETT__.t "Network.TLS.Parameters.defaultServerHooks" ETT__.$ ServerHooks
     { onClientCertificate    = \_ -> return $ CertificateUsageReject $ CertificateRejectOther "no client certificates expected"
     , onUnverifiedClientCert = return False
     , onCipherChoosing       = \_ -> head

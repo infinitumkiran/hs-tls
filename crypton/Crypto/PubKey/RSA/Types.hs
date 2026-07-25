@@ -22,6 +22,7 @@ module Crypto.PubKey.RSA.Types (
 
 import Crypto.Internal.Imports
 import Data.Data
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Blinder which is used to obfuscate the timing
 -- of the decryption primitive (used by decryption and signing).
@@ -96,15 +97,15 @@ instance NFData PrivateKey where
 
 -- | get the size in bytes from a private key
 private_size :: PrivateKey -> Int
-private_size = public_size . private_pub
+private_size = ETT__.t "Crypto.PubKey.RSA.Types.private_size" ETT__.$ public_size . private_pub
 
 -- | get n from a private key
 private_n :: PrivateKey -> Integer
-private_n = public_n . private_pub
+private_n = ETT__.t "Crypto.PubKey.RSA.Types.private_n" ETT__.$ public_n . private_pub
 
 -- | get e from a private key
 private_e :: PrivateKey -> Integer
-private_e = public_e . private_pub
+private_e = ETT__.t "Crypto.PubKey.RSA.Types.private_e" ETT__.$ public_e . private_pub
 
 -- | Represent RSA KeyPair
 --
@@ -114,8 +115,8 @@ newtype KeyPair = KeyPair PrivateKey
 
 -- | Public key of a RSA KeyPair
 toPublicKey :: KeyPair -> PublicKey
-toPublicKey (KeyPair priv) = private_pub priv
+toPublicKey (KeyPair priv) = ETT__.t "Crypto.PubKey.RSA.Types.toPublicKey" ETT__.$ private_pub priv
 
 -- | Private key of a RSA KeyPair
 toPrivateKey :: KeyPair -> PrivateKey
-toPrivateKey (KeyPair priv) = priv
+toPrivateKey (KeyPair priv) = ETT__.t "Crypto.PubKey.RSA.Types.toPrivateKey" ETT__.$ priv

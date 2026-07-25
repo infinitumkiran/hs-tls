@@ -84,6 +84,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import           Data.ByteArray (ByteArrayAccess)
 import qualified Data.ByteArray as B (convert)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 data CurrentParams = CurrentParams
     { cParamsVersion     :: Version                     -- ^ current protocol version
@@ -92,7 +93,7 @@ data CurrentParams = CurrentParams
 
 {- marshall helpers -}
 getVersion :: Get Version
-getVersion = do
+getVersion = ETT__.tm "Network.TLS.Packet.getVersion" ETT__.$ do
     major <- getWord8
     minor <- getWord8
     case verOfNum (major, minor) of
@@ -100,27 +101,27 @@ getVersion = do
         Just v  -> return v
 
 getBinaryVersion :: Get (Maybe Version)
-getBinaryVersion = do
+getBinaryVersion = ETT__.tm "Network.TLS.Packet.getBinaryVersion" ETT__.$ do
     major <- getWord8
     minor <- getWord8
     return $ verOfNum (major, minor)
 
 putBinaryVersion :: Version -> Put
-putBinaryVersion ver = putWord8 major >> putWord8 minor
+putBinaryVersion ver = ETT__.t "Network.TLS.Packet.putBinaryVersion" ETT__.$ putWord8 major >> putWord8 minor
   where (major, minor) = numericalVer ver
 
 getHeaderType :: Get ProtocolType
-getHeaderType = do
+getHeaderType = ETT__.tm "Network.TLS.Packet.getHeaderType" ETT__.$ do
     ty <- getWord8
     case valToType ty of
         Nothing -> fail ("invalid header type: " ++ show ty)
         Just t  -> return t
 
 putHeaderType :: ProtocolType -> Put
-putHeaderType = putWord8 . valOfType
+putHeaderType = ETT__.t "Network.TLS.Packet.putHeaderType" ETT__.$ putWord8 . valOfType
 
 getHandshakeType :: Get HandshakeType
-getHandshakeType = do
+getHandshakeType = ETT__.tm "Network.TLS.Packet.getHandshakeType" ETT__.$ do
     ty <- getWord8
     case valToType ty of
         Nothing -> fail ("invalid handshake type: " ++ show ty)
@@ -130,31 +131,31 @@ getHandshakeType = do
  - decode and encode headers
  -}
 decodeHeader :: ByteString -> Either TLSError Header
-decodeHeader = runGetErr "header" $ Header <$> getHeaderType <*> getVersion <*> getWord16
+decodeHeader = ETT__.t "Network.TLS.Packet.decodeHeader" ETT__.$ runGetErr "header" $ Header <$> getHeaderType <*> getVersion <*> getWord16
 
 decodeDeprecatedHeaderLength :: ByteString -> Either TLSError Word16
-decodeDeprecatedHeaderLength = runGetErr "deprecatedheaderlength" $ subtract 0x8000 <$> getWord16
+decodeDeprecatedHeaderLength = ETT__.t "Network.TLS.Packet.decodeDeprecatedHeaderLength" ETT__.$ runGetErr "deprecatedheaderlength" $ subtract 0x8000 <$> getWord16
 
 decodeDeprecatedHeader :: Word16 -> ByteString -> Either TLSError Header
-decodeDeprecatedHeader size =
+decodeDeprecatedHeader size = ETT__.t "Network.TLS.Packet.decodeDeprecatedHeader" ETT__.$
     runGetErr "deprecatedheader" $ do
         1 <- getWord8
         version <- getVersion
         return $ Header ProtocolType_DeprecatedHandshake version size
 
 encodeHeader :: Header -> ByteString
-encodeHeader (Header pt ver len) = runPut (putHeaderType pt >> putBinaryVersion ver >> putWord16 len)
+encodeHeader (Header pt ver len) = ETT__.t "Network.TLS.Packet.encodeHeader" ETT__.$ runPut (putHeaderType pt >> putBinaryVersion ver >> putWord16 len)
         {- FIXME check len <= 2^14 -}
 
 encodeHeaderNoVer :: Header -> ByteString
-encodeHeaderNoVer (Header pt _ len) = runPut (putHeaderType pt >> putWord16 len)
+encodeHeaderNoVer (Header pt _ len) = ETT__.t "Network.TLS.Packet.encodeHeaderNoVer" ETT__.$ runPut (putHeaderType pt >> putWord16 len)
         {- FIXME check len <= 2^14 -}
 
 {-
  - decode and encode ALERT
  -}
 decodeAlert :: Get (AlertLevel, AlertDescription)
-decodeAlert = do
+decodeAlert = ETT__.tm "Network.TLS.Packet.decodeAlert" ETT__.$ do
     al <- getWord8
     ad <- getWord8
     case (valToType al, valToType ad) of
@@ -163,7 +164,7 @@ decodeAlert = do
         (_, Nothing)     -> fail "cannot decode alert description"
 
 decodeAlerts :: ByteString -> Either TLSError [(AlertLevel, AlertDescription)]
-decodeAlerts = runGetErr "alerts" loop
+decodeAlerts = ETT__.t "Network.TLS.Packet.decodeAlerts" ETT__.$ runGetErr "alerts" loop
   where loop = do
             r <- remaining
             if r == 0
@@ -171,18 +172,18 @@ decodeAlerts = runGetErr "alerts" loop
                 else (:) <$> decodeAlert <*> loop
 
 encodeAlerts :: [(AlertLevel, AlertDescription)] -> ByteString
-encodeAlerts l = runPut $ mapM_ encodeAlert l
+encodeAlerts l = ETT__.t "Network.TLS.Packet.encodeAlerts" ETT__.$ runPut $ mapM_ encodeAlert l
   where encodeAlert (al, ad) = putWord8 (valOfType al) >> putWord8 (valOfType ad)
 
 {- decode and encode HANDSHAKE -}
 decodeHandshakeRecord :: ByteString -> GetResult (HandshakeType, ByteString)
-decodeHandshakeRecord = runGet "handshake-record" $ do
+decodeHandshakeRecord = ETT__.t "Network.TLS.Packet.decodeHandshakeRecord" ETT__.$ runGet "handshake-record" $ do
     ty      <- getHandshakeType
     content <- getOpaque24
     return (ty, content)
 
 decodeHandshake :: CurrentParams -> HandshakeType -> ByteString -> Either TLSError Handshake
-decodeHandshake cp ty = runGetErr ("handshake[" ++ show ty ++ "]") $ case ty of
+decodeHandshake cp ty = ETT__.t "Network.TLS.Packet.decodeHandshake" ETT__.$ runGetErr ("handshake[" ++ show ty ++ "]") $ case ty of
     HandshakeType_HelloRequest    -> decodeHelloRequest
     HandshakeType_ClientHello     -> decodeClientHello
     HandshakeType_ServerHello     -> decodeServerHello
@@ -195,7 +196,7 @@ decodeHandshake cp ty = runGetErr ("handshake[" ++ show ty ++ "]") $ case ty of
     HandshakeType_Finished        -> decodeFinished
 
 decodeDeprecatedHandshake :: ByteString -> Either TLSError Handshake
-decodeDeprecatedHandshake b = runGetErr "deprecatedhandshake" getDeprecated b
+decodeDeprecatedHandshake b = ETT__.t "Network.TLS.Packet.decodeDeprecatedHandshake" ETT__.$ runGetErr "deprecatedhandshake" getDeprecated b
   where getDeprecated = do
             1 <- getWord8
             ver <- getVersion
@@ -217,10 +218,10 @@ decodeDeprecatedHandshake b = runGetErr "deprecatedhandshake" getDeprecated b
         getChallenge len = ClientRandom . B.append (B.replicate (32 - len) 0) <$> getBytes len
 
 decodeHelloRequest :: Get Handshake
-decodeHelloRequest = return HelloRequest
+decodeHelloRequest = ETT__.tm "Network.TLS.Packet.decodeHelloRequest" ETT__.$ return HelloRequest
 
 decodeClientHello :: Get Handshake
-decodeClientHello = do
+decodeClientHello = ETT__.tm "Network.TLS.Packet.decodeClientHello" ETT__.$ do
     ver          <- getVersion
     random       <- getClientRandom32
     session      <- getSession
@@ -236,7 +237,7 @@ decodeClientHello = do
     return $ ClientHello ver random session ciphers compressions exts Nothing
 
 decodeServerHello :: Get Handshake
-decodeServerHello = do
+decodeServerHello = ETT__.tm "Network.TLS.Packet.decodeServerHello" ETT__.$ do
     ver           <- getVersion
     random        <- getServerRandom32
     session       <- getSession
@@ -249,10 +250,10 @@ decodeServerHello = do
     return $ ServerHello ver random session cipherid compressionid exts
 
 decodeServerHelloDone :: Get Handshake
-decodeServerHelloDone = return ServerHelloDone
+decodeServerHelloDone = ETT__.tm "Network.TLS.Packet.decodeServerHelloDone" ETT__.$ return ServerHelloDone
 
 decodeCertificates :: Get Handshake
-decodeCertificates = do
+decodeCertificates = ETT__.tm "Network.TLS.Packet.decodeCertificates" ETT__.$ do
     certsRaw <- CertificateChainRaw <$> (getWord24 >>= \len -> getList (fromIntegral len) getCertRaw)
     case decodeCertificateChain certsRaw of
         Left (i, s) -> fail ("error certificate parsing " ++ show i ++ ":" ++ s)
@@ -260,10 +261,10 @@ decodeCertificates = do
   where getCertRaw = getOpaque24 >>= \cert -> return (3 + B.length cert, cert)
 
 decodeFinished :: Get Handshake
-decodeFinished = Finished <$> (remaining >>= getBytes)
+decodeFinished = ETT__.tm "Network.TLS.Packet.decodeFinished" ETT__.$ Finished <$> (remaining >>= getBytes)
 
 decodeCertRequest :: CurrentParams -> Get Handshake
-decodeCertRequest cp = do
+decodeCertRequest cp = ETT__.tm "Network.TLS.Packet.decodeCertRequest" ETT__.$ do
     mcertTypes <- map (valToType . fromIntegral) <$> getWords8
     certTypes <- mapM (fromJustM "decodeCertRequest") mcertTypes
     sigHashAlgs <- if cParamsVersion cp >= TLS12
@@ -274,7 +275,7 @@ decodeCertRequest cp = do
 
 -- | Decode a list CA distinguished names
 getDNames :: Get [DistinguishedName]
-getDNames = do
+getDNames = ETT__.tm "Network.TLS.Packet.getDNames" ETT__.$ do
     dNameLen <- getWord16
     -- FIXME: Decide whether to remove this check completely or to make it an option.
     -- when (cParamsVersion cp < TLS12 && dNameLen < 3) $ fail "certrequest distinguishname not of the correct size"
@@ -287,10 +288,10 @@ getDNames = do
         return (2 + B.length dName, dn)
 
 decodeCertVerify :: CurrentParams -> Get Handshake
-decodeCertVerify cp = CertVerify <$> getDigitallySigned (cParamsVersion cp)
+decodeCertVerify cp = ETT__.tm "Network.TLS.Packet.decodeCertVerify" ETT__.$ CertVerify <$> getDigitallySigned (cParamsVersion cp)
 
 decodeClientKeyXchg :: CurrentParams -> Get Handshake
-decodeClientKeyXchg cp = -- case  ClientKeyXchg <$> (remaining >>= getBytes)
+decodeClientKeyXchg cp = ETT__.tm "Network.TLS.Packet.decodeClientKeyXchg" ETT__.$ -- case  ClientKeyXchg <$> (remaining >>= getBytes)
     case cParamsKeyXchgType cp of
         Nothing  -> error "no client key exchange type"
         Just cke -> ClientKeyXchg <$> parseCKE cke
@@ -305,19 +306,19 @@ decodeClientKeyXchg cp = -- case  ClientKeyXchg <$> (remaining >>= getBytes)
         parseClientECDHPublic = CKX_ECDH <$> getOpaque8
 
 decodeServerKeyXchg_DH :: Get ServerDHParams
-decodeServerKeyXchg_DH = getServerDHParams
+decodeServerKeyXchg_DH = ETT__.tm "Network.TLS.Packet.decodeServerKeyXchg_DH" ETT__.$ getServerDHParams
 
 -- We don't support ECDH_Anon at this moment
 -- decodeServerKeyXchg_ECDH :: Get ServerECDHParams
 
 decodeServerKeyXchg_RSA :: Get ServerRSAParams
-decodeServerKeyXchg_RSA = ServerRSAParams <$> getInteger16 -- modulus
+decodeServerKeyXchg_RSA = ETT__.tm "Network.TLS.Packet.decodeServerKeyXchg_RSA" ETT__.$ ServerRSAParams <$> getInteger16 -- modulus
                                           <*> getInteger16 -- exponent
 
 decodeServerKeyXchgAlgorithmData :: Version
                                  -> CipherKeyExchangeType
                                  -> Get ServerKeyXchgAlgorithmData
-decodeServerKeyXchgAlgorithmData ver cke = toCKE
+decodeServerKeyXchgAlgorithmData ver cke = ETT__.tm "Network.TLS.Packet.decodeServerKeyXchgAlgorithmData" ETT__.$ toCKE
   where toCKE = case cke of
             CipherKeyExchange_RSA     -> SKX_RSA . Just <$> decodeServerKeyXchg_RSA
             CipherKeyExchange_DH_Anon -> SKX_DH_Anon <$> decodeServerKeyXchg_DH
@@ -342,13 +343,13 @@ decodeServerKeyXchgAlgorithmData ver cke = toCKE
                 return $ SKX_Unknown bs
 
 decodeServerKeyXchg :: CurrentParams -> Get Handshake
-decodeServerKeyXchg cp =
+decodeServerKeyXchg cp = ETT__.tm "Network.TLS.Packet.decodeServerKeyXchg" ETT__.$
     case cParamsKeyXchgType cp of
         Just cke -> ServerKeyXchg <$> decodeServerKeyXchgAlgorithmData (cParamsVersion cp) cke
         Nothing  -> ServerKeyXchg . SKX_Unparsed <$> (remaining >>= getBytes)
 
 encodeHandshake :: Handshake -> ByteString
-encodeHandshake o =
+encodeHandshake o = ETT__.t "Network.TLS.Packet.encodeHandshake" ETT__.$
     let content = runPut $ encodeHandshakeContent o in
     let len = B.length content in
     let header = case o of
@@ -357,13 +358,13 @@ encodeHandshake o =
     B.concat [ header, content ]
 
 encodeHandshakeHeader :: HandshakeType -> Int -> Put
-encodeHandshakeHeader ty len = putWord8 (valOfType ty) >> putWord24 len
+encodeHandshakeHeader ty len = ETT__.t "Network.TLS.Packet.encodeHandshakeHeader" ETT__.$ putWord8 (valOfType ty) >> putWord24 len
 
 encodeHandshakeContent :: Handshake -> Put
 
-encodeHandshakeContent (ClientHello _ _ _ _ _ _ (Just deprecated)) = do
+encodeHandshakeContent (ClientHello _ _ _ _ _ _ (Just deprecated)) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ do
     putBytes deprecated
-encodeHandshakeContent (ClientHello version random session cipherIDs compressionIDs exts Nothing) = do
+encodeHandshakeContent (ClientHello version random session cipherIDs compressionIDs exts Nothing) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ do
     putBinaryVersion version
     putClientRandom32 random
     putSession session
@@ -372,7 +373,7 @@ encodeHandshakeContent (ClientHello version random session cipherIDs compression
     putExtensions exts
     return ()
 
-encodeHandshakeContent (ServerHello version random session cipherid compressionID exts) = do
+encodeHandshakeContent (ServerHello version random session cipherid compressionID exts) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ do
     putBinaryVersion version
     putServerRandom32 random
     putSession session
@@ -381,16 +382,16 @@ encodeHandshakeContent (ServerHello version random session cipherid compressionI
     putExtensions exts
     return ()
 
-encodeHandshakeContent (Certificates cc) = putOpaque24 (runPut $ mapM_ putOpaque24 certs)
+encodeHandshakeContent (Certificates cc) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ putOpaque24 (runPut $ mapM_ putOpaque24 certs)
   where (CertificateChainRaw certs) = encodeCertificateChain cc
 
-encodeHandshakeContent (ClientKeyXchg ckx) = do
+encodeHandshakeContent (ClientKeyXchg ckx) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ do
     case ckx of
         CKX_RSA encryptedPreMaster -> putBytes encryptedPreMaster
         CKX_DH clientDHPublic      -> putInteger16 $ dhUnwrapPublic clientDHPublic
         CKX_ECDH bytes             -> putOpaque8 bytes
 
-encodeHandshakeContent (ServerKeyXchg skg) =
+encodeHandshakeContent (ServerKeyXchg skg) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$
     case skg of
         SKX_RSA _              -> error "encodeHandshakeContent SKX_RSA not implemented"
         SKX_DH_Anon params     -> putServerDHParams params
@@ -401,25 +402,25 @@ encodeHandshakeContent (ServerKeyXchg skg) =
         SKX_Unparsed bytes     -> putBytes bytes
         _                      -> error ("encodeHandshakeContent: cannot handle: " ++ show skg)
 
-encodeHandshakeContent HelloRequest    = return ()
-encodeHandshakeContent ServerHelloDone = return ()
+encodeHandshakeContent HelloRequest    = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ return ()
+encodeHandshakeContent ServerHelloDone = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ return ()
 
-encodeHandshakeContent (CertRequest certTypes sigAlgs certAuthorities) = do
+encodeHandshakeContent (CertRequest certTypes sigAlgs certAuthorities) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ do
     putWords8 (map valOfType certTypes)
     case sigAlgs of
         Nothing -> return ()
         Just l  -> putWords16 $ map (\(x,y) -> fromIntegral (valOfType x) * 256 + fromIntegral (valOfType y)) l
     putDNames certAuthorities
 
-encodeHandshakeContent (CertVerify digitallySigned) = putDigitallySigned digitallySigned
+encodeHandshakeContent (CertVerify digitallySigned) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ putDigitallySigned digitallySigned
 
-encodeHandshakeContent (Finished opaque) = putBytes opaque
+encodeHandshakeContent (Finished opaque) = ETT__.t "Network.TLS.Packet.encodeHandshakeContent" ETT__.$ putBytes opaque
 
 ------------------------------------------------------------
 
 -- | Encode a list of distinguished names.
 putDNames :: [DistinguishedName] -> Put
-putDNames dnames = do
+putDNames dnames = ETT__.t "Network.TLS.Packet.putDNames" ETT__.$ do
     enc <- mapM encodeCA dnames
     let totLength = sum $ map ((+) 2 . B.length) enc
     putWord16 (fromIntegral totLength)
@@ -430,37 +431,37 @@ putDNames dnames = do
 
 {- FIXME make sure it return error if not 32 available -}
 getRandom32 :: Get ByteString
-getRandom32 = getBytes 32
+getRandom32 = ETT__.tm "Network.TLS.Packet.getRandom32" ETT__.$ getBytes 32
 
 getServerRandom32 :: Get ServerRandom
-getServerRandom32 = ServerRandom <$> getRandom32
+getServerRandom32 = ETT__.tm "Network.TLS.Packet.getServerRandom32" ETT__.$ ServerRandom <$> getRandom32
 
 getClientRandom32 :: Get ClientRandom
-getClientRandom32 = ClientRandom <$> getRandom32
+getClientRandom32 = ETT__.tm "Network.TLS.Packet.getClientRandom32" ETT__.$ ClientRandom <$> getRandom32
 
 putRandom32 :: ByteString -> Put
-putRandom32 = putBytes
+putRandom32 = ETT__.t "Network.TLS.Packet.putRandom32" ETT__.$ putBytes
 
 putClientRandom32 :: ClientRandom -> Put
-putClientRandom32 (ClientRandom r) = putRandom32 r
+putClientRandom32 (ClientRandom r) = ETT__.t "Network.TLS.Packet.putClientRandom32" ETT__.$ putRandom32 r
 
 putServerRandom32 :: ServerRandom -> Put
-putServerRandom32 (ServerRandom r) = putRandom32 r
+putServerRandom32 (ServerRandom r) = ETT__.t "Network.TLS.Packet.putServerRandom32" ETT__.$ putRandom32 r
 
 getSession :: Get Session
-getSession = do
+getSession = ETT__.tm "Network.TLS.Packet.getSession" ETT__.$ do
     len8 <- getWord8
     case fromIntegral len8 of
         0   -> return $ Session Nothing
         len -> Session . Just <$> getBytes len
 
 putSession :: Session -> Put
-putSession (Session Nothing)  = putWord8 0
-putSession (Session (Just s)) = putOpaque8 s
+putSession (Session Nothing)  = ETT__.t "Network.TLS.Packet.putSession" ETT__.$ putWord8 0
+putSession (Session (Just s)) = ETT__.t "Network.TLS.Packet.putSession" ETT__.$ putOpaque8 s
 
 getExtensions :: Int -> Get [ExtensionRaw]
-getExtensions 0   = return []
-getExtensions len = do
+getExtensions 0   = ETT__.t "Network.TLS.Packet.getExtensions" ETT__.$ return []
+getExtensions len = ETT__.tm "Network.TLS.Packet.getExtensions" ETT__.$ do
     extty <- getWord16
     extdatalen <- getWord16
     extdata <- getBytes $ fromIntegral extdatalen
@@ -468,31 +469,31 @@ getExtensions len = do
     return $ ExtensionRaw extty extdata : extxs
 
 putExtension :: ExtensionRaw -> Put
-putExtension (ExtensionRaw ty l) = putWord16 ty >> putOpaque16 l
+putExtension (ExtensionRaw ty l) = ETT__.t "Network.TLS.Packet.putExtension" ETT__.$ putWord16 ty >> putOpaque16 l
 
 putExtensions :: [ExtensionRaw] -> Put
-putExtensions [] = return ()
-putExtensions es = putOpaque16 (runPut $ mapM_ putExtension es)
+putExtensions [] = ETT__.t "Network.TLS.Packet.putExtensions" ETT__.$ return ()
+putExtensions es = ETT__.t "Network.TLS.Packet.putExtensions" ETT__.$ putOpaque16 (runPut $ mapM_ putExtension es)
 
 getSignatureHashAlgorithm :: Get HashAndSignatureAlgorithm
-getSignatureHashAlgorithm = do
+getSignatureHashAlgorithm = ETT__.tm "Network.TLS.Packet.getSignatureHashAlgorithm" ETT__.$ do
     h <- (valToType <$> getWord8) >>= fromJustM "getSignatureHashAlgorithm"
     s <- (valToType <$> getWord8) >>= fromJustM "getSignatureHashAlgorithm"
     return (h,s)
 
 putSignatureHashAlgorithm :: HashAndSignatureAlgorithm -> Put
-putSignatureHashAlgorithm (h,s) =
+putSignatureHashAlgorithm (h,s) = ETT__.t "Network.TLS.Packet.putSignatureHashAlgorithm" ETT__.$
     putWord8 (valOfType h) >> putWord8 (valOfType s)
 
 getServerDHParams :: Get ServerDHParams
-getServerDHParams = ServerDHParams <$> getBigNum16 <*> getBigNum16 <*> getBigNum16
+getServerDHParams = ETT__.tm "Network.TLS.Packet.getServerDHParams" ETT__.$ ServerDHParams <$> getBigNum16 <*> getBigNum16 <*> getBigNum16
 
 putServerDHParams :: ServerDHParams -> Put
-putServerDHParams (ServerDHParams p g y) = mapM_ putBigNum16 [p,g,y]
+putServerDHParams (ServerDHParams p g y) = ETT__.t "Network.TLS.Packet.putServerDHParams" ETT__.$ mapM_ putBigNum16 [p,g,y]
 
 -- RFC 4492 Section 5.4 Server Key Exchange
 getServerECDHParams :: Get ServerECDHParams
-getServerECDHParams = do
+getServerECDHParams = ETT__.tm "Network.TLS.Packet.getServerECDHParams" ETT__.$ do
     curveType <- getWord8
     case curveType of
         3 -> do               -- ECParameters ECCurveType: curve name type
@@ -509,19 +510,19 @@ getServerECDHParams = do
 
 -- RFC 4492 Section 5.4 Server Key Exchange
 putServerECDHParams :: ServerECDHParams -> Put
-putServerECDHParams (ServerECDHParams grp grppub) = do
+putServerECDHParams (ServerECDHParams grp grppub) = ETT__.t "Network.TLS.Packet.putServerECDHParams" ETT__.$ do
     putWord8 3                            -- ECParameters ECCurveType
     putWord16 $ fromEnumSafe16 grp        -- ECParameters NamedCurve
     putOpaque8 $ encodeGroupPublic grppub -- ECPoint
 
 getDigitallySigned :: Version -> Get DigitallySigned
 getDigitallySigned ver
-    | ver >= TLS12 = DigitallySigned <$> (Just <$> getSignatureHashAlgorithm)
+    | ver >= TLS12 = ETT__.t "Network.TLS.Packet.getDigitallySigned" ETT__.$ DigitallySigned <$> (Just <$> getSignatureHashAlgorithm)
                                      <*> getOpaque16
-    | otherwise    = DigitallySigned Nothing <$> getOpaque16
+    | otherwise    = ETT__.t "Network.TLS.Packet.getDigitallySigned" ETT__.$ DigitallySigned Nothing <$> getOpaque16
 
 putDigitallySigned :: DigitallySigned -> Put
-putDigitallySigned (DigitallySigned mhash sig) =
+putDigitallySigned (DigitallySigned mhash sig) = ETT__.t "Network.TLS.Packet.putDigitallySigned" ETT__.$
     maybe (return ()) putSignatureHashAlgorithm mhash >> putOpaque16 sig
 
 {-
@@ -529,20 +530,20 @@ putDigitallySigned (DigitallySigned mhash sig) =
  -}
 
 decodeChangeCipherSpec :: ByteString -> Either TLSError ()
-decodeChangeCipherSpec = runGetErr "changecipherspec" $ do
+decodeChangeCipherSpec = ETT__.t "Network.TLS.Packet.decodeChangeCipherSpec" ETT__.$ runGetErr "changecipherspec" $ do
     x <- getWord8
     when (x /= 1) (fail "unknown change cipher spec content")
 
 encodeChangeCipherSpec :: ByteString
-encodeChangeCipherSpec = runPut (putWord8 1)
+encodeChangeCipherSpec = ETT__.t "Network.TLS.Packet.encodeChangeCipherSpec" ETT__.$ runPut (putWord8 1)
 
 -- rsa pre master secret
 decodePreMasterSecret :: ByteString -> Either TLSError (Version, ByteString)
-decodePreMasterSecret = runGetErr "pre-master-secret" $
+decodePreMasterSecret = ETT__.t "Network.TLS.Packet.decodePreMasterSecret" ETT__.$ runGetErr "pre-master-secret" $
     (,) <$> getVersion <*> getBytes 46
 
 encodePreMasterSecret :: Version -> ByteString -> ByteString
-encodePreMasterSecret version bytes = runPut (putBinaryVersion version >> putBytes bytes)
+encodePreMasterSecret version bytes = ETT__.t "Network.TLS.Packet.encodePreMasterSecret" ETT__.$ runPut (putBinaryVersion version >> putBytes bytes)
 
 -- | in certain cases, we haven't manage to decode ServerKeyExchange properly,
 -- because the decoding was too eager and the cipher wasn't been set yet.
@@ -552,7 +553,7 @@ decodeReallyServerKeyXchgAlgorithmData :: Version
                                        -> CipherKeyExchangeType
                                        -> ByteString
                                        -> Either TLSError ServerKeyXchgAlgorithmData
-decodeReallyServerKeyXchgAlgorithmData ver cke =
+decodeReallyServerKeyXchgAlgorithmData ver cke = ETT__.t "Network.TLS.Packet.decodeReallyServerKeyXchgAlgorithmData" ETT__.$
     runGetErr "server-key-xchg-algorithm-data" (decodeServerKeyXchgAlgorithmData ver cke)
 
 
@@ -565,18 +566,18 @@ type PRF = ByteString -> ByteString -> Int -> ByteString
 -- instead of the default SHA256.
 getPRF :: Version -> Cipher -> PRF
 getPRF ver ciph
-    | ver < TLS12 = prf_MD5SHA1
-    | maybe True (< TLS12) (cipherMinVer ciph) = prf_SHA256
-    | otherwise = prf_TLS ver $ fromMaybe SHA256 $ cipherPRFHash ciph
+    | ver < TLS12 = ETT__.t "Network.TLS.Packet.getPRF" ETT__.$ prf_MD5SHA1
+    | maybe True (< TLS12) (cipherMinVer ciph) = ETT__.t "Network.TLS.Packet.getPRF" ETT__.$ prf_SHA256
+    | otherwise = ETT__.t "Network.TLS.Packet.getPRF" ETT__.$ prf_TLS ver $ fromMaybe SHA256 $ cipherPRFHash ciph
 
 generateMasterSecret_SSL :: ByteArrayAccess preMaster => preMaster -> ClientRandom -> ServerRandom -> ByteString
-generateMasterSecret_SSL premasterSecret (ClientRandom c) (ServerRandom s) =
+generateMasterSecret_SSL premasterSecret (ClientRandom c) (ServerRandom s) = ETT__.t "Network.TLS.Packet.generateMasterSecret_SSL" ETT__.$
     B.concat $ map computeMD5 ["A","BB","CCC"]
   where computeMD5  label = hash MD5 $ B.concat [ B.convert premasterSecret, computeSHA1 label ]
         computeSHA1 label = hash SHA1 $ B.concat [ label, B.convert premasterSecret, c, s ]
 
 generateMasterSecret_TLS :: ByteArrayAccess preMaster => PRF -> preMaster -> ClientRandom -> ServerRandom -> ByteString
-generateMasterSecret_TLS prf premasterSecret (ClientRandom c) (ServerRandom s) =
+generateMasterSecret_TLS prf premasterSecret (ClientRandom c) (ServerRandom s) = ETT__.t "Network.TLS.Packet.generateMasterSecret_TLS" ETT__.$
     prf (B.convert premasterSecret) seed 48
   where seed = B.concat [ "master secret", c, s ]
 
@@ -587,9 +588,9 @@ generateMasterSecret :: ByteArrayAccess preMaster
                      -> ClientRandom
                      -> ServerRandom
                      -> ByteString
-generateMasterSecret SSL2 _ = generateMasterSecret_SSL
-generateMasterSecret SSL3 _ = generateMasterSecret_SSL
-generateMasterSecret v    c = generateMasterSecret_TLS $ getPRF v c
+generateMasterSecret SSL2 _ = ETT__.t "Network.TLS.Packet.generateMasterSecret" ETT__.$ generateMasterSecret_SSL
+generateMasterSecret SSL3 _ = ETT__.t "Network.TLS.Packet.generateMasterSecret" ETT__.$ generateMasterSecret_SSL
+generateMasterSecret v    c = ETT__.t "Network.TLS.Packet.generateMasterSecret" ETT__.$ generateMasterSecret_TLS $ getPRF v c
 
 generateExtendedMasterSec :: ByteArrayAccess preMaster
                           => Version
@@ -597,16 +598,16 @@ generateExtendedMasterSec :: ByteArrayAccess preMaster
                           -> preMaster
                           -> ByteString
                           -> ByteString
-generateExtendedMasterSec v c premasterSecret sessionHash =
+generateExtendedMasterSec v c premasterSecret sessionHash = ETT__.t "Network.TLS.Packet.generateExtendedMasterSec" ETT__.$
     getPRF v c (B.convert premasterSecret) seed 48
   where seed = B.append "extended master secret" sessionHash
 
 generateKeyBlock_TLS :: PRF -> ClientRandom -> ServerRandom -> ByteString -> Int -> ByteString
-generateKeyBlock_TLS prf (ClientRandom c) (ServerRandom s) mastersecret kbsize =
+generateKeyBlock_TLS prf (ClientRandom c) (ServerRandom s) mastersecret kbsize = ETT__.t "Network.TLS.Packet.generateKeyBlock_TLS" ETT__.$
     prf mastersecret seed kbsize where seed = B.concat [ "key expansion", s, c ]
 
 generateKeyBlock_SSL :: ClientRandom -> ServerRandom -> ByteString -> Int -> ByteString
-generateKeyBlock_SSL (ClientRandom c) (ServerRandom s) mastersecret kbsize =
+generateKeyBlock_SSL (ClientRandom c) (ServerRandom s) mastersecret kbsize = ETT__.t "Network.TLS.Packet.generateKeyBlock_SSL" ETT__.$
     B.concat $ map computeMD5 $ take ((kbsize `div` 16) + 1) labels
   where labels            = [ uncurry BC.replicate x | x <- zip [1..] ['A'..'Z'] ]
         computeMD5  label = hash MD5 $ B.concat [ mastersecret, computeSHA1 label ]
@@ -619,16 +620,16 @@ generateKeyBlock :: Version
                  -> ByteString
                  -> Int
                  -> ByteString
-generateKeyBlock SSL2 _ = generateKeyBlock_SSL
-generateKeyBlock SSL3 _ = generateKeyBlock_SSL
-generateKeyBlock v    c = generateKeyBlock_TLS $ getPRF v c
+generateKeyBlock SSL2 _ = ETT__.t "Network.TLS.Packet.generateKeyBlock" ETT__.$ generateKeyBlock_SSL
+generateKeyBlock SSL3 _ = ETT__.t "Network.TLS.Packet.generateKeyBlock" ETT__.$ generateKeyBlock_SSL
+generateKeyBlock v    c = ETT__.t "Network.TLS.Packet.generateKeyBlock" ETT__.$ generateKeyBlock_TLS $ getPRF v c
 
 generateFinished_TLS :: PRF -> ByteString -> ByteString -> HashCtx -> ByteString
-generateFinished_TLS prf label mastersecret hashctx = prf mastersecret seed 12
+generateFinished_TLS prf label mastersecret hashctx = ETT__.t "Network.TLS.Packet.generateFinished_TLS" ETT__.$ prf mastersecret seed 12
   where seed = B.concat [ label, hashFinal hashctx ]
 
 generateFinished_SSL :: ByteString -> ByteString -> HashCtx -> ByteString
-generateFinished_SSL sender mastersecret hashctx = B.concat [md5hash, sha1hash]
+generateFinished_SSL sender mastersecret hashctx = ETT__.t "Network.TLS.Packet.generateFinished_SSL" ETT__.$ B.concat [md5hash, sha1hash]
   where md5hash  = hash MD5 $ B.concat [ mastersecret, pad2, md5left ]
         sha1hash = hash SHA1 $ B.concat [ mastersecret, B.take 40 pad2, sha1left ]
 
@@ -644,8 +645,8 @@ generateClientFinished :: Version
                        -> HashCtx
                        -> ByteString
 generateClientFinished ver ciph
-    | ver < TLS10 = generateFinished_SSL "CLNT"
-    | otherwise   = generateFinished_TLS (getPRF ver ciph) "client finished"
+    | ver < TLS10 = ETT__.t "Network.TLS.Packet.generateClientFinished" ETT__.$ generateFinished_SSL "CLNT"
+    | otherwise   = ETT__.t "Network.TLS.Packet.generateClientFinished" ETT__.$ generateFinished_TLS (getPRF ver ciph) "client finished"
 
 generateServerFinished :: Version
                        -> Cipher
@@ -653,16 +654,16 @@ generateServerFinished :: Version
                        -> HashCtx
                        -> ByteString
 generateServerFinished ver ciph
-    | ver < TLS10 = generateFinished_SSL "SRVR"
-    | otherwise   = generateFinished_TLS (getPRF ver ciph) "server finished"
+    | ver < TLS10 = ETT__.t "Network.TLS.Packet.generateServerFinished" ETT__.$ generateFinished_SSL "SRVR"
+    | otherwise   = ETT__.t "Network.TLS.Packet.generateServerFinished" ETT__.$ generateFinished_TLS (getPRF ver ciph) "server finished"
 
 {- returns *output* after final MD5/SHA1 -}
 generateCertificateVerify_SSL :: ByteString -> HashCtx -> ByteString
-generateCertificateVerify_SSL = generateFinished_SSL ""
+generateCertificateVerify_SSL = ETT__.t "Network.TLS.Packet.generateCertificateVerify_SSL" ETT__.$ generateFinished_SSL ""
 
 {- returns *input* before final SHA1 -}
 generateCertificateVerify_SSL_DSS :: ByteString -> HashCtx -> ByteString
-generateCertificateVerify_SSL_DSS mastersecret hashctx = toHash
+generateCertificateVerify_SSL_DSS mastersecret hashctx = ETT__.t "Network.TLS.Packet.generateCertificateVerify_SSL_DSS" ETT__.$ toHash
   where toHash = B.concat [ mastersecret, pad2, sha1left ]
 
         sha1left = hashFinal $ flip hashUpdate pad1
@@ -671,16 +672,16 @@ generateCertificateVerify_SSL_DSS mastersecret hashctx = toHash
         pad1     = B.replicate 40 0x36
 
 encodeSignedDHParams :: ServerDHParams -> ClientRandom -> ServerRandom -> ByteString
-encodeSignedDHParams dhparams cran sran = runPut $
+encodeSignedDHParams dhparams cran sran = ETT__.t "Network.TLS.Packet.encodeSignedDHParams" ETT__.$ runPut $
     putClientRandom32 cran >> putServerRandom32 sran >> putServerDHParams dhparams
 
 -- Combination of RFC 5246 and 4492 is ambiguous.
 -- Let's assume ecdhe_rsa and ecdhe_dss are identical to
 -- dhe_rsa and dhe_dss.
 encodeSignedECDHParams :: ServerECDHParams -> ClientRandom -> ServerRandom -> ByteString
-encodeSignedECDHParams dhparams cran sran = runPut $
+encodeSignedECDHParams dhparams cran sran = ETT__.t "Network.TLS.Packet.encodeSignedECDHParams" ETT__.$ runPut $
     putClientRandom32 cran >> putServerRandom32 sran >> putServerECDHParams dhparams
 
 fromJustM :: MonadFail m => String -> Maybe a -> m a
-fromJustM what Nothing  = fail ("fromJustM " ++ what ++ ": Nothing")
-fromJustM _    (Just x) = return x
+fromJustM what Nothing  = ETT__.tm "Network.TLS.Packet.fromJustM" ETT__.$ fail ("fromJustM " ++ what ++ ": Nothing")
+fromJustM _    (Just x) = ETT__.tm "Network.TLS.Packet.fromJustM" ETT__.$ return x

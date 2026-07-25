@@ -22,11 +22,12 @@ import Network.TLS.Handshake.Client
 import Network.TLS.Handshake.Server
 
 import Control.Monad.State.Strict
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | Handshake for a new TLS connection
 -- This is to be called at the beginning of a connection, and during renegotiation
 handshake :: MonadIO m => Context -> m ()
-handshake ctx =
+handshake ctx = ETT__.tm "Network.TLS.Handshake.handshake" ETT__.$
     liftIO $ withRWLock ctx $ handleException ctx (ctxDoHandshake ctx ctx)
 
 -- Handshake when requested by the remote end
@@ -34,5 +35,5 @@ handshake ctx =
 -- is already taken.  So contrary to 'handshake' above, here we only need to
 -- call withWriteLock.
 handshakeWith :: MonadIO m => Context -> Handshake -> m ()
-handshakeWith ctx hs =
+handshakeWith ctx hs = ETT__.tm "Network.TLS.Handshake.handshakeWith" ETT__.$
     liftIO $ withWriteLock ctx $ handleException ctx $ ctxDoHandshakeWith ctx ctx hs

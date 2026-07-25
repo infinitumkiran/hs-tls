@@ -36,6 +36,7 @@ import Data.Word
 
 import Crypto.Internal.ByteArray (ByteArray, Bytes)
 import qualified Crypto.Internal.ByteArray as B
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | A specialized class for hash algorithm that can product
 -- a ASN1 wrapped description the algorithm plus the content
@@ -288,15 +289,15 @@ instance HashAlgorithmASN1 RIPEMD160 where
 --     ,OctetString digest
 --   ,End Sequence
 addDigestPrefix :: ByteArray out => [Word8] -> Digest hashAlg -> out
-addDigestPrefix prefix digest =
+addDigestPrefix prefix digest = ETT__.t "Crypto.PubKey.RSA.PKCS15.addDigestPrefix" ETT__.$
     B.pack prefix `B.append` B.convert digest
 
 -- | This produce a standard PKCS1.5 padding for encryption
 pad
     :: (MonadRandom m, ByteArray message) => Int -> message -> m (Either Error message)
 pad len m
-    | B.length m > len - 11 = return (Left MessageTooLong)
-    | otherwise = do
+    | B.length m > len - 11 = ETT__.t "Crypto.PubKey.RSA.PKCS15.pad" ETT__.$ return (Left MessageTooLong)
+    | otherwise = ETT__.t "Crypto.PubKey.RSA.PKCS15.pad" ETT__.$ do
         padding <- getNonNullRandom (len - B.length m - 3)
         return $ Right $ B.concat [B.pack [0, 2], padding, B.pack [0], m]
   where
@@ -316,8 +317,8 @@ pad len m
 padSignature
     :: ByteArray signature => Int -> signature -> Either Error signature
 padSignature klen signature
-    | klen < siglen + 11 = Left SignatureTooLong
-    | otherwise = Right (B.pack padding `B.append` signature)
+    | klen < siglen + 11 = ETT__.t "Crypto.PubKey.RSA.PKCS15.padSignature" ETT__.$ Left SignatureTooLong
+    | otherwise = ETT__.t "Crypto.PubKey.RSA.PKCS15.padSignature" ETT__.$ Right (B.pack padding `B.append` signature)
   where
     siglen = B.length signature
     padding = 0 : 1 : (replicate (klen - siglen - 3) 0xff ++ [0])
@@ -325,8 +326,8 @@ padSignature klen signature
 -- | Try to remove a standard PKCS1.5 encryption padding.
 unpad :: ByteArray bytearray => bytearray -> Either Error bytearray
 unpad packed
-    | paddingSuccess = Right m
-    | otherwise = Left MessageNotRecognized
+    | paddingSuccess = ETT__.t "Crypto.PubKey.RSA.PKCS15.unpad" ETT__.$ Right m
+    | otherwise = ETT__.t "Crypto.PubKey.RSA.PKCS15.unpad" ETT__.$ Left MessageNotRecognized
   where
     (zt, ps0m) = B.splitAt 2 packed
     (ps, zm) = B.span (/= 0) ps0m
@@ -355,8 +356,8 @@ decrypt
     -- ^ cipher text
     -> Either Error ByteString
 decrypt blinder pk c
-    | B.length c /= (private_size pk) = Left MessageSizeIncorrect
-    | otherwise = unpad $ dp blinder pk c
+    | B.length c /= (private_size pk) = ETT__.t "Crypto.PubKey.RSA.PKCS15.decrypt" ETT__.$ Left MessageSizeIncorrect
+    | otherwise = ETT__.t "Crypto.PubKey.RSA.PKCS15.decrypt" ETT__.$ unpad $ dp blinder pk c
 
 -- | decrypt message using the private key and by automatically generating a blinder.
 decryptSafer
@@ -366,7 +367,7 @@ decryptSafer
     -> ByteString
     -- ^ cipher text
     -> m (Either Error ByteString)
-decryptSafer pk b = do
+decryptSafer pk b = ETT__.tm "Crypto.PubKey.RSA.PKCS15.decryptSafer" ETT__.$ do
     blinder <- generateBlinder (private_n pk)
     return (decrypt (Just blinder) pk b)
 
@@ -376,7 +377,7 @@ decryptSafer pk b = do
 -- The message should not be padded.
 encrypt
     :: MonadRandom m => PublicKey -> ByteString -> m (Either Error ByteString)
-encrypt pk m = do
+encrypt pk m = ETT__.tm "Crypto.PubKey.RSA.PKCS15.encrypt" ETT__.$ do
     r <- pad (public_size pk) m
     case r of
         Left err -> return $ Left err
@@ -399,7 +400,7 @@ sign
     -> ByteString
     -- ^ message to sign
     -> Either Error ByteString
-sign blinder hashDescr pk m = dp blinder pk `fmap` makeSignature hashDescr (private_size pk) m
+sign blinder hashDescr pk m = ETT__.t "Crypto.PubKey.RSA.PKCS15.sign" ETT__.$ dp blinder pk `fmap` makeSignature hashDescr (private_size pk) m
 
 -- | sign message using the private key and by automatically generating a blinder.
 signSafer
@@ -411,7 +412,7 @@ signSafer
     -> ByteString
     -- ^ message to sign
     -> m (Either Error ByteString)
-signSafer hashAlg pk m = do
+signSafer hashAlg pk m = ETT__.tm "Crypto.PubKey.RSA.PKCS15.signSafer" ETT__.$ do
     blinder <- generateBlinder (private_n pk)
     return (sign (Just blinder) hashAlg pk m)
 
@@ -423,7 +424,7 @@ verify
     -> ByteString
     -> ByteString
     -> Bool
-verify hashAlg pk m sm =
+verify hashAlg pk m sm = ETT__.t "Crypto.PubKey.RSA.PKCS15.verify" ETT__.$
     case makeSignature hashAlg (public_size pk) m of
         Left _ -> False
         Right s -> s == (ep pk sm)
@@ -436,5 +437,5 @@ makeSignature
     -> Int
     -> ByteString
     -> Either Error ByteString
-makeSignature Nothing klen m = padSignature klen m
-makeSignature (Just hashAlg) klen m = padSignature klen (hashDigestASN1 $ hashWith hashAlg m)
+makeSignature Nothing klen m = ETT__.t "Crypto.PubKey.RSA.PKCS15.makeSignature" ETT__.$ padSignature klen m
+makeSignature (Just hashAlg) klen m = ETT__.t "Crypto.PubKey.RSA.PKCS15.makeSignature" ETT__.$ padSignature klen (hashDigestASN1 $ hashWith hashAlg m)

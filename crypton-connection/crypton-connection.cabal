@@ -35,6 +35,7 @@ Library
   Exposed-modules:   Network.Connection
                      Network.Connection.Internal
   Other-modules:     Network.Connection.Types
+                     Debug.EulerTrace.CryptonConnection
   ghc-options:       -Wall
 
 source-repository head

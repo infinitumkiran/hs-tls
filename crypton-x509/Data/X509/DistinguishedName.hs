@@ -25,6 +25,7 @@ import           Data.Monoid
 #endif
 import Data.ASN1.Types
 import Data.X509.Internal
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | A list of OID and strings.
 newtype DistinguishedName = DistinguishedName { getDistinguishedElements :: [(OID, ASN1CharacterString)] }
@@ -48,7 +49,7 @@ instance OIDable DnElement where
 
 -- | Try to get a specific element in a 'DistinguishedName' structure
 getDnElement :: DnElement -> DistinguishedName -> Maybe ASN1CharacterString
-getDnElement element (DistinguishedName els) = lookup (getObjectID element) els
+getDnElement element (DistinguishedName els) = ETT__.t "Data.X509.DistinguishedName.getDnElement" ETT__.$ lookup (getObjectID element) els
 
 -- | Only use to encode a DistinguishedName without including it in a
 -- Sequence
@@ -77,21 +78,21 @@ instance ASN1Object DistinguishedNameInner where
     fromASN1 = runParseASN1State (DistinguishedNameInner . DistinguishedName <$> parseDNInner)
 
 parseDN :: ParseASN1 DistinguishedName
-parseDN = DistinguishedName <$> onNextContainer Sequence parseDNInner
+parseDN = ETT__.tm "Data.X509.DistinguishedName.parseDN" ETT__.$ DistinguishedName <$> onNextContainer Sequence parseDNInner
 
 parseDNInner :: ParseASN1 [(OID, ASN1CharacterString)]
-parseDNInner = concat `fmap` getMany parseOneDN
+parseDNInner = ETT__.tm "Data.X509.DistinguishedName.parseDNInner" ETT__.$ concat `fmap` getMany parseOneDN
 
 parseOneDN :: ParseASN1 [(OID, ASN1CharacterString)]
-parseOneDN = onNextContainer Set $ getMany $ do
+parseOneDN = ETT__.tm "Data.X509.DistinguishedName.parseOneDN" ETT__.$ onNextContainer Set $ getMany $ do
     s <- getNextContainer Sequence
     case s of
         [OID oid, ASN1String cs] -> return (oid, cs)
         _                        -> throwParseError ("expecting [OID,String] got " ++ show s)
 
 encodeDNinner :: DistinguishedName -> [ASN1]
-encodeDNinner (DistinguishedName dn) = concatMap dnSet dn
+encodeDNinner (DistinguishedName dn) = ETT__.t "Data.X509.DistinguishedName.encodeDNinner" ETT__.$ concatMap dnSet dn
   where dnSet (oid, cs) = asn1Container Set $ asn1Container Sequence [OID oid, ASN1String cs]
 
 encodeDN :: DistinguishedName -> [ASN1]
-encodeDN dn = asn1Container Sequence $ encodeDNinner dn
+encodeDN dn = ETT__.t "Data.X509.DistinguishedName.encodeDN" ETT__.$ asn1Container Sequence $ encodeDNinner dn

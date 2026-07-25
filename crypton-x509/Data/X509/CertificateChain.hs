@@ -16,6 +16,7 @@ module Data.X509.CertificateChain
 import Data.X509.Cert (Certificate)
 import Data.X509.Signed (SignedExact, decodeSignedObject, encodeSignedObject)
 import Data.ByteString (ByteString)
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | A chain of X.509 certificates in exact form.
 newtype CertificateChain = CertificateChain [SignedExact Certificate]
@@ -29,7 +30,7 @@ newtype CertificateChainRaw = CertificateChainRaw [ByteString]
 -- raw certificate are decoded correctly, otherwise return the index of the
 -- failed certificate and the error associated.
 decodeCertificateChain :: CertificateChainRaw -> Either (Int, String) CertificateChain
-decodeCertificateChain (CertificateChainRaw l) =
+decodeCertificateChain (CertificateChainRaw l) = ETT__.t "Data.X509.CertificateChain.decodeCertificateChain" ETT__.$
     either Left (Right . CertificateChain) $ loop 0 l
   where loop _ []     = Right []
         loop i (r:rs) = case decodeSignedObject r of
@@ -38,5 +39,5 @@ decodeCertificateChain (CertificateChainRaw l) =
 
 -- | Convert a CertificateChain into a CertificateChainRaw
 encodeCertificateChain :: CertificateChain -> CertificateChainRaw
-encodeCertificateChain (CertificateChain chain) =
+encodeCertificateChain (CertificateChain chain) = ETT__.t "Data.X509.CertificateChain.encodeCertificateChain" ETT__.$
     CertificateChainRaw $ map encodeSignedObject chain

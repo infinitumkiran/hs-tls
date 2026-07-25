@@ -19,17 +19,18 @@ module Crypto.Number.Basic (
 import Data.Bits
 
 import Crypto.Number.Compat
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | @sqrti@ returns two integers @(l,b)@ so that @l <= sqrt i <= b@.
 -- The implementation is quite naive, use an approximation for the first number
 -- and use a dichotomy algorithm to compute the bound relatively efficiently.
 sqrti :: Integer -> (Integer, Integer)
 sqrti i
-    | i < 0 = error "cannot compute negative square root"
-    | i == 0 = (0, 0)
-    | i == 1 = (1, 1)
-    | i == 2 = (1, 2)
-    | otherwise = loop x0
+    | i < 0 = ETT__.t "Crypto.Number.Basic.sqrti" ETT__.$ error "cannot compute negative square root"
+    | i == 0 = ETT__.t "Crypto.Number.Basic.sqrti" ETT__.$ (0, 0)
+    | i == 1 = ETT__.t "Crypto.Number.Basic.sqrti" ETT__.$ (1, 1)
+    | i == 2 = ETT__.t "Crypto.Number.Basic.sqrti" ETT__.$ (1, 2)
+    | otherwise = ETT__.t "Crypto.Number.Basic.sqrti" ETT__.$ loop x0
   where
     nbdigits = length $ show i
     x0n = (if even nbdigits then nbdigits - 2 else nbdigits - 1) `div` 2
@@ -58,7 +59,7 @@ sqrti i
 --
 -- gcde 'a' 'b' find (x,y,gcd(a,b)) where ax + by = d
 gcde :: Integer -> Integer -> (Integer, Integer, Integer)
-gcde a b =
+gcde a b = ETT__.t "Crypto.Number.Basic.gcde" ETT__.$
     onGmpUnsupported (gmpGcde a b) $
         if d < 0 then (-x, -y, -d) else (x, y, d)
   where
@@ -70,11 +71,11 @@ gcde a b =
 
 -- | Check if a list of integer are all even
 areEven :: [Integer] -> Bool
-areEven = and . map even
+areEven = ETT__.t "Crypto.Number.Basic.areEven" ETT__.$ and . map even
 
 -- | Compute the binary logarithm of a integer
 log2 :: Integer -> Int
-log2 n = onGmpUnsupported (gmpLog2 n) $ imLog 2 n
+log2 n = ETT__.t "Crypto.Number.Basic.log2" ETT__.$ onGmpUnsupported (gmpLog2 n) $ imLog 2 n
   where
     -- http://www.haskell.org/pipermail/haskell-cafe/2008-February/039465.html
     imLog b x = if x < b then 0 else (x `div` b ^ l) `doDiv` l
@@ -85,7 +86,7 @@ log2 n = onGmpUnsupported (gmpLog2 n) $ imLog 2 n
 
 -- | Compute the number of bits for an integer
 numBits :: Integer -> Int
-numBits n = gmpSizeInBits n `onGmpUnsupported` (if n == 0 then 1 else computeBits 0 n)
+numBits n = ETT__.t "Crypto.Number.Basic.numBits" ETT__.$ gmpSizeInBits n `onGmpUnsupported` (if n == 0 then 1 else computeBits 0 n)
   where
     computeBits !acc i
         | q == 0 =
@@ -119,16 +120,16 @@ numBits n = gmpSizeInBits n `onGmpUnsupported` (if n == 0 then 1 else computeBit
 
 -- | Compute the number of bytes for an integer
 numBytes :: Integer -> Int
-numBytes n = gmpSizeInBytes n `onGmpUnsupported` ((numBits n + 7) `div` 8)
+numBytes n = ETT__.t "Crypto.Number.Basic.numBytes" ETT__.$ gmpSizeInBytes n `onGmpUnsupported` ((numBits n + 7) `div` 8)
 
 -- | Express an integer as an odd number and a power of 2
 asPowerOf2AndOdd :: Integer -> (Int, Integer)
 asPowerOf2AndOdd a
-    | a == 0 = (0, 0)
-    | odd a = (0, a)
-    | a < 0 = let (e, a1) = asPowerOf2AndOdd $ abs a in (e, -a1)
-    | isPowerOf2 a = (log2 a, 1)
-    | otherwise = loop a 0
+    | a == 0 = ETT__.t "Crypto.Number.Basic.asPowerOf2AndOdd" ETT__.$ (0, 0)
+    | odd a = ETT__.t "Crypto.Number.Basic.asPowerOf2AndOdd" ETT__.$ (0, a)
+    | a < 0 = ETT__.t "Crypto.Number.Basic.asPowerOf2AndOdd" ETT__.$ let (e, a1) = asPowerOf2AndOdd $ abs a in (e, -a1)
+    | isPowerOf2 a = ETT__.t "Crypto.Number.Basic.asPowerOf2AndOdd" ETT__.$ (log2 a, 1)
+    | otherwise = ETT__.t "Crypto.Number.Basic.asPowerOf2AndOdd" ETT__.$ loop a 0
   where
     isPowerOf2 n = (n /= 0) && ((n .&. (n - 1)) == 0)
     loop n pw =

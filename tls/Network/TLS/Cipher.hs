@@ -35,6 +35,7 @@ import Network.TLS.Types (CipherID, Version(..))
 import Network.TLS.Crypto (Hash(..), hashDigestSize)
 
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- FIXME convert to newtype
 type BulkKey = B.ByteString
@@ -64,7 +65,7 @@ data BulkDirection = BulkEncrypt | BulkDecrypt
     deriving (Show,Eq)
 
 bulkInit :: Bulk -> BulkDirection -> BulkKey -> BulkState
-bulkInit bulk direction key =
+bulkInit bulk direction key = ETT__.t "Network.TLS.Cipher.bulkInit" ETT__.$
     case bulkF bulk of
         BulkBlockF  ini -> BulkStateBlock  (ini direction key)
         BulkStreamF ini -> BulkStateStream (ini direction key)
@@ -77,11 +78,11 @@ data BulkFunctions =
 
 hasMAC,hasRecordIV :: BulkFunctions -> Bool
 
-hasMAC (BulkBlockF _ ) = True
-hasMAC (BulkStreamF _) = True
-hasMAC (BulkAeadF _  ) = False
+hasMAC (BulkBlockF _ ) = ETT__.t "Network.TLS.Cipher.hasMAC" ETT__.$ True
+hasMAC (BulkStreamF _) = ETT__.t "Network.TLS.Cipher.hasMAC" ETT__.$ True
+hasMAC (BulkAeadF _  ) = ETT__.t "Network.TLS.Cipher.hasMAC" ETT__.$ False
 
-hasRecordIV = hasMAC
+hasRecordIV = ETT__.t "Network.TLS.Cipher.hasRecordIV" ETT__.$ hasMAC
 
 data CipherKeyExchangeType =
       CipherKeyExchange_RSA
@@ -128,13 +129,13 @@ data Cipher = Cipher
     }
 
 cipherKeyBlockSize :: Cipher -> Int
-cipherKeyBlockSize cipher = 2 * (hashDigestSize (cipherHash cipher) + bulkIVSize bulk + bulkKeySize bulk)
+cipherKeyBlockSize cipher = ETT__.t "Network.TLS.Cipher.cipherKeyBlockSize" ETT__.$ 2 * (hashDigestSize (cipherHash cipher) + bulkIVSize bulk + bulkKeySize bulk)
   where bulk = cipherBulk cipher
 
 -- | Check if a specific 'Cipher' is allowed to be used
 -- with the version specified
 cipherAllowedForVersion :: Version -> Cipher -> Bool
-cipherAllowedForVersion ver cipher =
+cipherAllowedForVersion ver cipher = ETT__.t "Network.TLS.Cipher.cipherAllowedForVersion" ETT__.$
     case cipherMinVer cipher of
         Nothing   -> ver < TLS13
         Just cVer -> cVer <= ver && (ver < TLS13 || cVer >= TLS13)

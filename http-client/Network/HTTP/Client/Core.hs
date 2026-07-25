@@ -35,6 +35,7 @@ import System.Timeout (timeout)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.KeyedPool
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 -- | Perform a @Request@ using a connection acquired from the given @Manager@,
 -- and then provide the @Response@ to the given function. This function is
@@ -54,7 +55,7 @@ withResponse :: Request
              -> Manager
              -> (Response BodyReader -> IO a)
              -> IO a
-withResponse req man f = bracket (responseOpen req man) responseClose f
+withResponse req man f = ETT__.tio "Network.HTTP.Client.Core.withResponse" ETT__.$ bracket (responseOpen req man) responseClose f
 
 -- | A convenience wrapper around 'withResponse' which reads in the entire
 -- response body and immediately closes the connection. Note that this function
@@ -64,7 +65,7 @@ withResponse req man f = bracket (responseOpen req man) responseClose f
 --
 -- Since 0.1.0
 httpLbs :: Request -> Manager -> IO (Response L.ByteString)
-httpLbs req man = withResponse req man $ \res -> do
+httpLbs req man = ETT__.tio "Network.HTTP.Client.Core.httpLbs" ETT__.$ withResponse req man $ \res -> do
     bss <- brConsume $ responseBody res
     return res { responseBody = L.fromChunks bss }
 
@@ -73,7 +74,7 @@ httpLbs req man = withResponse req man $ \res -> do
 --
 -- Since 0.3.2
 httpNoBody :: Request -> Manager -> IO (Response ())
-httpNoBody req man = withResponse req man $ return . void
+httpNoBody req man = ETT__.tio "Network.HTTP.Client.Core.httpNoBody" ETT__.$ withResponse req man $ return . void
 
 
 -- | Get a 'Response' without any redirect following.
@@ -81,7 +82,7 @@ httpRaw
      :: Request
      -> Manager
      -> IO (Response BodyReader)
-httpRaw = fmap (fmap snd) . httpRaw'
+httpRaw = ETT__.t "Network.HTTP.Client.Core.httpRaw" ETT__.$ fmap (fmap snd) . httpRaw'
 
 -- | Get a 'Response' without any redirect following.
 --
@@ -90,7 +91,7 @@ httpRaw'
      :: Request
      -> Manager
      -> IO (Request, Response BodyReader)
-httpRaw' req0 m = do
+httpRaw' req0 m = ETT__.tio "Network.HTTP.Client.Core.httpRaw'" ETT__.$ do
     let req' = mSetProxy m req0
     (req, cookie_jar') <- case cookieJar req' of
         Just cj -> do
@@ -109,13 +110,13 @@ makeRequest
     :: Request
     -> Manager
     -> IO (Response BodyReader)
-makeRequest req m = do
+makeRequest req m = ETT__.tio "Network.HTTP.Client.Core.makeRequest" ETT__.$ do
     action <- readIORef requestAction
     action req m
 
 requestAction :: IORef (Request -> Manager -> IO (Response BodyReader))
 {-# NOINLINE requestAction #-}
-requestAction = unsafePerformIO (newIORef action)
+requestAction = ETT__.t "Network.HTTP.Client.Core.requestAction" ETT__.$ unsafePerformIO (newIORef action)
   where
     action
         :: Request
@@ -186,7 +187,7 @@ requestAction = unsafePerformIO (newIORef action)
 -- (In case the Manager is overridden by requestManagerOverride, the Request is
 -- being modified by managerModifyRequest of the new Manager, not the old one.)
 getModifiedRequestManager :: Manager -> Request -> IO (Manager, Request)
-getModifiedRequestManager manager0 req0 = do
+getModifiedRequestManager manager0 req0 = ETT__.tio "Network.HTTP.Client.Core.getModifiedRequestManager" ETT__.$ do
   let manager = fromMaybe manager0 (requestManagerOverride req0)
   req <- mModifyRequest manager req0
   return (manager, req)
@@ -221,7 +222,7 @@ getModifiedRequestManager manager0 req0 = do
 --
 -- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
-responseOpen inputReq manager' = do
+responseOpen inputReq manager' = ETT__.tio "Network.HTTP.Client.Core.responseOpen" ETT__.$ do
   case validateHeaders (requestHeaders inputReq) of
     GoodHeaders -> return ()
     BadHeaders reason -> throwHttp $ InvalidRequestHeader reason
@@ -253,7 +254,7 @@ httpRedirect
      -> (Request -> IO (Response BodyReader, Maybe Request)) -- ^ function which performs a request and returns a response, and possibly another request if there's a redirect.
      -> Request
      -> IO (Response BodyReader)
-httpRedirect count0 http0 req0 = fmap snd $ httpRedirect' count0 http' req0
+httpRedirect count0 http0 req0 = ETT__.tio "Network.HTTP.Client.Core.httpRedirect" ETT__.$ fmap snd $ httpRedirect' count0 http' req0
   where
     -- adapt callback API
     http' req' = do
@@ -263,13 +264,13 @@ httpRedirect count0 http0 req0 = fmap snd $ httpRedirect' count0 http' req0
 handleClosedRead :: SomeException -> IO L.ByteString
 handleClosedRead se
     | Just ConnectionClosed <- fmap unHttpExceptionContentWrapper (fromException se)
-        = return L.empty
+        = ETT__.t "Network.HTTP.Client.Core.handleClosedRead" ETT__.$ return L.empty
     | Just (HttpExceptionRequest _ ConnectionClosed) <- fromException se
-        = return L.empty
+        = ETT__.t "Network.HTTP.Client.Core.handleClosedRead" ETT__.$ return L.empty
     | Just (IOError _ ResourceVanished _ _ _ _) <- fromException se
-        = return L.empty
+        = ETT__.t "Network.HTTP.Client.Core.handleClosedRead" ETT__.$ return L.empty
     | otherwise
-        = throwIO se
+        = ETT__.t "Network.HTTP.Client.Core.handleClosedRead" ETT__.$ throwIO se
 
 -- | Redirect loop.
 --
@@ -279,7 +280,7 @@ httpRedirect'
      -> (Request -> IO (Response BodyReader, Request, Bool)) -- ^ function which performs a request and returns a response, the potentially modified request, and a Bool indicating if there was a redirect.
      -> Request
      -> IO (Request, Response BodyReader)
-httpRedirect' count0 http' req0 = go count0 req0 []
+httpRedirect' count0 http' req0 = ETT__.tio "Network.HTTP.Client.Core.httpRedirect'" ETT__.$ go count0 req0 []
   where
     go count _ ress | count < 0 = throwHttp $ TooManyRedirects ress
     go count req' ress = do
@@ -308,7 +309,7 @@ httpRedirect' count0 http' req0 = go count0 req0 []
 --
 -- Since 0.1.0
 responseClose :: Response a -> IO ()
-responseClose = runResponseClose . responseClose'
+responseClose = ETT__.t "Network.HTTP.Client.Core.responseClose" ETT__.$ runResponseClose . responseClose'
 
 -- | Perform an action using a @Connection@ acquired from the given @Manager@.
 --
@@ -317,7 +318,7 @@ responseClose = runResponseClose . responseClose'
 --
 -- @since 0.5.13
 withConnection :: Request -> Manager -> (Connection -> IO a) -> IO a
-withConnection origReq man action = do
+withConnection origReq man action = ETT__.tio "Network.HTTP.Client.Core.withConnection" ETT__.$ do
     mHttpConn <- getConn (mSetProxy man origReq) man
     action (managedResource mHttpConn) <* keepAlive mHttpConn
         `finally` managedRelease mHttpConn DontReuse

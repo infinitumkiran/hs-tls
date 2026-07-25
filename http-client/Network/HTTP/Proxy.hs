@@ -87,6 +87,7 @@ import           System.Win32.Registry       (hKEY_CURRENT_USER, rEG_DWORD,
                                               regQueryValue, regQueryValueEx)
 import           System.Win32.Types          (DWORD, HKEY)
 #endif
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 type EnvName     = T.Text
 type HostAddress = S8.ByteString
@@ -105,20 +106,20 @@ data ProxySettings = ProxySettings { _proxyHost :: Proxy,
                                      deriving Show
 
 httpProtocol :: Bool -> ProxyProtocol
-httpProtocol True  = HTTPSProxy
-httpProtocol False = HTTPProxy
+httpProtocol True  = ETT__.t "Network.HTTP.Proxy.httpProtocol" ETT__.$ HTTPSProxy
+httpProtocol False = ETT__.t "Network.HTTP.Proxy.httpProtocol" ETT__.$ HTTPProxy
 
 data EnvHelper = EHFromRequest
                | EHNoProxy
                | EHUseProxy Proxy
 
 headJust :: [Maybe a] -> Maybe a
-headJust []               = Nothing
-headJust (Nothing:xs)     = headJust xs
-headJust ((y@(Just _)):_) = y
+headJust []               = ETT__.t "Network.HTTP.Proxy.headJust" ETT__.$ Nothing
+headJust (Nothing:xs)     = ETT__.t "Network.HTTP.Proxy.headJust" ETT__.$ headJust xs
+headJust ((y@(Just _)):_) = ETT__.t "Network.HTTP.Proxy.headJust" ETT__.$ y
 
 systemProxyHelper :: Maybe T.Text -> ProxyProtocol -> EnvHelper -> IO (Request -> Request)
-systemProxyHelper envOveride prot eh = do
+systemProxyHelper envOveride prot eh = ETT__.tio "Network.HTTP.Proxy.systemProxyHelper" ETT__.$ do
     let envName' Nothing     = envName prot
         envName' (Just name) = name
 
@@ -149,7 +150,7 @@ systemProxyHelper envOveride prot eh = do
 
 #if defined(mingw32_HOST_OS)
 windowsProxyString :: ProxyProtocol -> IO (Maybe (String, String))
-windowsProxyString proto = do
+windowsProxyString proto = ETT__.tio "Network.HTTP.Proxy.windowsProxyString" ETT__.$ do
     mProxy <- registryProxyString
     return $ do
         (proxies, exceptions) <- mProxy
@@ -157,7 +158,7 @@ windowsProxyString proto = do
         return (protoProxy, exceptions)
 
 registryProxyLoc :: (HKEY,String)
-registryProxyLoc = (hive, path)
+registryProxyLoc = ETT__.t "Network.HTTP.Proxy.registryProxyLoc" ETT__.$ (hive, path)
   where
     -- some sources say proxy settings should be at
     -- HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows
@@ -170,7 +171,7 @@ registryProxyLoc = (hive, path)
 -- read proxy settings from the windows registry; this is just a best
 -- effort and may not work on all setups.
 registryProxyString :: IO (Maybe (String, String))
-registryProxyString = catch
+registryProxyString = ETT__.tio "Network.HTTP.Proxy.registryProxyString" ETT__.$ catch
   (bracket (uncurry regOpenKey registryProxyLoc) regCloseKey $ \hkey -> do
     enable <- toBool . maybe 0 id A.<$> regQueryValueDWORD hkey "ProxyEnable"
     if enable
@@ -195,7 +196,7 @@ registryProxyString = catch
 -- to be sure, parse strings where each entry in the ';'-separated list above is
 -- either in the format "protocol=..." or "protocol://..."
 parseWindowsProxy :: ProxyProtocol -> String -> Maybe String
-parseWindowsProxy proto s =
+parseWindowsProxy proto s = ETT__.t "Network.HTTP.Proxy.parseWindowsProxy" ETT__.$
   case proxies of
     x:_ -> Just x
     _   -> Nothing
@@ -216,7 +217,7 @@ parseWindowsProxy proto s =
 
 -- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
 systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
-systemProxy proto = do
+systemProxy proto = ETT__.tio "Network.HTTP.Proxy.systemProxy" ETT__.$ do
     let isURLlocal "127.0.0.1" = True
         isURLlocal "localhost" = True
         isURLlocal _           = False
@@ -237,7 +238,7 @@ systemProxy proto = do
 -- Proxy settings are sourced from IE/WinInet's proxy
 -- setting in the Registry.
 fetchProxy :: ProxyProtocol -> IO (Maybe (ProxySettings, String))
-fetchProxy proto = do
+fetchProxy proto = ETT__.tio "Network.HTTP.Proxy.fetchProxy" ETT__.$ do
     mstr <- windowsProxyString proto
     case mstr of
       Nothing               -> return Nothing
@@ -253,7 +254,7 @@ fetchProxy proto = do
 -- | @parseProxy str@ translates a proxy server string into a @ProxySettings@ value;
 -- returns @Nothing@ if not well-formed.
 parseProxy :: ProxyProtocol -> String -> Maybe ProxySettings
-parseProxy proto str = join
+parseProxy proto str = ETT__.t "Network.HTTP.Proxy.parseProxy" ETT__.$ join
                  . fmap (uri2proxy proto)
                  $ parseHttpURI str
                  `mplus` parseHttpURI (protoPrefix ++ str)
@@ -276,7 +277,7 @@ parseProxy proto str = join
 -- | @dropWhileTail p ls@ chops off trailing elements from @ls@
 -- until @p@ returns @False@.
 dropWhileTail :: (a -> Bool) -> [a] -> [a]
-dropWhileTail f ls =
+dropWhileTail f ls = ETT__.t "Network.HTTP.Proxy.dropWhileTail" ETT__.$
     case foldr chop Nothing ls of { Just xs -> xs; Nothing -> [] }
      where
        chop x (Just xs) = Just (x:xs)
@@ -288,23 +289,23 @@ dropWhileTail f ls =
 -- of @elt@; @elt@ is elided too. If @elt@ does not occur, the second
 -- list is empty and the first is equal to @ls@.
 chopAtDelim :: Eq a => a -> [a] -> ([a],[a])
-chopAtDelim elt xs =
+chopAtDelim elt xs = ETT__.t "Network.HTTP.Proxy.chopAtDelim" ETT__.$
     case break (==elt) xs of
     (_,[])    -> (xs,[])
     (as,_:bs) -> (as,bs)
 
 -- | tidy up user portion, don't want the trailing "\@".
 fixUserInfo :: U.URI -> U.URI
-fixUserInfo uri = uri{ U.uriAuthority = f `fmap` U.uriAuthority uri }
+fixUserInfo uri = ETT__.t "Network.HTTP.Proxy.fixUserInfo" ETT__.$ uri{ U.uriAuthority = f `fmap` U.uriAuthority uri }
     where
      f a@U.URIAuth{U.uriUserInfo=s} = a{U.uriUserInfo=dropWhileTail (=='@') s}
 
 defaultHTTPport :: ProxyProtocol -> Int
-defaultHTTPport HTTPProxy  = 80
-defaultHTTPport HTTPSProxy = 443
+defaultHTTPport HTTPProxy  = ETT__.t "Network.HTTP.Proxy.defaultHTTPport" ETT__.$ 80
+defaultHTTPport HTTPSProxy = ETT__.t "Network.HTTP.Proxy.defaultHTTPport" ETT__.$ 443
 
 uri2proxy :: ProxyProtocol -> U.URI -> Maybe ProxySettings
-uri2proxy proto uri@U.URI{ U.uriAuthority = Just (U.URIAuth auth' hst prt) } =
+uri2proxy proto uri@U.URI{ U.uriAuthority = Just (U.URIAuth auth' hst prt) } = ETT__.t "Network.HTTP.Proxy.uri2proxy" ETT__.$
     if (show proto ++ ":") == U.uriScheme uri then
         Just (ProxySettings (Proxy (S8.pack hst) (port prt)) auth) else Nothing
     where
@@ -318,10 +319,10 @@ uri2proxy proto uri@U.URI{ U.uriAuthority = Just (U.URIAuth auth' hst prt) } =
           where
            (usr,pwd) = chopAtDelim ':' as
 
-uri2proxy _ _ = Nothing
+uri2proxy _ _ = ETT__.t "Network.HTTP.Proxy.uri2proxy" ETT__.$ Nothing
 
 regQueryValueDWORD :: HKEY -> String -> IO (Maybe DWORD)
-regQueryValueDWORD hkey name = alloca $ \ptr -> do
+regQueryValueDWORD hkey name = ETT__.tio "Network.HTTP.Proxy.regQueryValueDWORD" ETT__.$ alloca $ \ptr -> do
   key <- regQueryValueEx hkey name (castPtr ptr) (sizeOf (undefined :: DWORD))
   if key == rEG_DWORD then
       Just A.<$> peek ptr
@@ -331,11 +332,11 @@ regQueryValueDWORD hkey name = alloca $ \ptr -> do
 #endif
 
 envName :: ProxyProtocol -> EnvName
-envName proto = T.pack $ show proto ++ "_proxy"
+envName proto = ETT__.t "Network.HTTP.Proxy.envName" ETT__.$ T.pack $ show proto ++ "_proxy"
 
 -- Extract proxy settings from environment variables. This is a standard way in Linux.
 envHelper :: EnvName -> IO (HostAddress -> Maybe ProxySettings)
-envHelper name = do
+envHelper name = ETT__.tio "Network.HTTP.Proxy.envHelper" ETT__.$ do
   env <- getEnvironment
   let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
       lookupEnvVar n = lookup (T.unpack n) env A.<|> Map.lookup n lenv

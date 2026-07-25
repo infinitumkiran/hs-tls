@@ -16,17 +16,18 @@ import Control.Applicative
 import Crypto.PubKey.ECC.Types
 import Data.ASN1.OID
 import Data.List (find)
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 type OIDTable a = [(a,OID)]
 
 lookupByOID :: OIDTable a -> OID -> Maybe a
-lookupByOID table oid = fst <$> find ((==) oid . snd) table
+lookupByOID table oid = ETT__.t "Data.X509.OID.lookupByOID" ETT__.$ fst <$> find ((==) oid . snd) table
 
 lookupOID :: Eq a => OIDTable a -> a -> Maybe OID
-lookupOID table a = lookup a table
+lookupOID table a = ETT__.t "Data.X509.OID.lookupOID" ETT__.$ lookup a table
 
 curvesOIDTable :: OIDTable CurveName
-curvesOIDTable =
+curvesOIDTable = ETT__.t "Data.X509.OID.curvesOIDTable" ETT__.$
     [ (SEC_p112r1, [1,3,132,0,6])
     , (SEC_p112r2, [1,3,132,0,7])
     , (SEC_p128r1, [1,3,132,0,28])

@@ -50,6 +50,7 @@ import Data.ASN1.BinaryEncoding
 import Data.ASN1.Stream
 import Data.ASN1.BitArray
 import qualified Data.ASN1.BinaryEncoding.Raw as Raw (toByteString)
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | Represent a signed object using a traditional X509 structure.
 --
@@ -74,7 +75,7 @@ data (Show a, Eq a, ASN1Object a) => SignedExact a = SignedExact
 getSignedData :: (Show a, Eq a, ASN1Object a)
               => SignedExact a
               -> B.ByteString
-getSignedData = exactObjectRaw
+getSignedData = ETT__.t "Data.X509.Signed.getSignedData" ETT__.$ exactObjectRaw
 
 -- | make a 'SignedExact' copy of a 'Signed' object
 --
@@ -85,7 +86,7 @@ getSignedData = exactObjectRaw
 signedToExact :: (Show a, Eq a, ASN1Object a)
               => Signed a
               -> SignedExact a
-signedToExact signed = sExact
+signedToExact signed = ETT__.t "Data.X509.Signed.signedToExact" ETT__.$ sExact
   where (sExact, ())      = objectToSignedExact fakeSigFunction (signedObject signed)
         fakeSigFunction _ = (signedSignature signed, signedAlg signed, ())
 
@@ -94,7 +95,7 @@ objectToSignedExact :: (Show a, Eq a, ASN1Object a)
                     => (ByteString -> (ByteString, SignatureALG, r)) -- ^ signature function
                     -> a                                             -- ^ object to sign
                     -> (SignedExact a, r)
-objectToSignedExact signatureFunction object = (signedExact, val)
+objectToSignedExact signatureFunction object = ETT__.t "Data.X509.Signed.objectToSignedExact" ETT__.$ (signedExact, val)
   where
     (val, signedExact) = objectToSignedExactF (wrap . signatureFunction) object
     wrap (b, s, r) = (r, (b, s))
@@ -106,7 +107,7 @@ objectToSignedExactF :: (Functor f, Show a, Eq a, ASN1Object a)
                      => (ByteString -> f (ByteString, SignatureALG)) -- ^ signature function
                      -> a                                            -- ^ object to sign
                      -> f (SignedExact a)
-objectToSignedExactF signatureFunction object = fmap buildSignedExact (signatureFunction objRaw)
+objectToSignedExactF signatureFunction object = ETT__.t "Data.X509.Signed.objectToSignedExactF" ETT__.$ fmap buildSignedExact (signatureFunction objRaw)
   where buildSignedExact (sigBits,sigAlg) =
             let signed     = Signed { signedObject    = object
                                     , signedAlg       = sigAlg
@@ -131,13 +132,13 @@ objectToSigned :: (Show a, Eq a, ASN1Object a)
                -> (ByteString, SignatureALG, r))
                -> a
                -> (Signed a, r)
-objectToSigned signatureFunction object = first getSigned $ objectToSignedExact signatureFunction object
+objectToSigned signatureFunction object = ETT__.t "Data.X509.Signed.objectToSigned" ETT__.$ first getSigned $ objectToSignedExact signatureFunction object
 
 -- | Try to parse a bytestring that use the typical X509 signed structure format
 decodeSignedObject :: (Show a, Eq a, ASN1Object a)
                    => ByteString
                    -> Either String (SignedExact a)
-decodeSignedObject b = either (Left . show) parseSigned $ decodeASN1Repr' BER b
+decodeSignedObject b = ETT__.t "Data.X509.Signed.decodeSignedObject" ETT__.$ either (Left . show) parseSigned $ decodeASN1Repr' BER b
   where -- the following implementation is very inefficient.
         -- uses reverse and containing, move to a better solution eventually
         parseSigned l = onContainer (fst $ getConstructedEndRepr l) $ \l2 ->

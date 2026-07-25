@@ -94,6 +94,7 @@ import Data.IORef
 import Network.Socket (Socket)
 #endif
 import System.IO (Handle)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 class TLSParams a where
     getTLSCommonParams :: a -> CommonParams
@@ -130,7 +131,7 @@ contextNew :: (MonadIO m, HasBackend backend, TLSParams params)
            => backend   -- ^ Backend abstraction with specific method to interact with the connection type.
            -> params    -- ^ Parameters of the context.
            -> m Context
-contextNew backend params = liftIO $ do
+contextNew backend params = ETT__.tm "Network.TLS.Context.contextNew" ETT__.$ liftIO $ do
     initializeBackend backend
 
     let (supported, shared, debug) = getTLSCommonParams params
@@ -214,7 +215,7 @@ contextNewOnHandle :: (MonadIO m, TLSParams params)
                    => Handle -- ^ Handle of the connection.
                    -> params -- ^ Parameters of the context.
                    -> m Context
-contextNewOnHandle = contextNew
+contextNewOnHandle = ETT__.t "Network.TLS.Context.contextNewOnHandle" ETT__.$ contextNew
 {-# DEPRECATED contextNewOnHandle "use contextNew" #-}
 
 #ifdef INCLUDE_NETWORK
@@ -223,30 +224,30 @@ contextNewOnSocket :: (MonadIO m, TLSParams params)
                    => Socket -- ^ Socket of the connection.
                    -> params -- ^ Parameters of the context.
                    -> m Context
-contextNewOnSocket sock params = contextNew sock params
+contextNewOnSocket sock params = ETT__.tm "Network.TLS.Context.contextNewOnSocket" ETT__.$ contextNew sock params
 {-# DEPRECATED contextNewOnSocket "use contextNew" #-}
 #endif
 
 contextHookSetHandshakeRecv :: Context -> (Handshake -> IO Handshake) -> IO ()
-contextHookSetHandshakeRecv context f =
+contextHookSetHandshakeRecv context f = ETT__.tio "Network.TLS.Context.contextHookSetHandshakeRecv" ETT__.$
     contextModifyHooks context (\hooks -> hooks { hookRecvHandshake = f })
 
 contextHookSetHandshake13Recv :: Context -> (Handshake13 -> IO Handshake13) -> IO ()
-contextHookSetHandshake13Recv context f =
+contextHookSetHandshake13Recv context f = ETT__.tio "Network.TLS.Context.contextHookSetHandshake13Recv" ETT__.$
     contextModifyHooks context (\hooks -> hooks { hookRecvHandshake13 = f })
 
 contextHookSetCertificateRecv :: Context -> (CertificateChain -> IO ()) -> IO ()
-contextHookSetCertificateRecv context f =
+contextHookSetCertificateRecv context f = ETT__.tio "Network.TLS.Context.contextHookSetCertificateRecv" ETT__.$
     contextModifyHooks context (\hooks -> hooks { hookRecvCertificates = f })
 
 contextHookSetLogging :: Context -> Logging -> IO ()
-contextHookSetLogging context loggingCallbacks =
+contextHookSetLogging context loggingCallbacks = ETT__.tio "Network.TLS.Context.contextHookSetLogging" ETT__.$
     contextModifyHooks context (\hooks -> hooks { hookLogging = loggingCallbacks })
 
 -- | Get TLS Finished sent to peer
 getFinished :: Context -> IO (Maybe FinishedData)
-getFinished = readIORef . ctxFinished
+getFinished = ETT__.t "Network.TLS.Context.getFinished" ETT__.$ readIORef . ctxFinished
 
 -- | Get TLS Finished received from peer
 getPeerFinished :: Context -> IO (Maybe FinishedData)
-getPeerFinished = readIORef . ctxPeerFinished
+getPeerFinished = ETT__.t "Network.TLS.Context.getPeerFinished" ETT__.$ readIORef . ctxPeerFinished

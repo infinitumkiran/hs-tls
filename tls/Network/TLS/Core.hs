@@ -60,6 +60,7 @@ import           Control.Monad (unless, when)
 import qualified Control.Exception as E
 
 import Control.Monad.State.Strict
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | notify the context that this side wants to close connection.
 -- this is important that it is called before closing the handle, otherwise
@@ -67,7 +68,7 @@ import Control.Monad.State.Strict
 --
 -- this doesn't actually close the handle
 bye :: MonadIO m => Context -> m ()
-bye ctx = liftIO $ do
+bye ctx = ETT__.tm "Network.TLS.Core.bye" ETT__.$ liftIO $ do
     -- Although setEOF is always protected by the read lock, here we don't try
     -- to wrap ctxEOF with it, so that function bye can still be called
     -- concurrently to a blocked recvData.
@@ -82,17 +83,17 @@ bye ctx = liftIO $ do
 -- | If the ALPN extensions have been used, this will
 -- return get the protocol agreed upon.
 getNegotiatedProtocol :: MonadIO m => Context -> m (Maybe B.ByteString)
-getNegotiatedProtocol ctx = liftIO $ usingState_ ctx S.getNegotiatedProtocol
+getNegotiatedProtocol ctx = ETT__.tm "Network.TLS.Core.getNegotiatedProtocol" ETT__.$ liftIO $ usingState_ ctx S.getNegotiatedProtocol
 
 -- | If the Server Name Indication extension has been used, return the
 -- hostname specified by the client.
 getClientSNI :: MonadIO m => Context -> m (Maybe HostName)
-getClientSNI ctx = liftIO $ usingState_ ctx S.getClientSNI
+getClientSNI ctx = ETT__.tm "Network.TLS.Core.getClientSNI" ETT__.$ liftIO $ usingState_ ctx S.getClientSNI
 
 -- | sendData sends a bunch of data.
 -- It will automatically chunk data to acceptable packet size
 sendData :: MonadIO m => Context -> L.ByteString -> m ()
-sendData ctx dataToSend = liftIO $ do
+sendData ctx dataToSend = ETT__.tm "Network.TLS.Core.sendData" ETT__.$ liftIO $ do
     tls13 <- tls13orLater ctx
     let sendP
           | tls13     = sendPacket13 ctx . AppData13
@@ -108,7 +109,7 @@ sendData ctx dataToSend = liftIO $ do
 -- | Get data out of Data packet, and automatically renegotiate if a Handshake
 -- ClientHello is received.  An empty result means EOF.
 recvData :: MonadIO m => Context -> m B.ByteString
-recvData ctx = liftIO $ do
+recvData ctx = ETT__.tm "Network.TLS.Core.recvData" ETT__.$ liftIO $ do
     tls13 <- tls13orLater ctx
     withReadLock ctx $ do
         checkValid ctx
@@ -122,7 +123,7 @@ recvData ctx = liftIO $ do
         if tls13 then recvData13 ctx else recvData1 ctx
 
 recvData1 :: Context -> IO B.ByteString
-recvData1 ctx = do
+recvData1 ctx = ETT__.tio "Network.TLS.Core.recvData1" ETT__.$ do
     pkt <- recvPacket ctx
     either (onError terminate) process pkt
   where process (Handshake [ch@ClientHello{}]) =
@@ -144,7 +145,7 @@ recvData1 ctx = do
         terminate = terminateWithWriteLock ctx (sendPacket ctx . Alert)
 
 recvData13 :: Context -> IO B.ByteString
-recvData13 ctx = do
+recvData13 ctx = ETT__.tio "Network.TLS.Core.recvData13" ETT__.$ do
     pkt <- recvPacket13 ctx
     either (onError terminate) process pkt
   where process (Alert13 [(AlertLevel_Warning, UserCanceled)]) = return B.empty
@@ -273,18 +274,18 @@ recvData13 ctx = do
 -- the other side could have close the connection already, so wrap
 -- this in a try and ignore all exceptions
 tryBye :: Context -> IO ()
-tryBye ctx = catchException (bye ctx) (\_ -> return ())
+tryBye ctx = ETT__.tio "Network.TLS.Core.tryBye" ETT__.$ catchException (bye ctx) (\_ -> return ())
 
 onError :: Monad m => (TLSError -> AlertLevel -> AlertDescription -> String -> m B.ByteString)
                    -> TLSError -> m B.ByteString
-onError _ Error_EOF = -- Not really an error.
+onError _ Error_EOF = ETT__.tm "Network.TLS.Core.onError" ETT__.$ -- Not really an error.
             return B.empty
-onError terminate err = let (lvl,ad) = errorToAlert err
-                        in terminate err lvl ad (errorToAlertMessage err)
+onError terminate err = ETT__.tm "Network.TLS.Core.onError" ETT__.$ let (lvl,ad) = errorToAlert err
+                                                                    in terminate err lvl ad (errorToAlertMessage err)
 
 terminateWithWriteLock :: Context -> ([(AlertLevel, AlertDescription)] -> IO ())
                        -> TLSError -> AlertLevel -> AlertDescription -> String -> IO a
-terminateWithWriteLock ctx send err level desc reason = do
+terminateWithWriteLock ctx send err level desc reason = ETT__.tio "Network.TLS.Core.terminateWithWriteLock" ETT__.$ do
     session <- usingState_ ctx getSession
     -- Session manager is always invoked with read+write locks, so we merge this
     -- with the alert packet being emitted.
@@ -300,13 +301,13 @@ terminateWithWriteLock ctx send err level desc reason = do
 {-# DEPRECATED recvData' "use recvData that returns strict bytestring" #-}
 -- | same as recvData but returns a lazy bytestring.
 recvData' :: MonadIO m => Context -> m L.ByteString
-recvData' ctx = L.fromChunks . (:[]) <$> recvData ctx
+recvData' ctx = ETT__.tm "Network.TLS.Core.recvData'" ETT__.$ L.fromChunks . (:[]) <$> recvData ctx
 
 keyUpdate :: Context
           -> (Context -> IO (Hash,Cipher,CryptLevel,C8.ByteString))
           -> (Context -> Hash -> Cipher -> AnyTrafficSecret ApplicationSecret -> IO ())
           -> IO ()
-keyUpdate ctx getState setState = do
+keyUpdate ctx getState setState = ETT__.tio "Network.TLS.Core.keyUpdate" ETT__.$ do
     (usedHash, usedCipher, level, applicationSecretN) <- getState ctx
     unless (level == CryptApplicationSecret) $
         throwCore $ Error_Protocol "tried key update without application traffic secret" InternalError
@@ -322,7 +323,7 @@ data KeyUpdateRequest = OneWay -- ^ Unidirectional key update
 --   If this API is called for TLS 1.3, 'True' is returned.
 --   Otherwise, 'False' is returned.
 updateKey :: MonadIO m => Context -> KeyUpdateRequest -> m Bool
-updateKey ctx way = liftIO $ do
+updateKey ctx way = ETT__.tm "Network.TLS.Core.updateKey" ETT__.$ liftIO $ do
     tls13 <- tls13orLater ctx
     when tls13 $ do
         let req = case way of

@@ -20,11 +20,12 @@ import Network.TLS.Types
 import Network.TLS.Imports
 import qualified Data.ByteArray as B (xor)
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.Tls as ETT__
 
 type HMAC = ByteString -> ByteString -> ByteString
 
 macSSL :: Hash -> HMAC
-macSSL alg secret msg =
+macSSL alg secret msg = ETT__.t "Network.TLS.MAC.macSSL" ETT__.$
     f $! B.concat
         [ secret
         , B.replicate padLen 0x5c
@@ -38,7 +39,7 @@ macSSL alg secret msg =
     f = hash alg
 
 hmac :: Hash -> HMAC
-hmac alg secret msg = f $! B.append opad (f $! B.append ipad msg)
+hmac alg secret msg = ETT__.t "Network.TLS.MAC.hmac" ETT__.$ f $! B.append opad (f $! B.append ipad msg)
   where opad = B.map (xor 0x5c) k'
         ipad = B.map (xor 0x36) k'
 
@@ -50,7 +51,7 @@ hmac alg secret msg = f $! B.append opad (f $! B.append ipad msg)
                 pad = B.replicate (fromIntegral bl - B.length kt) 0
 
 hmacIter :: HMAC -> ByteString -> ByteString -> ByteString -> Int -> [ByteString]
-hmacIter f secret seed aprev len =
+hmacIter f secret seed aprev len = ETT__.t "Network.TLS.MAC.hmacIter" ETT__.$
     let an = f secret aprev in
     let out = f secret (B.concat [an, seed]) in
     let digestsize = B.length out in
@@ -59,23 +60,23 @@ hmacIter f secret seed aprev len =
         else out : hmacIter f secret seed an (len - digestsize)
 
 prf_SHA1 :: ByteString -> ByteString -> Int -> ByteString
-prf_SHA1 secret seed len = B.concat $ hmacIter (hmac SHA1) secret seed seed len
+prf_SHA1 secret seed len = ETT__.t "Network.TLS.MAC.prf_SHA1" ETT__.$ B.concat $ hmacIter (hmac SHA1) secret seed seed len
 
 prf_MD5 :: ByteString -> ByteString -> Int -> ByteString
-prf_MD5 secret seed len = B.concat $ hmacIter (hmac MD5) secret seed seed len
+prf_MD5 secret seed len = ETT__.t "Network.TLS.MAC.prf_MD5" ETT__.$ B.concat $ hmacIter (hmac MD5) secret seed seed len
 
 prf_MD5SHA1 :: ByteString -> ByteString -> Int -> ByteString
-prf_MD5SHA1 secret seed len =
+prf_MD5SHA1 secret seed len = ETT__.t "Network.TLS.MAC.prf_MD5SHA1" ETT__.$
     B.xor (prf_MD5 s1 seed len) (prf_SHA1 s2 seed len)
   where slen  = B.length secret
         s1    = B.take (slen `div` 2 + slen `mod` 2) secret
         s2    = B.drop (slen `div` 2) secret
 
 prf_SHA256 :: ByteString -> ByteString -> Int -> ByteString
-prf_SHA256 secret seed len = B.concat $ hmacIter (hmac SHA256) secret seed seed len
+prf_SHA256 secret seed len = ETT__.t "Network.TLS.MAC.prf_SHA256" ETT__.$ B.concat $ hmacIter (hmac SHA256) secret seed seed len
 
 -- | For now we ignore the version, but perhaps some day the PRF will depend
 -- not only on the cipher PRF algorithm, but also on the protocol version.
 prf_TLS :: Version -> Hash -> ByteString -> ByteString -> Int -> ByteString
-prf_TLS _ halg secret seed len =
+prf_TLS _ halg secret seed len = ETT__.t "Network.TLS.MAC.prf_TLS" ETT__.$
     B.concat $ hmacIter (hmac halg) secret seed seed len

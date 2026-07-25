@@ -22,12 +22,13 @@ import Network.TLS.Handshake.Client
 import Network.TLS.Handshake.Server
 
 import Control.Monad.State.Strict
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | Post-handshake certificate request with TLS 1.3.  Returns 'True' if the
 -- request was possible, i.e. if TLS 1.3 is used and the remote client supports
 -- post-handshake authentication.
 requestCertificate :: MonadIO m => Context -> m Bool
-requestCertificate ctx =
+requestCertificate ctx = ETT__.tm "Network.TLS.PostHandshake.requestCertificate" ETT__.$
     liftIO $ withWriteLock ctx $
         checkValid ctx >> ctxDoRequestCertificate ctx ctx
 
@@ -35,5 +36,5 @@ requestCertificate ctx =
 -- automatically by 'recvData', in a context where the read lock is already
 -- taken.
 postHandshakeAuthWith :: MonadIO m => Context -> Handshake13 -> m ()
-postHandshakeAuthWith ctx hs =
+postHandshakeAuthWith ctx hs = ETT__.tm "Network.TLS.PostHandshake.postHandshakeAuthWith" ETT__.$
     liftIO $ withWriteLock ctx $ handleException ctx $ ctxDoPostHandshakeAuthWith ctx ctx hs

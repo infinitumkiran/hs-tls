@@ -190,6 +190,7 @@ import Network.TLS.X509
 import Data.ByteString as B
 import Data.X509 (PubKey(..), PrivKey(..))
 import Data.X509.Validation hiding (HostName)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 {-# DEPRECATED Bytes "Use Data.ByteString.Bytestring instead of Bytes." #-}
 type Bytes = B.ByteString
@@ -200,7 +201,7 @@ type Bytes = B.ByteString
 --   So, this API would be replaced by the one which can treat
 --   both cases of full-negotiation and resumption.
 getClientCertificateChain :: Context -> IO (Maybe CertificateChain)
-getClientCertificateChain ctx = usingState_ ctx S.getClientCertificateChain
+getClientCertificateChain ctx = ETT__.tio "Network.TLS.getClientCertificateChain" ETT__.$ usingState_ ctx S.getClientCertificateChain
 
 {- $exceptions
     Since 1.8.0, this library only throws exceptions of type 'TLSException'.

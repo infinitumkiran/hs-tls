@@ -7,6 +7,7 @@ import qualified Data.Text         as T
 
 import qualified Network.PublicSuffixList.DataStructure as DS
 import           Network.PublicSuffixList.Types
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 {-|
 OffEnd's Bool argument represents whether we fell off a
@@ -40,8 +41,8 @@ though that package doesn't always map strings to lowercase)
 effectiveTLDPlusOne' :: DataStructure -> T.Text -> Maybe T.Text
 effectiveTLDPlusOne' dataStructure s
   -- Any TLD is a suffix
-  | length ss == 1 = Nothing
-  | otherwise = output rulesResult exceptionResult
+  | length ss == 1 = ETT__.t "publicsuffixlist.Network.PublicSuffixList.Lookup.effectiveTLDPlusOne'" ETT__.$ Nothing
+  | otherwise = ETT__.t "publicsuffixlist.Network.PublicSuffixList.Lookup.effectiveTLDPlusOne'" ETT__.$ output rulesResult exceptionResult
   where ss = T.splitOn "." s
         ps = reverse ss
         exceptionResult = recurse ps [] $ snd dataStructure
@@ -77,12 +78,12 @@ effectiveTLDPlusOne' dataStructure s
 
 -- | >>> effectiveTLDPlusOne = effectiveTLDPlusOne' Network.PublicSuffixList.DataStructure.dataStructure
 effectiveTLDPlusOne :: T.Text -> Maybe T.Text
-effectiveTLDPlusOne = effectiveTLDPlusOne' DS.dataStructure
+effectiveTLDPlusOne = ETT__.t "publicsuffixlist.Network.PublicSuffixList.Lookup.effectiveTLDPlusOne" ETT__.$ effectiveTLDPlusOne' DS.dataStructure
 
 -- | >>> isSuffix' dataStructure = isNothing . effectiveTLDPlusOne' dataStructure
 isSuffix' :: DataStructure -> T.Text -> Bool
-isSuffix' dataStructure = isNothing . effectiveTLDPlusOne' dataStructure
+isSuffix' dataStructure = ETT__.t "publicsuffixlist.Network.PublicSuffixList.Lookup.isSuffix'" ETT__.$ isNothing . effectiveTLDPlusOne' dataStructure
 
 -- | >>> isSuffix = isSuffix' Network.PublicSuffixList.DataStructure.dataStructure
 isSuffix :: T.Text -> Bool
-isSuffix = isNothing . effectiveTLDPlusOne
+isSuffix = ETT__.t "publicsuffixlist.Network.PublicSuffixList.Lookup.isSuffix" ETT__.$ isNothing . effectiveTLDPlusOne

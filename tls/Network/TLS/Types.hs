@@ -42,6 +42,7 @@ import Network.Socket (HostName)
 
 import Network.TLS.Imports
 import Network.TLS.Crypto.Types (Group)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 #ifndef INCLUDE_NETWORK
 type HostName    = String
@@ -101,8 +102,8 @@ data Direction = Tx | Rx
     deriving (Show,Eq)
 
 invertRole :: Role -> Role
-invertRole ClientRole = ServerRole
-invertRole ServerRole = ClientRole
+invertRole ClientRole = ETT__.t "Network.TLS.Types.invertRole" ETT__.$ ServerRole
+invertRole ServerRole = ETT__.t "Network.TLS.Types.invertRole" ETT__.$ ClientRole
 
 -- | Phantom type indicating early traffic secret.
 data EarlySecret

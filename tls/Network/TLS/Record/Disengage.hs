@@ -35,16 +35,17 @@ import Network.TLS.Packet
 import Network.TLS.Imports
 import qualified Data.ByteString as B
 import qualified Data.ByteArray as B (convert, xor)
+import qualified Debug.EulerTrace.Tls as ETT__
 
 disengageRecord :: Record Ciphertext -> RecordM (Record Plaintext)
-disengageRecord = decryptRecord >=> uncompressRecord
+disengageRecord = ETT__.t "Network.TLS.Record.Disengage.disengageRecord" ETT__.$ decryptRecord >=> uncompressRecord
 
 uncompressRecord :: Record Compressed -> RecordM (Record Plaintext)
-uncompressRecord record = onRecordFragment record $ fragmentUncompress $ \bytes ->
+uncompressRecord record = ETT__.tm "Network.TLS.Record.Disengage.uncompressRecord" ETT__.$ onRecordFragment record $ fragmentUncompress $ \bytes ->
     withCompression $ compressionInflate bytes
 
 decryptRecord :: Record Ciphertext -> RecordM (Record Compressed)
-decryptRecord record@(Record ct ver fragment) = do
+decryptRecord record@(Record ct ver fragment) = ETT__.t "Network.TLS.Record.Disengage.decryptRecord" ETT__.$ do
     st <- get
     case stCipher st of
         Nothing -> noDecryption
@@ -68,7 +69,7 @@ decryptRecord record@(Record ct ver fragment) = do
       _                             -> throwError $ Error_Protocol "illegal plain text" UnexpectedMessage
 
 unInnerPlaintext :: ByteString -> Either String (ProtocolType, ByteString)
-unInnerPlaintext inner =
+unInnerPlaintext inner = ETT__.t "Network.TLS.Record.Disengage.unInnerPlaintext" ETT__.$
     case B.unsnoc dc of
         Nothing         -> Left $ unknownContentType13 (0 :: Word8)
         Just (bytes,c)  ->
@@ -84,7 +85,7 @@ unInnerPlaintext inner =
     unknownContentType13 c = "unknown TLS 1.3 content type: " ++ show c
 
 getCipherData :: Record a -> CipherData -> RecordM ByteString
-getCipherData (Record pt ver _) cdata = do
+getCipherData (Record pt ver _) cdata = ETT__.tm "Network.TLS.Record.Disengage.getCipherData" ETT__.$ do
     -- check if the MAC is valid.
     macValid <- case cipherDataMAC cdata of
         Nothing     -> return True
@@ -110,7 +111,7 @@ getCipherData (Record pt ver _) cdata = do
     return $ cipherDataContent cdata
 
 decryptData :: Version -> Record Ciphertext -> ByteString -> RecordState -> RecordM ByteString
-decryptData ver record econtent tst = decryptOf (cstKey cst)
+decryptData ver record econtent tst = ETT__.tm "Network.TLS.Record.Disengage.decryptData" ETT__.$ decryptOf (cstKey cst)
   where cipher     = fromJust "cipher" $ stCipher tst
         bulk       = cipherBulk cipher
         cst        = stCryptState tst

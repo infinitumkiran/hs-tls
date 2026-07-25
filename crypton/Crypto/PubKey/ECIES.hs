@@ -26,6 +26,7 @@ module Crypto.PubKey.ECIES (
 import Crypto.ECC
 import Crypto.Error
 import Crypto.Random
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Generate random a new Shared secret and the associated point
 -- to do a ECIES style encryption
@@ -36,7 +37,7 @@ deriveEncrypt
     -> Point curve
     -- ^ the public key of the receiver
     -> randomly (CryptoFailable (Point curve, SharedSecret))
-deriveEncrypt proxy pub = do
+deriveEncrypt proxy pub = ETT__.tm "Crypto.PubKey.ECIES.deriveEncrypt" ETT__.$ do
     (KeyPair rPoint rScalar) <- curveGenerateKeyPair proxy
     return $ (\s -> (rPoint, s)) `fmap` ecdh proxy rScalar pub
 
@@ -51,4 +52,4 @@ deriveDecrypt
     -> Scalar curve
     -- ^ The secret key of the receiver
     -> CryptoFailable SharedSecret
-deriveDecrypt proxy point secret = ecdh proxy secret point
+deriveDecrypt proxy point secret = ETT__.t "Crypto.PubKey.ECIES.deriveDecrypt" ETT__.$ ecdh proxy secret point

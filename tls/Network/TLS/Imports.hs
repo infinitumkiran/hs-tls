@@ -48,13 +48,14 @@ import Data.Word
 
 import Data.ByteArray.Encoding as B
 import qualified Prelude as P
+import qualified Debug.EulerTrace.Tls as ETT__
 
 #if !MIN_VERSION_base(4,11,0)
 (<&>) :: Functor f => f a -> (a -> b) -> f b
-(<&>) = P.flip fmap
+(<&>) = ETT__.t "Network.TLS.Imports.<&>" ETT__.$ P.flip fmap
 infixl 1 <&>
 #endif
 
 showBytesHex :: ByteString -> P.String
-showBytesHex bs = P.show (B.convertToBase B.Base16 bs :: ByteString)
+showBytesHex bs = ETT__.t "Network.TLS.Imports.showBytesHex" ETT__.$ P.show (B.convertToBase B.Base16 bs :: ByteString)
 

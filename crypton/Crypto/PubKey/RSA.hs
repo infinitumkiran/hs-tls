@@ -21,6 +21,7 @@ import Crypto.Number.ModArithmetic (inverse, inverseCoprimes)
 import Crypto.Number.Prime (generatePrime)
 import Crypto.PubKey.RSA.Types
 import Crypto.Random.Types
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 {-
 -- some bad implementation will not serialize ASN.1 integer properly, leading
@@ -59,7 +60,7 @@ generateWith
     -> Integer
     -- ^ RSA public exponent 'e'
     -> Maybe (PublicKey, PrivateKey)
-generateWith (p, q) size e =
+generateWith (p, q) size e = ETT__.t "Crypto.PubKey.RSA.generateWith" ETT__.$
     case inverse e phi of
         Nothing -> Nothing
         Just d -> Just (pub, priv d)
@@ -93,7 +94,7 @@ generate
     -> Integer
     -- ^ RSA public exponent 'e'
     -> m (PublicKey, PrivateKey)
-generate size e = loop
+generate size e = ETT__.tm "Crypto.PubKey.RSA.generate" ETT__.$ loop
   where
     loop = do
         -- loop until we find a valid key pair given e
@@ -118,5 +119,5 @@ generateBlinder
     => Integer
     -- ^ RSA public N parameter.
     -> m Blinder
-generateBlinder n =
+generateBlinder n = ETT__.tm "Crypto.PubKey.RSA.generateBlinder" ETT__.$
     (\r -> Blinder r (inverseCoprimes r n)) <$> generateMax n

@@ -42,13 +42,14 @@ import Data.ByteArray (ByteArray, ByteArrayAccess, ScrubbedBytes)
 import qualified Data.ByteArray as B
 
 import qualified Crypto.Number.Serialize as Serialize
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 newtype Seed = Seed ScrubbedBytes
     deriving (ByteArrayAccess)
 
 -- Length for ChaCha DRG seed
 seedLength :: Int
-seedLength = 40
+seedLength = ETT__.t "Crypto.Random.seedLength" ETT__.$ 40
 
 -- | Create a new Seed from system entropy
 seedNew :: MonadRandom randomly => randomly Seed
@@ -58,31 +59,31 @@ seedNew :: MonadRandom randomly => randomly Seed
 -- potentially comprisable sources. Hashing of entropy before using
 -- it as a seed is a common mitigation for attacks via RNG/entropy
 -- source.
-seedNew =
+seedNew = ETT__.tm "Crypto.Random.seedNew" ETT__.$
     (Seed . B.take seedLength . B.convert . (hash :: ScrubbedBytes -> Digest SHA512))
         `fmap` getRandomBytes 64
 
 -- | Convert a Seed to an integer
 seedToInteger :: Seed -> Integer
-seedToInteger (Seed b) = Serialize.os2ip b
+seedToInteger (Seed b) = ETT__.t "Crypto.Random.seedToInteger" ETT__.$ Serialize.os2ip b
 
 -- | Convert an integer to a Seed
 seedFromInteger :: Integer -> Seed
-seedFromInteger i = Seed $ Serialize.i2ospOf_ seedLength (i `mod` 2 ^ (seedLength * 8))
+seedFromInteger i = ETT__.t "Crypto.Random.seedFromInteger" ETT__.$ Seed $ Serialize.i2ospOf_ seedLength (i `mod` 2 ^ (seedLength * 8))
 
 -- | Convert a binary to a seed
 seedFromBinary :: ByteArrayAccess b => b -> CryptoFailable Seed
 seedFromBinary b
-    | B.length b /= 40 = CryptoFailed (CryptoError_SeedSizeInvalid)
-    | otherwise = CryptoPassed $ Seed $ B.convert b
+    | B.length b /= 40 = ETT__.t "Crypto.Random.seedFromBinary" ETT__.$ CryptoFailed (CryptoError_SeedSizeInvalid)
+    | otherwise = ETT__.t "Crypto.Random.seedFromBinary" ETT__.$ CryptoPassed $ Seed $ B.convert b
 
 -- | Create a new DRG from system entropy
 drgNew :: MonadRandom randomly => randomly ChaChaDRG
-drgNew = drgNewSeed `fmap` seedNew
+drgNew = ETT__.tm "Crypto.Random.drgNew" ETT__.$ drgNewSeed `fmap` seedNew
 
 -- | Create a new DRG from a seed
 drgNewSeed :: Seed -> ChaChaDRG
-drgNewSeed (Seed seed) = initialize seed
+drgNewSeed (Seed seed) = ETT__.t "Crypto.Random.drgNewSeed" ETT__.$ initialize seed
 
 -- | Create a new DRG from 5 Word64.
 --
@@ -99,12 +100,12 @@ drgNewSeed (Seed seed) = initialize seed
 -- System endianness impacts how the tuple is interpreted and therefore changes
 -- the resulting DRG.
 drgNewTest :: (Word64, Word64, Word64, Word64, Word64) -> ChaChaDRG
-drgNewTest = initializeWords
+drgNewTest = ETT__.t "Crypto.Random.drgNewTest" ETT__.$ initializeWords
 
 -- | Generate @len random bytes and mapped the bytes to the function @f.
 --
 -- This is equivalent to use Control.Arrow 'first' with 'randomBytesGenerate'
 withRandomBytes :: (ByteArray ba, DRG g) => g -> Int -> (ba -> a) -> (a, g)
-withRandomBytes rng len f = (f bs, rng')
+withRandomBytes rng len f = ETT__.t "Crypto.Random.withRandomBytes" ETT__.$ (f bs, rng')
   where
     (bs, rng') = randomBytesGenerate len rng

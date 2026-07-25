@@ -34,6 +34,7 @@ import qualified Network.Socket.ByteString as Network
 import qualified Data.ByteString.Lazy as L
 import qualified Hans.NetworkStack as Hans
 #endif
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | Connection IO backend
 data Backend = Backend
@@ -60,9 +61,9 @@ instance HasBackend Backend where
 
 safeRecv :: Network.Socket -> Int -> IO ByteString
 #ifndef SOCKET_ACCEPT_RECV_WORKAROUND
-safeRecv = Network.recv
+safeRecv = ETT__.t "Network.TLS.Backend.safeRecv" ETT__.$ Network.recv
 #else
-safeRecv s buf = do
+safeRecv s buf = ETT__.tio "Network.TLS.Backend.safeRecv" ETT__.$ do
     var <- newEmptyMVar
     forkIO $ Network.recv s buf `E.catch` (\(_::IOException) -> return S8.empty) >>= putMVar var
     takeMVar var

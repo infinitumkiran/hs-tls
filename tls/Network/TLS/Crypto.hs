@@ -72,6 +72,7 @@ import Data.ASN1.Encoding
 import Data.ASN1.BinaryEncoding (DER(..), BER(..))
 
 import Data.Proxy
+import qualified Debug.EulerTrace.Tls as ETT__
 
 {-# DEPRECATED PublicKey "use PubKey" #-}
 type PublicKey = PubKey
@@ -84,7 +85,7 @@ data KxError =
     deriving (Show)
 
 isKeyExchangeSignatureKey :: KeyExchangeSignatureAlg -> PubKey -> Bool
-isKeyExchangeSignatureKey = f
+isKeyExchangeSignatureKey = ETT__.t "Network.TLS.Crypto.isKeyExchangeSignatureKey" ETT__.$ f
   where
     f KX_RSA   (PubKeyRSA     _)   = True
     f KX_DSS   (PubKeyDSA     _)   = True
@@ -94,7 +95,7 @@ isKeyExchangeSignatureKey = f
     f _        _                   = False
 
 findKeyExchangeSignatureAlg :: (PubKey, PrivKey) -> Maybe KeyExchangeSignatureAlg
-findKeyExchangeSignatureAlg keyPair =
+findKeyExchangeSignatureAlg keyPair = ETT__.t "Network.TLS.Crypto.findKeyExchangeSignatureAlg" ETT__.$
     case keyPair of
         (PubKeyRSA     _, PrivKeyRSA      _)  -> Just KX_RSA
         (PubKeyDSA     _, PrivKeyDSA      _)  -> Just KX_DSS
@@ -104,7 +105,7 @@ findKeyExchangeSignatureAlg keyPair =
         _                                     -> Nothing
 
 findFiniteFieldGroup :: DH.Params -> Maybe Group
-findFiniteFieldGroup params = lookup (pg params) table
+findFiniteFieldGroup params = ETT__.t "Network.TLS.Crypto.findFiniteFieldGroup" ETT__.$ lookup (pg params) table
   where
     pg (DH.Params p g _) = (p, g)
 
@@ -113,7 +114,7 @@ findFiniteFieldGroup params = lookup (pg params) table
             ]
 
 findEllipticCurveGroup :: PubKeyEC -> Maybe Group
-findEllipticCurveGroup ecPub =
+findEllipticCurveGroup ecPub = ETT__.t "Network.TLS.Crypto.findEllipticCurveGroup" ETT__.$
     case ecPubKeyCurveName ecPub of
         Just ECC.SEC_p256r1 -> Just P256
         Just ECC.SEC_p384r1 -> Just P384
@@ -122,29 +123,29 @@ findEllipticCurveGroup ecPub =
 
 -- functions to use the hidden class.
 hashInit :: Hash -> HashContext
-hashInit MD5      = HashContext $ ContextSimple (H.hashInit :: H.Context H.MD5)
-hashInit SHA1     = HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA1)
-hashInit SHA224   = HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA224)
-hashInit SHA256   = HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA256)
-hashInit SHA384   = HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA384)
-hashInit SHA512   = HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA512)
-hashInit SHA1_MD5 = HashContextSSL H.hashInit H.hashInit
+hashInit MD5      = ETT__.t "Network.TLS.Crypto.hashInit" ETT__.$ HashContext $ ContextSimple (H.hashInit :: H.Context H.MD5)
+hashInit SHA1     = ETT__.t "Network.TLS.Crypto.hashInit" ETT__.$ HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA1)
+hashInit SHA224   = ETT__.t "Network.TLS.Crypto.hashInit" ETT__.$ HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA224)
+hashInit SHA256   = ETT__.t "Network.TLS.Crypto.hashInit" ETT__.$ HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA256)
+hashInit SHA384   = ETT__.t "Network.TLS.Crypto.hashInit" ETT__.$ HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA384)
+hashInit SHA512   = ETT__.t "Network.TLS.Crypto.hashInit" ETT__.$ HashContext $ ContextSimple (H.hashInit :: H.Context H.SHA512)
+hashInit SHA1_MD5 = ETT__.t "Network.TLS.Crypto.hashInit" ETT__.$ HashContextSSL H.hashInit H.hashInit
 
 hashUpdate :: HashContext -> B.ByteString -> HashCtx
-hashUpdate (HashContext (ContextSimple h)) b = HashContext $ ContextSimple (H.hashUpdate h b)
-hashUpdate (HashContextSSL sha1Ctx md5Ctx) b =
+hashUpdate (HashContext (ContextSimple h)) b = ETT__.t "Network.TLS.Crypto.hashUpdate" ETT__.$ HashContext $ ContextSimple (H.hashUpdate h b)
+hashUpdate (HashContextSSL sha1Ctx md5Ctx) b = ETT__.t "Network.TLS.Crypto.hashUpdate" ETT__.$
     HashContextSSL (H.hashUpdate sha1Ctx b) (H.hashUpdate md5Ctx b)
 
 hashUpdateSSL :: HashCtx
               -> (B.ByteString,B.ByteString) -- ^ (for the md5 context, for the sha1 context)
               -> HashCtx
-hashUpdateSSL (HashContext _) _ = error "internal error: update SSL without a SSL Context"
-hashUpdateSSL (HashContextSSL sha1Ctx md5Ctx) (b1,b2) =
+hashUpdateSSL (HashContext _) _ = ETT__.t "Network.TLS.Crypto.hashUpdateSSL" ETT__.$ error "internal error: update SSL without a SSL Context"
+hashUpdateSSL (HashContextSSL sha1Ctx md5Ctx) (b1,b2) = ETT__.t "Network.TLS.Crypto.hashUpdateSSL" ETT__.$
     HashContextSSL (H.hashUpdate sha1Ctx b2) (H.hashUpdate md5Ctx b1)
 
 hashFinal :: HashCtx -> B.ByteString
-hashFinal (HashContext (ContextSimple h)) = B.convert $ H.hashFinalize h
-hashFinal (HashContextSSL sha1Ctx md5Ctx) =
+hashFinal (HashContext (ContextSimple h)) = ETT__.t "Network.TLS.Crypto.hashFinal" ETT__.$ B.convert $ H.hashFinalize h
+hashFinal (HashContextSSL sha1Ctx md5Ctx) = ETT__.t "Network.TLS.Crypto.hashFinal" ETT__.$
     B.concat [B.convert (H.hashFinalize md5Ctx), B.convert (H.hashFinalize sha1Ctx)]
 
 data Hash = MD5 | SHA1 | SHA224 | SHA256 | SHA384 | SHA512 | SHA1_MD5
@@ -162,13 +163,13 @@ data ContextSimple = forall alg . H.HashAlgorithm alg => ContextSimple (H.Contex
 type HashCtx = HashContext
 
 hash :: Hash -> B.ByteString -> B.ByteString
-hash MD5 b      = B.convert . (H.hash :: B.ByteString -> H.Digest H.MD5) $ b
-hash SHA1 b     = B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA1) $ b
-hash SHA224 b   = B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA224) $ b
-hash SHA256 b   = B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA256) $ b
-hash SHA384 b   = B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA384) $ b
-hash SHA512 b   = B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA512) $ b
-hash SHA1_MD5 b =
+hash MD5 b      = ETT__.t "Network.TLS.Crypto.hash" ETT__.$ B.convert . (H.hash :: B.ByteString -> H.Digest H.MD5) $ b
+hash SHA1 b     = ETT__.t "Network.TLS.Crypto.hash" ETT__.$ B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA1) $ b
+hash SHA224 b   = ETT__.t "Network.TLS.Crypto.hash" ETT__.$ B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA224) $ b
+hash SHA256 b   = ETT__.t "Network.TLS.Crypto.hash" ETT__.$ B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA256) $ b
+hash SHA384 b   = ETT__.t "Network.TLS.Crypto.hash" ETT__.$ B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA384) $ b
+hash SHA512 b   = ETT__.t "Network.TLS.Crypto.hash" ETT__.$ B.convert . (H.hash :: B.ByteString -> H.Digest H.SHA512) $ b
+hash SHA1_MD5 b = ETT__.t "Network.TLS.Crypto.hash" ETT__.$
     B.concat [B.convert (md5Hash b), B.convert (sha1Hash b)]
   where
     sha1Hash :: B.ByteString -> H.Digest H.SHA1
@@ -177,47 +178,47 @@ hash SHA1_MD5 b =
     md5Hash = H.hash
 
 hashName :: Hash -> String
-hashName = show
+hashName = ETT__.t "Network.TLS.Crypto.hashName" ETT__.$ show
 
 -- | Digest size in bytes.
 hashDigestSize :: Hash -> Int
-hashDigestSize MD5    = 16
-hashDigestSize SHA1   = 20
-hashDigestSize SHA224 = 28
-hashDigestSize SHA256 = 32
-hashDigestSize SHA384 = 48
-hashDigestSize SHA512 = 64
-hashDigestSize SHA1_MD5 = 36
+hashDigestSize MD5    = ETT__.t "Network.TLS.Crypto.hashDigestSize" ETT__.$ 16
+hashDigestSize SHA1   = ETT__.t "Network.TLS.Crypto.hashDigestSize" ETT__.$ 20
+hashDigestSize SHA224 = ETT__.t "Network.TLS.Crypto.hashDigestSize" ETT__.$ 28
+hashDigestSize SHA256 = ETT__.t "Network.TLS.Crypto.hashDigestSize" ETT__.$ 32
+hashDigestSize SHA384 = ETT__.t "Network.TLS.Crypto.hashDigestSize" ETT__.$ 48
+hashDigestSize SHA512 = ETT__.t "Network.TLS.Crypto.hashDigestSize" ETT__.$ 64
+hashDigestSize SHA1_MD5 = ETT__.t "Network.TLS.Crypto.hashDigestSize" ETT__.$ 36
 
 hashBlockSize :: Hash -> Int
-hashBlockSize MD5    = 64
-hashBlockSize SHA1   = 64
-hashBlockSize SHA224 = 64
-hashBlockSize SHA256 = 64
-hashBlockSize SHA384 = 128
-hashBlockSize SHA512 = 128
-hashBlockSize SHA1_MD5 = 64
+hashBlockSize MD5    = ETT__.t "Network.TLS.Crypto.hashBlockSize" ETT__.$ 64
+hashBlockSize SHA1   = ETT__.t "Network.TLS.Crypto.hashBlockSize" ETT__.$ 64
+hashBlockSize SHA224 = ETT__.t "Network.TLS.Crypto.hashBlockSize" ETT__.$ 64
+hashBlockSize SHA256 = ETT__.t "Network.TLS.Crypto.hashBlockSize" ETT__.$ 64
+hashBlockSize SHA384 = ETT__.t "Network.TLS.Crypto.hashBlockSize" ETT__.$ 128
+hashBlockSize SHA512 = ETT__.t "Network.TLS.Crypto.hashBlockSize" ETT__.$ 128
+hashBlockSize SHA1_MD5 = ETT__.t "Network.TLS.Crypto.hashBlockSize" ETT__.$ 64
 
 {- key exchange methods encrypt and decrypt for each supported algorithm -}
 
 generalizeRSAError :: Either RSA.Error a -> Either KxError a
-generalizeRSAError (Left e)  = Left (RSAError e)
-generalizeRSAError (Right x) = Right x
+generalizeRSAError (Left e)  = ETT__.t "Network.TLS.Crypto.generalizeRSAError" ETT__.$ Left (RSAError e)
+generalizeRSAError (Right x) = ETT__.t "Network.TLS.Crypto.generalizeRSAError" ETT__.$ Right x
 
 kxEncrypt :: MonadRandom r => PublicKey -> ByteString -> r (Either KxError ByteString)
-kxEncrypt (PubKeyRSA pk) b = generalizeRSAError <$> RSA.encrypt pk b
-kxEncrypt _              _ = return (Left KxUnsupported)
+kxEncrypt (PubKeyRSA pk) b = ETT__.tm "Network.TLS.Crypto.kxEncrypt" ETT__.$ generalizeRSAError <$> RSA.encrypt pk b
+kxEncrypt _              _ = ETT__.tm "Network.TLS.Crypto.kxEncrypt" ETT__.$ return (Left KxUnsupported)
 
 kxDecrypt :: MonadRandom r => PrivateKey -> ByteString -> r (Either KxError ByteString)
-kxDecrypt (PrivKeyRSA pk) b = generalizeRSAError <$> RSA.decryptSafer pk b
-kxDecrypt _               _ = return (Left KxUnsupported)
+kxDecrypt (PrivKeyRSA pk) b = ETT__.tm "Network.TLS.Crypto.kxDecrypt" ETT__.$ generalizeRSAError <$> RSA.decryptSafer pk b
+kxDecrypt _               _ = ETT__.tm "Network.TLS.Crypto.kxDecrypt" ETT__.$ return (Left KxUnsupported)
 
 data RSAEncoding = RSApkcs1 | RSApss deriving (Show,Eq)
 
 -- | Test the RSASSA-PKCS1 length condition described in RFC 8017 section 9.2,
 -- i.e. @emLen >= tLen + 11@.  Lengths are in bytes.
 kxCanUseRSApkcs1 :: RSA.PublicKey -> Hash -> Bool
-kxCanUseRSApkcs1 pk h = RSA.public_size pk >= tLen + 11
+kxCanUseRSApkcs1 pk h = ETT__.t "Network.TLS.Crypto.kxCanUseRSApkcs1" ETT__.$ RSA.public_size pk >= tLen + 11
   where
     tLen = prefixSize h + hashDigestSize h
 
@@ -232,7 +233,7 @@ kxCanUseRSApkcs1 pk h = RSA.public_size pk >= tLen + 11
 -- | Test the RSASSA-PSS length condition described in RFC 8017 section 9.1.1,
 -- i.e. @emBits >= 8hLen + 8sLen + 9@.  Lengths are in bits.
 kxCanUseRSApss :: RSA.PublicKey -> Hash -> Bool
-kxCanUseRSApss pk h = numBits (RSA.public_n pk) >= 16 * hashDigestSize h + 10
+kxCanUseRSApss pk h = ETT__.t "Network.TLS.Crypto.kxCanUseRSApss" ETT__.$ numBits (RSA.public_n pk) >= 16 * hashDigestSize h + 10
 
 -- Signature algorithm and associated parameters.
 --
@@ -250,9 +251,9 @@ data SignatureParams =
 --
 
 kxVerify :: PublicKey -> SignatureParams -> ByteString -> ByteString -> Bool
-kxVerify (PubKeyRSA pk) (RSAParams alg RSApkcs1) msg sign   = rsaVerifyHash alg pk msg sign
-kxVerify (PubKeyRSA pk) (RSAParams alg RSApss)   msg sign   = rsapssVerifyHash alg pk msg sign
-kxVerify (PubKeyDSA pk) DSSParams                msg signBS =
+kxVerify (PubKeyRSA pk) (RSAParams alg RSApkcs1) msg sign   = ETT__.t "Network.TLS.Crypto.kxVerify" ETT__.$ rsaVerifyHash alg pk msg sign
+kxVerify (PubKeyRSA pk) (RSAParams alg RSApss)   msg sign   = ETT__.t "Network.TLS.Crypto.kxVerify" ETT__.$ rsapssVerifyHash alg pk msg sign
+kxVerify (PubKeyDSA pk) DSSParams                msg signBS = ETT__.t "Network.TLS.Crypto.kxVerify" ETT__.$
 
     case dsaToSignature signBS of
         Just sig -> DSA.verify H.SHA1 pk sig msg
@@ -268,7 +269,7 @@ kxVerify (PubKeyDSA pk) DSSParams                msg signBS =
                             Just DSA.Signature { DSA.sign_r = r, DSA.sign_s = s }
                         _ ->
                             Nothing
-kxVerify (PubKeyEC key) (ECDSAParams alg) msg sigBS =
+kxVerify (PubKeyEC key) (ECDSAParams alg) msg sigBS = ETT__.t "Network.TLS.Crypto.kxVerify" ETT__.$
     fromMaybe False $ join $
         withPubKeyEC key verifyProxy verifyClassic Nothing
   where
@@ -296,15 +297,15 @@ kxVerify (PubKeyEC key) (ECDSAParams alg) msg sigBS =
                     SHA384 -> Just (f H.SHA384)
                     SHA512 -> Just (f H.SHA512)
                     _      -> Nothing
-kxVerify (PubKeyEd25519 key) Ed25519Params msg sigBS =
+kxVerify (PubKeyEd25519 key) Ed25519Params msg sigBS = ETT__.t "Network.TLS.Crypto.kxVerify" ETT__.$
     case Ed25519.signature sigBS of
         CryptoPassed sig -> Ed25519.verify key msg sig
         _                -> False
-kxVerify (PubKeyEd448 key) Ed448Params msg sigBS =
+kxVerify (PubKeyEd448 key) Ed448Params msg sigBS = ETT__.t "Network.TLS.Crypto.kxVerify" ETT__.$
     case Ed448.signature sigBS of
         CryptoPassed sig -> Ed448.verify key msg sig
         _                -> False
-kxVerify _              _         _   _    = False
+kxVerify _              _         _   _    = ETT__.t "Network.TLS.Crypto.kxVerify" ETT__.$ False
 
 -- Sign the given message using the private key.
 --
@@ -314,15 +315,15 @@ kxSign :: MonadRandom r
        -> SignatureParams
        -> ByteString
        -> r (Either KxError ByteString)
-kxSign (PrivKeyRSA pk) (PubKeyRSA _) (RSAParams hashAlg RSApkcs1) msg =
+kxSign (PrivKeyRSA pk) (PubKeyRSA _) (RSAParams hashAlg RSApkcs1) msg = ETT__.tm "Network.TLS.Crypto.kxSign" ETT__.$
     generalizeRSAError <$> rsaSignHash hashAlg pk msg
-kxSign (PrivKeyRSA pk) (PubKeyRSA _) (RSAParams hashAlg RSApss) msg =
+kxSign (PrivKeyRSA pk) (PubKeyRSA _) (RSAParams hashAlg RSApss) msg = ETT__.tm "Network.TLS.Crypto.kxSign" ETT__.$
     generalizeRSAError <$> rsapssSignHash hashAlg pk msg
-kxSign (PrivKeyDSA pk) (PubKeyDSA _) DSSParams msg = do
+kxSign (PrivKeyDSA pk) (PubKeyDSA _) DSSParams msg = ETT__.tm "Network.TLS.Crypto.kxSign" ETT__.$ do
     sign <- DSA.sign pk H.SHA1 msg
     return (Right $ encodeASN1' DER $ dsaSequence sign)
   where dsaSequence sign = [Start Sequence,IntVal (DSA.sign_r sign),IntVal (DSA.sign_s sign),End Sequence]
-kxSign (PrivKeyEC pk) (PubKeyEC _) (ECDSAParams hashAlg) msg =
+kxSign (PrivKeyEC pk) (PubKeyEC _) (ECDSAParams hashAlg) msg = ETT__.tm "Network.TLS.Crypto.kxSign" ETT__.$
     case withPrivKeyEC pk doSign (const unsupported) unsupported of
         Nothing  -> unsupported
         Just run -> fmap encode <$> run
@@ -334,58 +335,58 @@ kxSign (PrivKeyEC pk) (PubKeyEC _) (ECDSAParams hashAlg) msg =
                          Nothing   -> Left KxUnsupported
                          Just sign -> Right (ECDSA.signatureToIntegers prx sign)
         unsupported = return $ Left KxUnsupported
-kxSign (PrivKeyEd25519 pk) (PubKeyEd25519 pub) Ed25519Params msg =
+kxSign (PrivKeyEd25519 pk) (PubKeyEd25519 pub) Ed25519Params msg = ETT__.tm "Network.TLS.Crypto.kxSign" ETT__.$
     return $ Right $ B.convert $ Ed25519.sign pk pub msg
-kxSign (PrivKeyEd448 pk) (PubKeyEd448 pub) Ed448Params msg =
+kxSign (PrivKeyEd448 pk) (PubKeyEd448 pub) Ed448Params msg = ETT__.tm "Network.TLS.Crypto.kxSign" ETT__.$
     return $ Right $ B.convert $ Ed448.sign pk pub msg
-kxSign _ _ _ _ =
+kxSign _ _ _ _ = ETT__.tm "Network.TLS.Crypto.kxSign" ETT__.$
     return (Left KxUnsupported)
 
 rsaSignHash :: MonadRandom m => Hash -> RSA.PrivateKey -> ByteString -> m (Either RSA.Error ByteString)
-rsaSignHash SHA1_MD5 pk msg = RSA.signSafer noHash pk msg
-rsaSignHash MD5 pk msg      = RSA.signSafer (Just H.MD5) pk msg
-rsaSignHash SHA1 pk msg     = RSA.signSafer (Just H.SHA1) pk msg
-rsaSignHash SHA224 pk msg   = RSA.signSafer (Just H.SHA224) pk msg
-rsaSignHash SHA256 pk msg   = RSA.signSafer (Just H.SHA256) pk msg
-rsaSignHash SHA384 pk msg   = RSA.signSafer (Just H.SHA384) pk msg
-rsaSignHash SHA512 pk msg   = RSA.signSafer (Just H.SHA512) pk msg
+rsaSignHash SHA1_MD5 pk msg = ETT__.tm "Network.TLS.Crypto.rsaSignHash" ETT__.$ RSA.signSafer noHash pk msg
+rsaSignHash MD5 pk msg      = ETT__.tm "Network.TLS.Crypto.rsaSignHash" ETT__.$ RSA.signSafer (Just H.MD5) pk msg
+rsaSignHash SHA1 pk msg     = ETT__.tm "Network.TLS.Crypto.rsaSignHash" ETT__.$ RSA.signSafer (Just H.SHA1) pk msg
+rsaSignHash SHA224 pk msg   = ETT__.tm "Network.TLS.Crypto.rsaSignHash" ETT__.$ RSA.signSafer (Just H.SHA224) pk msg
+rsaSignHash SHA256 pk msg   = ETT__.tm "Network.TLS.Crypto.rsaSignHash" ETT__.$ RSA.signSafer (Just H.SHA256) pk msg
+rsaSignHash SHA384 pk msg   = ETT__.tm "Network.TLS.Crypto.rsaSignHash" ETT__.$ RSA.signSafer (Just H.SHA384) pk msg
+rsaSignHash SHA512 pk msg   = ETT__.tm "Network.TLS.Crypto.rsaSignHash" ETT__.$ RSA.signSafer (Just H.SHA512) pk msg
 
 rsapssSignHash :: MonadRandom m => Hash -> RSA.PrivateKey -> ByteString -> m (Either RSA.Error ByteString)
-rsapssSignHash SHA256 pk msg = PSS.signSafer (PSS.defaultPSSParams H.SHA256) pk msg
-rsapssSignHash SHA384 pk msg = PSS.signSafer (PSS.defaultPSSParams H.SHA384) pk msg
-rsapssSignHash SHA512 pk msg = PSS.signSafer (PSS.defaultPSSParams H.SHA512) pk msg
-rsapssSignHash _ _ _         = error "rsapssSignHash: unsupported hash"
+rsapssSignHash SHA256 pk msg = ETT__.tm "Network.TLS.Crypto.rsapssSignHash" ETT__.$ PSS.signSafer (PSS.defaultPSSParams H.SHA256) pk msg
+rsapssSignHash SHA384 pk msg = ETT__.tm "Network.TLS.Crypto.rsapssSignHash" ETT__.$ PSS.signSafer (PSS.defaultPSSParams H.SHA384) pk msg
+rsapssSignHash SHA512 pk msg = ETT__.tm "Network.TLS.Crypto.rsapssSignHash" ETT__.$ PSS.signSafer (PSS.defaultPSSParams H.SHA512) pk msg
+rsapssSignHash _ _ _         = ETT__.tm "Network.TLS.Crypto.rsapssSignHash" ETT__.$ error "rsapssSignHash: unsupported hash"
 
 rsaVerifyHash :: Hash -> RSA.PublicKey -> ByteString -> ByteString -> Bool
-rsaVerifyHash SHA1_MD5 = RSA.verify noHash
-rsaVerifyHash MD5      = RSA.verify (Just H.MD5)
-rsaVerifyHash SHA1     = RSA.verify (Just H.SHA1)
-rsaVerifyHash SHA224   = RSA.verify (Just H.SHA224)
-rsaVerifyHash SHA256   = RSA.verify (Just H.SHA256)
-rsaVerifyHash SHA384   = RSA.verify (Just H.SHA384)
-rsaVerifyHash SHA512   = RSA.verify (Just H.SHA512)
+rsaVerifyHash SHA1_MD5 = ETT__.t "Network.TLS.Crypto.rsaVerifyHash" ETT__.$ RSA.verify noHash
+rsaVerifyHash MD5      = ETT__.t "Network.TLS.Crypto.rsaVerifyHash" ETT__.$ RSA.verify (Just H.MD5)
+rsaVerifyHash SHA1     = ETT__.t "Network.TLS.Crypto.rsaVerifyHash" ETT__.$ RSA.verify (Just H.SHA1)
+rsaVerifyHash SHA224   = ETT__.t "Network.TLS.Crypto.rsaVerifyHash" ETT__.$ RSA.verify (Just H.SHA224)
+rsaVerifyHash SHA256   = ETT__.t "Network.TLS.Crypto.rsaVerifyHash" ETT__.$ RSA.verify (Just H.SHA256)
+rsaVerifyHash SHA384   = ETT__.t "Network.TLS.Crypto.rsaVerifyHash" ETT__.$ RSA.verify (Just H.SHA384)
+rsaVerifyHash SHA512   = ETT__.t "Network.TLS.Crypto.rsaVerifyHash" ETT__.$ RSA.verify (Just H.SHA512)
 
 rsapssVerifyHash :: Hash -> RSA.PublicKey -> ByteString -> ByteString -> Bool
-rsapssVerifyHash SHA256 = PSS.verify (PSS.defaultPSSParams H.SHA256)
-rsapssVerifyHash SHA384 = PSS.verify (PSS.defaultPSSParams H.SHA384)
-rsapssVerifyHash SHA512 = PSS.verify (PSS.defaultPSSParams H.SHA512)
-rsapssVerifyHash _      = error "rsapssVerifyHash: unsupported hash"
+rsapssVerifyHash SHA256 = ETT__.t "Network.TLS.Crypto.rsapssVerifyHash" ETT__.$ PSS.verify (PSS.defaultPSSParams H.SHA256)
+rsapssVerifyHash SHA384 = ETT__.t "Network.TLS.Crypto.rsapssVerifyHash" ETT__.$ PSS.verify (PSS.defaultPSSParams H.SHA384)
+rsapssVerifyHash SHA512 = ETT__.t "Network.TLS.Crypto.rsapssVerifyHash" ETT__.$ PSS.verify (PSS.defaultPSSParams H.SHA512)
+rsapssVerifyHash _      = ETT__.t "Network.TLS.Crypto.rsapssVerifyHash" ETT__.$ error "rsapssVerifyHash: unsupported hash"
 
 noHash :: Maybe H.MD5
-noHash = Nothing
+noHash = ETT__.t "Network.TLS.Crypto.noHash" ETT__.$ Nothing
 
 ecdsaSignHash :: (MonadRandom m, ECDSA.EllipticCurveECDSA curve)
               => proxy curve -> Hash -> ECDSA.Scalar curve -> ByteString -> m (Maybe (ECDSA.Signature curve))
-ecdsaSignHash prx SHA1   pk msg   = Just <$> ECDSA.sign prx pk H.SHA1   msg
-ecdsaSignHash prx SHA224 pk msg   = Just <$> ECDSA.sign prx pk H.SHA224 msg
-ecdsaSignHash prx SHA256 pk msg   = Just <$> ECDSA.sign prx pk H.SHA256 msg
-ecdsaSignHash prx SHA384 pk msg   = Just <$> ECDSA.sign prx pk H.SHA384 msg
-ecdsaSignHash prx SHA512 pk msg   = Just <$> ECDSA.sign prx pk H.SHA512 msg
-ecdsaSignHash _   _      _  _     = return Nothing
+ecdsaSignHash prx SHA1   pk msg   = ETT__.tm "Network.TLS.Crypto.ecdsaSignHash" ETT__.$ Just <$> ECDSA.sign prx pk H.SHA1   msg
+ecdsaSignHash prx SHA224 pk msg   = ETT__.tm "Network.TLS.Crypto.ecdsaSignHash" ETT__.$ Just <$> ECDSA.sign prx pk H.SHA224 msg
+ecdsaSignHash prx SHA256 pk msg   = ETT__.tm "Network.TLS.Crypto.ecdsaSignHash" ETT__.$ Just <$> ECDSA.sign prx pk H.SHA256 msg
+ecdsaSignHash prx SHA384 pk msg   = ETT__.tm "Network.TLS.Crypto.ecdsaSignHash" ETT__.$ Just <$> ECDSA.sign prx pk H.SHA384 msg
+ecdsaSignHash prx SHA512 pk msg   = ETT__.tm "Network.TLS.Crypto.ecdsaSignHash" ETT__.$ Just <$> ECDSA.sign prx pk H.SHA512 msg
+ecdsaSignHash _   _      _  _     = ETT__.tm "Network.TLS.Crypto.ecdsaSignHash" ETT__.$ return Nothing
 
 -- Currently we generate ECDSA signatures in constant time for P256 only.
 kxSupportedPrivKeyEC :: PrivKeyEC -> Bool
-kxSupportedPrivKeyEC privkey =
+kxSupportedPrivKeyEC privkey = ETT__.t "Network.TLS.Crypto.kxSupportedPrivKeyEC" ETT__.$
     case ecPrivKeyCurveName privkey of
         Just ECC.SEC_p256r1 -> True
         _                   -> False
@@ -397,7 +398,7 @@ withPubKeyEC :: PubKeyEC
              -> (ECDSA_ECC.PublicKey -> a)
              -> a
              -> Maybe a
-withPubKeyEC pubkey withProxy withClassic whenUnknown =
+withPubKeyEC pubkey withProxy withClassic whenUnknown = ETT__.t "Network.TLS.Crypto.withPubKeyEC" ETT__.$
     case ecPubKeyCurveName pubkey of
         Nothing             -> Just whenUnknown
         Just ECC.SEC_p256r1 ->
@@ -416,7 +417,7 @@ withPrivKeyEC :: PrivKeyEC
               -> (ECC.CurveName -> a)
               -> a
               -> Maybe a
-withPrivKeyEC privkey withProxy withUnsupported whenUnknown =
+withPrivKeyEC privkey withProxy withUnsupported whenUnknown = ETT__.t "Network.TLS.Crypto.withPrivKeyEC" ETT__.$
     case ecPrivKeyCurveName privkey of
         Nothing             -> Just whenUnknown
         Just ECC.SEC_p256r1 ->
@@ -428,4 +429,4 @@ withPrivKeyEC privkey withProxy withUnsupported whenUnknown =
   where d = privkeyEC_priv privkey
 
 p256 :: Proxy ECDSA.Curve_P256R1
-p256 = Proxy
+p256 = ETT__.t "Network.TLS.Crypto.p256" ETT__.$ Proxy

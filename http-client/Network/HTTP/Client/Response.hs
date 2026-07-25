@@ -26,6 +26,7 @@ import Network.HTTP.Client.Util
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Headers
 import Data.KeyedPool
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
@@ -52,7 +53,7 @@ import Data.KeyedPool
 -- >    return redirectRequests
 getRedirectedRequest :: Request -> Request -> W.ResponseHeaders -> CookieJar -> Int -> Maybe Request
 getRedirectedRequest origReq req hs cookie_jar code
-    | 300 <= code && code < 400 = do
+    | 300 <= code && code < 400 = ETT__.t "Network.HTTP.Client.Response.getRedirectedRequest" ETT__.$ do
         l' <- lookup "location" hs
         let l = escapeURIString isAllowedInURI (S8.unpack l')
         req' <- fmap stripHeaders <$> setUriRelative req =<< parseURIReference l
@@ -68,7 +69,7 @@ getRedirectedRequest origReq req hs cookie_jar code
                     , requestHeaders = filter ((/= W.hContentType) . fst) $ requestHeaders req'
                     }
                 else req' {cookieJar = cookie_jar'}
-    | otherwise = Nothing
+    | otherwise = ETT__.t "Network.HTTP.Client.Response.getRedirectedRequest" ETT__.$ Nothing
   where
     cookie_jar' :: Maybe CookieJar
     cookie_jar' = fmap (const cookie_jar) $ cookieJar req
@@ -107,7 +108,7 @@ getRedirectedRequest origReq req hs cookie_jar code
 -- | Convert a 'Response' that has a 'Source' body to one with a lazy
 -- 'L.ByteString' body.
 lbsResponse :: Response BodyReader -> IO (Response L.ByteString)
-lbsResponse res = do
+lbsResponse res = ETT__.tio "Network.HTTP.Client.Response.lbsResponse" ETT__.$ do
     bss <- brConsume $ responseBody res
     return res
         { responseBody = L.fromChunks bss
@@ -120,7 +121,7 @@ getResponse :: Maybe MaxHeaderLength
             -> Managed Connection
             -> Maybe (IO ()) -- ^ Action to run in case of a '100 Continue'.
             -> IO (Response BodyReader)
-getResponse mhl mnh timeout' req@(Request {..}) mconn cont = do
+getResponse mhl mnh timeout' req@(Request {..}) mconn cont = ETT__.t "Network.HTTP.Client.Response.getResponse" ETT__.$ do
     let conn = managedResource mconn
     StatusHeaders s version earlyHs hs <- parseStatusHeaders mhl mnh conn timeout' earlyHintHeadersReceived cont
     let mcl = lookup "content-length" hs >>= readPositiveInt . S8.unpack
@@ -170,10 +171,10 @@ getResponse mhl mnh timeout' req@(Request {..}) mconn cont = do
 hasNoBody :: ByteString -- ^ request method
           -> Int -- ^ status code
           -> Bool
-hasNoBody "HEAD" _ = True
-hasNoBody _ 204 = True
-hasNoBody _ 304 = True
-hasNoBody _ i = 100 <= i && i < 200
+hasNoBody "HEAD" _ = ETT__.t "Network.HTTP.Client.Response.hasNoBody" ETT__.$ True
+hasNoBody _ 204 = ETT__.t "Network.HTTP.Client.Response.hasNoBody" ETT__.$ True
+hasNoBody _ 304 = ETT__.t "Network.HTTP.Client.Response.hasNoBody" ETT__.$ True
+hasNoBody _ i = ETT__.t "Network.HTTP.Client.Response.hasNoBody" ETT__.$ 100 <= i && i < 200
 
 -- | Retrieve the orignal 'Request' from a 'Response'
 --
@@ -181,4 +182,4 @@ hasNoBody _ i = 100 <= i && i < 200
 --
 -- @since 0.7.8
 getOriginalRequest :: Response a -> Request
-getOriginalRequest = responseOriginalRequest
+getOriginalRequest = ETT__.t "Network.HTTP.Client.Response.getOriginalRequest" ETT__.$ responseOriginalRequest

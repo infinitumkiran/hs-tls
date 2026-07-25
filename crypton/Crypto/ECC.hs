@@ -49,6 +49,7 @@ import Data.ByteArray (convert)
 import Data.Data (Data ())
 import Data.Kind (Type)
 import Data.Proxy
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | An elliptic curve key pair composed of the private part (a scalar), and
 -- the associated point.
@@ -371,19 +372,19 @@ instance EllipticCurveBasepointArith Curve_Edwards25519 where
 
 checkNonZeroDH :: SharedSecret -> CryptoFailable SharedSecret
 checkNonZeroDH s@(SharedSecret b)
-    | B.constAllZero b = CryptoFailed CryptoError_ScalarMultiplicationInvalid
-    | otherwise = CryptoPassed s
+    | B.constAllZero b = ETT__.t "Crypto.ECC.checkNonZeroDH" ETT__.$ CryptoFailed CryptoError_ScalarMultiplicationInvalid
+    | otherwise = ETT__.t "Crypto.ECC.checkNonZeroDH" ETT__.$ CryptoPassed s
 
 encodeECShared
     :: Simple.Curve curve
     => Proxy curve -> Simple.Point curve -> CryptoFailable SharedSecret
-encodeECShared _ Simple.PointO = CryptoFailed CryptoError_ScalarMultiplicationInvalid
-encodeECShared prx (Simple.Point x _) = CryptoPassed . SharedSecret $ i2ospOf_ (Simple.curveSizeBytes prx) x
+encodeECShared _ Simple.PointO = ETT__.t "Crypto.ECC.encodeECShared" ETT__.$ CryptoFailed CryptoError_ScalarMultiplicationInvalid
+encodeECShared prx (Simple.Point x _) = ETT__.t "Crypto.ECC.encodeECShared" ETT__.$ CryptoPassed . SharedSecret $ i2ospOf_ (Simple.curveSizeBytes prx) x
 
 encodeECPoint
     :: forall curve bs. (Simple.Curve curve, ByteArray bs) => Simple.Point curve -> bs
-encodeECPoint Simple.PointO = error "encodeECPoint: cannot serialize point at infinity"
-encodeECPoint (Simple.Point x y) = B.concat [uncompressed, xb, yb]
+encodeECPoint Simple.PointO = ETT__.t "Crypto.ECC.encodeECPoint" ETT__.$ error "encodeECPoint: cannot serialize point at infinity"
+encodeECPoint (Simple.Point x y) = ETT__.t "Crypto.ECC.encodeECPoint" ETT__.$ B.concat [uncompressed, xb, yb]
   where
     size = Simple.curveSizeBytes (Proxy :: Proxy curve)
     uncompressed, xb, yb :: bs
@@ -393,7 +394,7 @@ encodeECPoint (Simple.Point x y) = B.concat [uncompressed, xb, yb]
 
 decodeECPoint
     :: (Simple.Curve curve, ByteArray bs) => bs -> CryptoFailable (Simple.Point curve)
-decodeECPoint mxy = case B.uncons mxy of
+decodeECPoint mxy = ETT__.t "Crypto.ECC.decodeECPoint" ETT__.$ case B.uncons mxy of
     Nothing -> CryptoFailed CryptoError_PointSizeInvalid
     Just (m, xy)
         -- uncompressed
@@ -412,7 +413,7 @@ ecPointsMulVarTime
     -> Simple.Scalar curve
     -> Simple.Point curve
     -> Simple.Point curve
-ecPointsMulVarTime n1 = Simple.pointAddTwoMuls n1 g
+ecPointsMulVarTime n1 = ETT__.t "Crypto.ECC.ecPointsMulVarTime" ETT__.$ Simple.pointAddTwoMuls n1 g
   where
     g = Simple.curveEccG $ Simple.curveParameters (Proxy :: Proxy curve)
 
@@ -421,8 +422,8 @@ ecScalarFromBinary
      . (Simple.Curve curve, ByteArrayAccess bs)
     => bs -> CryptoFailable (Simple.Scalar curve)
 ecScalarFromBinary ba
-    | B.length ba /= size = CryptoFailed CryptoError_SecretKeySizeInvalid
-    | otherwise = CryptoPassed (Simple.Scalar $ os2ip ba)
+    | B.length ba /= size = ETT__.t "Crypto.ECC.ecScalarFromBinary" ETT__.$ CryptoFailed CryptoError_SecretKeySizeInvalid
+    | otherwise = ETT__.t "Crypto.ECC.ecScalarFromBinary" ETT__.$ CryptoPassed (Simple.Scalar $ os2ip ba)
   where
     size = ecCurveOrderBytes (Proxy :: Proxy curve)
 
@@ -430,7 +431,7 @@ ecScalarToBinary
     :: forall curve bs
      . (Simple.Curve curve, ByteArray bs)
     => Simple.Scalar curve -> bs
-ecScalarToBinary (Simple.Scalar s) = i2ospOf_ size s
+ecScalarToBinary (Simple.Scalar s) = ETT__.t "Crypto.ECC.ecScalarToBinary" ETT__.$ i2ospOf_ size s
   where
     size = ecCurveOrderBytes (Proxy :: Proxy curve)
 
@@ -439,16 +440,16 @@ ecScalarFromInteger
      . Simple.Curve curve
     => Integer -> CryptoFailable (Simple.Scalar curve)
 ecScalarFromInteger s
-    | numBits s > nb = CryptoFailed CryptoError_SecretKeySizeInvalid
-    | otherwise = CryptoPassed (Simple.Scalar s)
+    | numBits s > nb = ETT__.t "Crypto.ECC.ecScalarFromInteger" ETT__.$ CryptoFailed CryptoError_SecretKeySizeInvalid
+    | otherwise = ETT__.t "Crypto.ECC.ecScalarFromInteger" ETT__.$ CryptoPassed (Simple.Scalar s)
   where
     nb = 8 * ecCurveOrderBytes (Proxy :: Proxy curve)
 
 ecScalarToInteger :: Simple.Scalar curve -> Integer
-ecScalarToInteger (Simple.Scalar s) = s
+ecScalarToInteger (Simple.Scalar s) = ETT__.t "Crypto.ECC.ecScalarToInteger" ETT__.$ s
 
 ecCurveOrderBytes :: Simple.Curve c => proxy c -> Int
-ecCurveOrderBytes prx = (numBits n + 7) `div` 8
+ecCurveOrderBytes prx = ETT__.t "Crypto.ECC.ecCurveOrderBytes" ETT__.$ (numBits n + 7) `div` 8
   where
     n = Simple.curveEccN $ Simple.curveParameters prx
 
@@ -456,7 +457,7 @@ ecScalarAdd
     :: forall curve
      . Simple.Curve curve
     => Simple.Scalar curve -> Simple.Scalar curve -> Simple.Scalar curve
-ecScalarAdd (Simple.Scalar a) (Simple.Scalar b) = Simple.Scalar ((a + b) `mod` n)
+ecScalarAdd (Simple.Scalar a) (Simple.Scalar b) = ETT__.t "Crypto.ECC.ecScalarAdd" ETT__.$ Simple.Scalar ((a + b) `mod` n)
   where
     n = Simple.curveEccN $ Simple.curveParameters (Proxy :: Proxy curve)
 
@@ -464,6 +465,6 @@ ecScalarMul
     :: forall curve
      . Simple.Curve curve
     => Simple.Scalar curve -> Simple.Scalar curve -> Simple.Scalar curve
-ecScalarMul (Simple.Scalar a) (Simple.Scalar b) = Simple.Scalar ((a * b) `mod` n)
+ecScalarMul (Simple.Scalar a) (Simple.Scalar b) = ETT__.t "Crypto.ECC.ecScalarMul" ETT__.$ Simple.Scalar ((a * b) `mod` n)
   where
     n = Simple.curveEccN $ Simple.curveParameters (Proxy :: Proxy curve)

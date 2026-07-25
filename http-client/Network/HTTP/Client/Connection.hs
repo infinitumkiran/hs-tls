@@ -30,21 +30,22 @@ import Data.Foldable (for_)
 import Data.Function (fix)
 import Data.Maybe (listToMaybe)
 import Data.Word (Word8)
+import qualified Debug.EulerTrace.HttpClient as ETT__
 
 connectionReadLine :: Maybe MaxHeaderLength -> Connection -> IO ByteString
-connectionReadLine mhl conn = do
+connectionReadLine mhl conn = ETT__.tio "Network.HTTP.Client.Connection.connectionReadLine" ETT__.$ do
     bs <- connectionRead conn
     when (S.null bs) $ throwHttp IncompleteHeaders
     connectionReadLineWith mhl conn bs
 
 -- | Keep dropping input until a blank line is found.
 connectionDropTillBlankLine :: Maybe MaxHeaderLength -> Connection -> IO ()
-connectionDropTillBlankLine mhl conn = fix $ \loop -> do
+connectionDropTillBlankLine mhl conn = ETT__.tio "Network.HTTP.Client.Connection.connectionDropTillBlankLine" ETT__.$ fix $ \loop -> do
     bs <- connectionReadLine mhl conn
     unless (S.null bs) loop
 
 connectionReadLineWith :: Maybe MaxHeaderLength -> Connection -> ByteString -> IO ByteString
-connectionReadLineWith mhl conn bs0 =
+connectionReadLineWith mhl conn bs0 = ETT__.tio "Network.HTTP.Client.Connection.connectionReadLineWith" ETT__.$
     go bs0 id 0
   where
     go bs front total =
@@ -62,24 +63,24 @@ connectionReadLineWith mhl conn bs0 =
                 return $! killCR $! S.concat $! front [x]
 
 connectionUnreadLine :: Connection -> ByteString -> IO ()
-connectionUnreadLine conn line = do
+connectionUnreadLine conn line = ETT__.tio "Network.HTTP.Client.Connection.connectionUnreadLine" ETT__.$ do
   connectionUnread conn (S.pack [charCR, charLF])
   connectionUnread conn line
 
 charLF, charCR :: Word8
-charLF = 10
-charCR = 13
+charLF = ETT__.t "Network.HTTP.Client.Connection.charLF" ETT__.$ 10
+charCR = ETT__.t "Network.HTTP.Client.Connection.charCR" ETT__.$ 13
 
 killCR :: ByteString -> ByteString
 killCR bs
-    | S.null bs = bs
-    | S.last bs == charCR = S.init bs
-    | otherwise = bs
+    | S.null bs = ETT__.t "Network.HTTP.Client.Connection.killCR" ETT__.$ bs
+    | S.last bs == charCR = ETT__.t "Network.HTTP.Client.Connection.killCR" ETT__.$ S.init bs
+    | otherwise = ETT__.t "Network.HTTP.Client.Connection.killCR" ETT__.$ bs
 
 -- | For testing
 dummyConnection :: [ByteString] -- ^ input
                 -> IO (Connection, IO [ByteString], IO [ByteString]) -- ^ conn, output, input
-dummyConnection input0 = do
+dummyConnection input0 = ETT__.tio "Network.HTTP.Client.Connection.dummyConnection" ETT__.$ do
     iinput <- newIORef input0
     ioutput <- newIORef []
     return (Connection
@@ -99,7 +100,7 @@ makeConnection :: IO ByteString -- ^ read
                -> (ByteString -> IO ()) -- ^ write
                -> IO () -- ^ close
                -> IO Connection
-makeConnection r w c = do
+makeConnection r w c = ETT__.tio "Network.HTTP.Client.Connection.makeConnection" ETT__.$ do
     istack <- newIORef []
 
     -- it is necessary to make sure we never read from or write to
@@ -140,7 +141,7 @@ makeConnection r w c = do
 socketConnection :: Socket
                  -> Int -- ^ chunk size
                  -> IO Connection
-socketConnection socket chunksize = makeConnection
+socketConnection socket chunksize = ETT__.tio "Network.HTTP.Client.Connection.socketConnection" ETT__.$ makeConnection
     (recv socket chunksize)
     (sendAll socket)
     (NS.close socket)
@@ -150,7 +151,7 @@ openSocketConnection :: (Socket -> IO ())
                      -> String -- ^ host
                      -> Int -- ^ port
                      -> IO Connection
-openSocketConnection f = openSocketConnectionSize f 8192
+openSocketConnection f = ETT__.t "Network.HTTP.Client.Connection.openSocketConnection" ETT__.$ openSocketConnectionSize f 8192
 
 openSocketConnectionSize :: (Socket -> IO ())
                          -> Int -- ^ chunk size
@@ -158,7 +159,7 @@ openSocketConnectionSize :: (Socket -> IO ())
                          -> String -- ^ host
                          -> Int -- ^ port
                          -> IO Connection
-openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' =
+openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = ETT__.tio "Network.HTTP.Client.Connection.openSocketConnectionSize" ETT__.$
     withSocket tweakSocket hostAddress' host' port' $ \ sock ->
         socketConnection sock chunksize
 
@@ -171,7 +172,7 @@ openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' =
 --
 -- @since
 strippedHostName :: String -> String
-strippedHostName hostName =
+strippedHostName hostName = ETT__.t "Network.HTTP.Client.Connection.strippedHostName" ETT__.$
     case hostName of
         '[':'v':_ -> hostName -- IPvFuture, no obvious way to deal with this
         '[':rest ->
@@ -186,7 +187,7 @@ withSocket :: (Socket -> IO ())
            -> Int -- ^ port
            -> (Socket -> IO a)
            -> IO a
-withSocket tweakSocket hostAddress' host' port' f = do
+withSocket tweakSocket hostAddress' host' port' f = ETT__.tio "Network.HTTP.Client.Connection.withSocket" ETT__.$ do
     let hints = NS.defaultHints { NS.addrSocketType = NS.Stream }
     addrs <- case hostAddress' of
         Nothing ->
@@ -204,7 +205,7 @@ withSocket tweakSocket hostAddress' host' port' f = do
 
     E.bracketOnError (firstSuccessful addrs $ openSocket tweakSocket) NS.close f
 
-openSocket tweakSocket addr =
+openSocket tweakSocket addr = ETT__.t "Network.HTTP.Client.Connection.openSocket" ETT__.$
     E.bracketOnError
         (NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
                    (NS.addrProtocol addr))
@@ -219,8 +220,8 @@ openSocket tweakSocket addr =
 -- https://datatracker.ietf.org/doc/html/rfc8305
 --
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
-firstSuccessful []        _  = error "getAddrInfo returned empty list"
-firstSuccessful addresses cb = do
+firstSuccessful []        _  = ETT__.tio "Network.HTTP.Client.Connection.firstSuccessful" ETT__.$ error "getAddrInfo returned empty list"
+firstSuccessful addresses cb = ETT__.tio "Network.HTTP.Client.Connection.firstSuccessful" ETT__.$ do
     result <- newEmptyMVar
     either E.throwIO pure =<<
         withAsync (tryAddresses result)

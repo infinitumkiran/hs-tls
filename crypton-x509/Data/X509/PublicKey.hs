@@ -40,6 +40,7 @@ import           Crypto.Number.Serialize (os2ip)
 import Data.Word
 
 import qualified Data.ByteString as B
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | Serialized Elliptic Curve Point
 newtype SerializedPoint = SerializedPoint ByteString
@@ -182,18 +183,18 @@ instance ASN1Object PubKey where
 
 -- | Convert a Public key to the Public Key Algorithm type
 pubkeyToAlg :: PubKey -> PubKeyALG
-pubkeyToAlg (PubKeyRSA _)         = PubKeyALG_RSA
-pubkeyToAlg (PubKeyDSA _)         = PubKeyALG_DSA
-pubkeyToAlg (PubKeyDH _)          = PubKeyALG_DH
-pubkeyToAlg (PubKeyEC _)          = PubKeyALG_EC
-pubkeyToAlg (PubKeyX25519 _)      = PubKeyALG_X25519
-pubkeyToAlg (PubKeyX448 _)        = PubKeyALG_X448
-pubkeyToAlg (PubKeyEd25519 _)     = PubKeyALG_Ed25519
-pubkeyToAlg (PubKeyEd448 _)       = PubKeyALG_Ed448
-pubkeyToAlg (PubKeyUnknown oid _) = PubKeyALG_Unknown oid
+pubkeyToAlg (PubKeyRSA _)         = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_RSA
+pubkeyToAlg (PubKeyDSA _)         = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_DSA
+pubkeyToAlg (PubKeyDH _)          = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_DH
+pubkeyToAlg (PubKeyEC _)          = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_EC
+pubkeyToAlg (PubKeyX25519 _)      = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_X25519
+pubkeyToAlg (PubKeyX448 _)        = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_X448
+pubkeyToAlg (PubKeyEd25519 _)     = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_Ed25519
+pubkeyToAlg (PubKeyEd448 _)       = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_Ed448
+pubkeyToAlg (PubKeyUnknown oid _) = ETT__.t "Data.X509.PublicKey.pubkeyToAlg" ETT__.$ PubKeyALG_Unknown oid
 
 encodePK :: PubKey -> [ASN1]
-encodePK key = asn1Container Sequence (encodeInner key)
+encodePK key = ETT__.t "Data.X509.PublicKey.encodePK" ETT__.$ asn1Container Sequence (encodeInner key)
   where
     pkalg = OID $ getObjectID $ pubkeyToAlg key
     encodeInner (PubKeyRSA pubkey) =
@@ -228,11 +229,11 @@ encodePK key = asn1Container Sequence (encodeInner key)
         asn1Container Sequence [pkalg,Null] ++ [BitString $ toBitArray l 0]
 
 rsaPubToASN1 :: RSA.PublicKey -> [ASN1] -> [ASN1]
-rsaPubToASN1 pubkey xs =
+rsaPubToASN1 pubkey xs = ETT__.t "Data.X509.PublicKey.rsaPubToASN1" ETT__.$
     Start Sequence : IntVal (RSA.public_n pubkey) : IntVal (RSA.public_e pubkey) : End Sequence : xs
 
 rsaPubFromASN1 :: [ASN1] -> Either String (RSA.PublicKey, [ASN1])
-rsaPubFromASN1 (Start Sequence:IntVal smodulus:IntVal pubexp:End Sequence:xs) =
+rsaPubFromASN1 (Start Sequence:IntVal smodulus:IntVal pubexp:End Sequence:xs) = ETT__.t "Data.X509.PublicKey.rsaPubFromASN1" ETT__.$
     Right (pub, xs)
   where
     pub = RSA.PublicKey { RSA.public_size = numBytes modulus
@@ -252,22 +253,22 @@ rsaPubFromASN1 ( Start Sequence
                : OctetString bs
                : xs
                )
-    | ver /= 0 = Left "rsaPubFromASN1: Invalid version, expecting 0"
-    | oid /= [1,2,840,113549,1,1,1] =
+    | ver /= 0 = ETT__.t "Data.X509.PublicKey.rsaPubFromASN1" ETT__.$ Left "rsaPubFromASN1: Invalid version, expecting 0"
+    | oid /= [1,2,840,113549,1,1,1] = ETT__.t "Data.X509.PublicKey.rsaPubFromASN1" ETT__.$
         Left "rsaPubFromASN1: invalid OID"
-    | otherwise =
+    | otherwise = ETT__.t "Data.X509.PublicKey.rsaPubFromASN1" ETT__.$
         let inner = either strError rsaPubFromASN1 $ decodeASN1' BER bs
             strError = Left . ("fromASN1: RSA.PublicKey: " ++) . show
          in either Left (\(k, _) -> Right (k, xs)) inner
-rsaPubFromASN1 _ =
+rsaPubFromASN1 _ = ETT__.t "Data.X509.PublicKey.rsaPubFromASN1" ETT__.$
     Left "fromASN1: RSA.PublicKey: unexpected format"
 
 -- some bad implementation will not serialize ASN.1 integer properly, leading
 -- to negative modulus.
 toPositive :: Integer -> Integer
 toPositive int
-    | int < 0   = uintOfBytes $ bytesOfInt int
-    | otherwise = int
+    | int < 0   = ETT__.t "Data.X509.PublicKey.toPositive" ETT__.$ uintOfBytes $ bytesOfInt int
+    | otherwise = ETT__.t "Data.X509.PublicKey.toPositive" ETT__.$ int
   where
     uintOfBytes = foldl (\acc n -> (acc `shiftL` 8) + fromIntegral n) 0
     bytesOfInt :: Integer -> [Word8]

@@ -30,6 +30,7 @@ module Crypto.PubKey.ECC.Types (
 import Crypto.Internal.Imports
 import Crypto.Number.Basic (numBits)
 import Data.Data
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | Define either a binary curve or a prime curve.
 data Curve
@@ -71,16 +72,16 @@ data CurvePrime = CurvePrime Integer CurveCommon
 
 -- | Parameters in common between binary and prime curves.
 common_curve :: Curve -> CurveCommon
-common_curve (CurveF2m (CurveBinary _ cc)) = cc
-common_curve (CurveFP (CurvePrime _ cc)) = cc
+common_curve (CurveF2m (CurveBinary _ cc)) = ETT__.t "Crypto.PubKey.ECC.Types.common_curve" ETT__.$ cc
+common_curve (CurveFP (CurvePrime _ cc)) = ETT__.t "Crypto.PubKey.ECC.Types.common_curve" ETT__.$ cc
 
 -- | Irreducible polynomial representing the characteristic of a CurveBinary.
 ecc_fx :: CurveBinary -> Integer
-ecc_fx (CurveBinary fx _) = fx
+ecc_fx (CurveBinary fx _) = ETT__.t "Crypto.PubKey.ECC.Types.ecc_fx" ETT__.$ fx
 
 -- | Prime number representing the characteristic of a CurvePrime.
 ecc_p :: CurvePrime -> Integer
-ecc_p (CurvePrime p _) = p
+ecc_p (CurvePrime p _) = ETT__.t "Crypto.PubKey.ECC.Types.ecc_p" ETT__.$ p
 
 -- | Define common parameters in a curve definition
 -- of the form: y^2 = x^3 + ax + b.
@@ -176,12 +177,12 @@ curvesOIDs =
 
 -- | get the size of the curve in bits
 curveSizeBits :: Curve -> Int
-curveSizeBits (CurveFP c) = numBits (ecc_p c)
-curveSizeBits (CurveF2m c) = numBits (ecc_fx c) - 1
+curveSizeBits (CurveFP c) = ETT__.t "Crypto.PubKey.ECC.Types.curveSizeBits" ETT__.$ numBits (ecc_p c)
+curveSizeBits (CurveF2m c) = ETT__.t "Crypto.PubKey.ECC.Types.curveSizeBits" ETT__.$ numBits (ecc_fx c) - 1
 
 -- | Get the curve definition associated with a recommended known curve name.
 getCurveByName :: CurveName -> Curve
-getCurveByName SEC_p112r1 =
+getCurveByName SEC_p112r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xdb7c2abf62e35e668076bead208b
@@ -196,7 +197,7 @@ getCurveByName SEC_p112r1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p112r2 =
+getCurveByName SEC_p112r2 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xdb7c2abf62e35e668076bead208b
@@ -211,7 +212,7 @@ getCurveByName SEC_p112r2 =
                 , ecc_h = 4
                 }
             )
-getCurveByName SEC_p128r1 =
+getCurveByName SEC_p128r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xfffffffdffffffffffffffffffffffff
@@ -226,7 +227,7 @@ getCurveByName SEC_p128r1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p128r2 =
+getCurveByName SEC_p128r2 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xfffffffdffffffffffffffffffffffff
@@ -241,7 +242,7 @@ getCurveByName SEC_p128r2 =
                 , ecc_h = 4
                 }
             )
-getCurveByName SEC_p160k1 =
+getCurveByName SEC_p160k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0x00fffffffffffffffffffffffffffffffeffffac73
@@ -256,7 +257,7 @@ getCurveByName SEC_p160k1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p160r1 =
+getCurveByName SEC_p160r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0x00ffffffffffffffffffffffffffffffff7fffffff
@@ -271,7 +272,7 @@ getCurveByName SEC_p160r1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p160r2 =
+getCurveByName SEC_p160r2 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0x00fffffffffffffffffffffffffffffffeffffac73
@@ -286,7 +287,7 @@ getCurveByName SEC_p160r2 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p192k1 =
+getCurveByName SEC_p192k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xfffffffffffffffffffffffffffffffffffffffeffffee37
@@ -301,7 +302,7 @@ getCurveByName SEC_p192k1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p192r1 =
+getCurveByName SEC_p192r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xfffffffffffffffffffffffffffffffeffffffffffffffff
@@ -316,7 +317,7 @@ getCurveByName SEC_p192r1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p224k1 =
+getCurveByName SEC_p224k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0x00fffffffffffffffffffffffffffffffffffffffffffffffeffffe56d
@@ -331,7 +332,7 @@ getCurveByName SEC_p224k1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p224r1 =
+getCurveByName SEC_p224r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xffffffffffffffffffffffffffffffff000000000000000000000001
@@ -346,7 +347,7 @@ getCurveByName SEC_p224r1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p256k1 =
+getCurveByName SEC_p256k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f
@@ -361,7 +362,7 @@ getCurveByName SEC_p256k1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p256r1 =
+getCurveByName SEC_p256r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
@@ -376,7 +377,7 @@ getCurveByName SEC_p256r1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p384r1 =
+getCurveByName SEC_p384r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000ffffffff
@@ -394,7 +395,7 @@ getCurveByName SEC_p384r1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_p521r1 =
+getCurveByName SEC_p521r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveFP $
         CurvePrime
             0x01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -412,7 +413,7 @@ getCurveByName SEC_p521r1 =
                 , ecc_h = 1
                 }
             )
-getCurveByName SEC_t113r1 =
+getCurveByName SEC_t113r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x020000000000000000000000000201
@@ -427,7 +428,7 @@ getCurveByName SEC_t113r1 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t113r2 =
+getCurveByName SEC_t113r2 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x020000000000000000000000000201
@@ -442,7 +443,7 @@ getCurveByName SEC_t113r2 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t131r1 =
+getCurveByName SEC_t131r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x080000000000000000000000000000010d
@@ -457,7 +458,7 @@ getCurveByName SEC_t131r1 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t131r2 =
+getCurveByName SEC_t131r2 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x080000000000000000000000000000010d
@@ -472,7 +473,7 @@ getCurveByName SEC_t131r2 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t163k1 =
+getCurveByName SEC_t163k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x0800000000000000000000000000000000000000c9
@@ -487,7 +488,7 @@ getCurveByName SEC_t163k1 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t163r1 =
+getCurveByName SEC_t163r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x0800000000000000000000000000000000000000c9
@@ -502,7 +503,7 @@ getCurveByName SEC_t163r1 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t163r2 =
+getCurveByName SEC_t163r2 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x0800000000000000000000000000000000000000c9
@@ -517,7 +518,7 @@ getCurveByName SEC_t163r2 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t193r1 =
+getCurveByName SEC_t193r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x02000000000000000000000000000000000000000000008001
@@ -532,7 +533,7 @@ getCurveByName SEC_t193r1 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t193r2 =
+getCurveByName SEC_t193r2 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x02000000000000000000000000000000000000000000008001
@@ -547,7 +548,7 @@ getCurveByName SEC_t193r2 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t233k1 =
+getCurveByName SEC_t233k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x020000000000000000000000000000000000000004000000000000000001
@@ -562,7 +563,7 @@ getCurveByName SEC_t233k1 =
                 , ecc_h = 4
                 }
             )
-getCurveByName SEC_t233r1 =
+getCurveByName SEC_t233r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x020000000000000000000000000000000000000004000000000000000001
@@ -577,7 +578,7 @@ getCurveByName SEC_t233r1 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t239k1 =
+getCurveByName SEC_t239k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x800000000000000000004000000000000000000000000000000000000001
@@ -592,7 +593,7 @@ getCurveByName SEC_t239k1 =
                 , ecc_h = 4
                 }
             )
-getCurveByName SEC_t283k1 =
+getCurveByName SEC_t283k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x0800000000000000000000000000000000000000000000000000000000000000000010a1
@@ -610,7 +611,7 @@ getCurveByName SEC_t283k1 =
                 , ecc_h = 4
                 }
             )
-getCurveByName SEC_t283r1 =
+getCurveByName SEC_t283r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x0800000000000000000000000000000000000000000000000000000000000000000010a1
@@ -628,7 +629,7 @@ getCurveByName SEC_t283r1 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t409k1 =
+getCurveByName SEC_t409k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x02000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000001
@@ -646,7 +647,7 @@ getCurveByName SEC_t409k1 =
                 , ecc_h = 4
                 }
             )
-getCurveByName SEC_t409r1 =
+getCurveByName SEC_t409r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x02000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000001
@@ -664,7 +665,7 @@ getCurveByName SEC_t409r1 =
                 , ecc_h = 2
                 }
             )
-getCurveByName SEC_t571k1 =
+getCurveByName SEC_t571k1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000425
@@ -682,7 +683,7 @@ getCurveByName SEC_t571k1 =
                 , ecc_h = 4
                 }
             )
-getCurveByName SEC_t571r1 =
+getCurveByName SEC_t571r1 = ETT__.t "Crypto.PubKey.ECC.Types.getCurveByName" ETT__.$
     CurveF2m $
         CurveBinary
             0x080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000425

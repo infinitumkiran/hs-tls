@@ -25,20 +25,21 @@ import Data.Maybe
 import Data.PEM (PEM, pemContent, pemName, pemParseBS)
 import qualified Data.X509 as X509
 import Data.X509.EC as X509
+import qualified Debug.EulerTrace.CryptonX509Store as ETT__
 
 readKeyFileFromMemory :: B.ByteString -> [X509.PrivKey]
-readKeyFileFromMemory = either (const []) (catMaybes . foldl pemToKey []) . pemParseBS
+readKeyFileFromMemory = ETT__.t "Data.X509.Memory.readKeyFileFromMemory" ETT__.$ either (const []) (catMaybes . foldl pemToKey []) . pemParseBS
 
 readSignedObjectFromMemory
     :: (ASN1Object a, Eq a, Show a)
     => B.ByteString
     -> [X509.SignedExact a]
-readSignedObjectFromMemory = either (const []) decodePems . pemParseBS
+readSignedObjectFromMemory = ETT__.t "Data.X509.Memory.readSignedObjectFromMemory" ETT__.$ either (const []) decodePems . pemParseBS
   where
     decodePems pems = [ obj | pem <- pems, Right obj <- [X509.decodeSignedObject $ pemContent pem] ]
 
 pemToKey :: [Maybe X509.PrivKey] -> PEM -> [Maybe X509.PrivKey]
-pemToKey acc pem =
+pemToKey acc pem = ETT__.t "Data.X509.Memory.pemToKey" ETT__.$
     case decodeASN1' BER (pemContent pem) of
         Left _ -> acc
         Right asn1 ->
@@ -79,8 +80,8 @@ pemToKey acc pem =
 
 dsaFromASN1 :: [ASN1] -> Either String (DSA.KeyPair, [ASN1])
 dsaFromASN1 (Start Sequence : IntVal n : xs)
-    | n /= 0 = Left "fromASN1: DSA.KeyPair: unknown format"
-    | otherwise =
+    | n /= 0 = ETT__.t "Data.X509.Memory.dsaFromASN1" ETT__.$ Left "fromASN1: DSA.KeyPair: unknown format"
+    | otherwise = ETT__.t "Data.X509.Memory.dsaFromASN1" ETT__.$
         case xs of
             IntVal p : IntVal q : IntVal g : IntVal pub : IntVal priv : End Sequence : xs2 ->
                 let params = DSA.Params{DSA.params_p = p, DSA.params_g = g, DSA.params_q = q}
@@ -106,7 +107,7 @@ dsaFromASN1 (Start Sequence : IntVal n : xs)
                             Left e -> Left $ "dsaFromASN1: DSA.PrivateKey: " ++ show e
             _ ->
                 Left "dsaFromASN1: DSA.KeyPair: invalid format (version=0)"
-dsaFromASN1 _ = Left "dsaFromASN1: DSA.KeyPair: unexpected format"
+dsaFromASN1 _ = ETT__.t "Data.X509.Memory.dsaFromASN1" ETT__.$ Left "dsaFromASN1: DSA.KeyPair: unexpected format"
 
 ecdsaFromASN1 :: [ASN1] -> [ASN1] -> Either String (X509.PrivKeyEC, [ASN1])
 ecdsaFromASN1
@@ -115,7 +116,7 @@ ecdsaFromASN1
             : IntVal 1
             : OctetString ds
             : xs
-        ) = do
+        ) = ETT__.t "Data.X509.Memory.ecdsaFromASN1" ETT__.$ do
         let (curveOid2, ys) = containerWithTag 0 xs
         privKey <- getPrivKeyEC (os2ip ds) (curveOid2 ++ curveOid1)
         case containerWithTag 1 ys of
@@ -128,7 +129,7 @@ ecdsaFromASN1
             : Start Sequence
             : OID [1, 2, 840, 10045, 2, 1]
             : xs
-        ) =
+        ) = ETT__.t "Data.X509.Memory.ecdsaFromASN1" ETT__.$
         let strError = Left . ("ecdsaFromASN1: ECDSA.PrivateKey: " ++) . show
             (curveOid2, ys) = getConstructedEnd 0 xs
          in case ys of
@@ -139,12 +140,12 @@ ecdsaFromASN1
                             inner = either strError (ecdsaFromASN1 curveOids) (decodeASN1' BER bs)
                         either Left (\(k, _) -> Right (k, zs)) inner
                 _ -> Left "ecdsaFromASN1: unexpected format"
-ecdsaFromASN1 _ _ =
+ecdsaFromASN1 _ _ = ETT__.t "Data.X509.Memory.ecdsaFromASN1" ETT__.$
     Left "ecdsaFromASN1: unexpected format"
 
 getPrivKeyEC :: ECDSA.PrivateNumber -> [ASN1] -> Either String X509.PrivKeyEC
-getPrivKeyEC _ [] = Left "ecdsaFromASN1: curve is missing"
-getPrivKeyEC d (OID curveOid : _) =
+getPrivKeyEC _ [] = ETT__.t "Data.X509.Memory.getPrivKeyEC" ETT__.$ Left "ecdsaFromASN1: curve is missing"
+getPrivKeyEC d (OID curveOid : _) = ETT__.t "Data.X509.Memory.getPrivKeyEC" ETT__.$
     case X509.lookupCurveNameByOID curveOid of
         Just name ->
             Right
@@ -153,7 +154,7 @@ getPrivKeyEC d (OID curveOid : _) =
                     , X509.privkeyEC_priv = d
                     }
         Nothing -> Left ("ecdsaFromASN1: unknown curve " ++ show curveOid)
-getPrivKeyEC d (Null : xs) = getPrivKeyEC d xs
+getPrivKeyEC d (Null : xs) = ETT__.t "Data.X509.Memory.getPrivKeyEC" ETT__.$ getPrivKeyEC d xs
 getPrivKeyEC
     d
     ( Start Sequence
@@ -172,7 +173,7 @@ getPrivKeyEC
             : IntVal cofactor
             : End Sequence
             : _
-        ) =
+        ) = ETT__.t "Data.X509.Memory.getPrivKeyEC" ETT__.$
         Right
             X509.PrivKeyEC_Prime
                 { X509.privkeyEC_priv = d
@@ -184,12 +185,12 @@ getPrivKeyEC
                 , X509.privkeyEC_cofactor = cofactor
                 , X509.privkeyEC_seed = os2ip $ bitArrayGetData seed
                 }
-getPrivKeyEC _ _ = Left "ecdsaFromASN1: unexpected curve format"
+getPrivKeyEC _ _ = ETT__.t "Data.X509.Memory.getPrivKeyEC" ETT__.$ Left "ecdsaFromASN1: unexpected curve format"
 
 containerWithTag :: ASN1Tag -> [ASN1] -> ([ASN1], [ASN1])
 containerWithTag etag (Start (Container _ atag) : xs)
-    | etag == atag = getConstructedEnd 0 xs
-containerWithTag _ xs = ([], xs)
+    | etag == atag = ETT__.t "Data.X509.Memory.containerWithTag" ETT__.$ getConstructedEnd 0 xs
+containerWithTag _ xs = ETT__.t "Data.X509.Memory.containerWithTag" ETT__.$ ([], xs)
 
 rsaFromASN1 :: [ASN1] -> Either String (RSA.PrivateKey, [ASN1])
 rsaFromASN1
@@ -205,7 +206,7 @@ rsaFromASN1
             : IntVal pcoef
             : End Sequence
             : xs
-        ) = Right (privKey, xs)
+        ) = ETT__.t "Data.X509.Memory.rsaFromASN1" ETT__.$ Right (privKey, xs)
       where
         pubKey =
             RSA.PublicKey
@@ -232,9 +233,9 @@ rsaFromASN1
             : End Sequence
             : OctetString bs
             : xs
-        ) =
+        ) = ETT__.t "Data.X509.Memory.rsaFromASN1" ETT__.$
         let inner = either strError rsaFromASN1 $ decodeASN1' BER bs
             strError = Left . ("rsaFromASN1: RSA.PrivateKey: " ++) . show
          in either Left (\(k, _) -> Right (k, xs)) inner
-rsaFromASN1 _ =
+rsaFromASN1 _ = ETT__.t "Data.X509.Memory.rsaFromASN1" ETT__.$
     Left "rsaFromASN1: unexpected format"

@@ -39,6 +39,7 @@ import qualified Crypto.PubKey.Curve25519 as X25519
 import qualified Crypto.PubKey.Curve448   as X448
 import qualified Crypto.PubKey.Ed25519    as Ed25519
 import qualified Crypto.PubKey.Ed448      as Ed448
+import qualified Debug.EulerTrace.CryptonX509 as ETT__
 
 -- | Elliptic Curve Private Key
 --
@@ -76,7 +77,7 @@ instance ASN1Object PrivKey where
     toASN1 = privkeyToASN1
 
 privkeyFromASN1 :: [ASN1] -> Either String (PrivKey, [ASN1])
-privkeyFromASN1 asn1 =
+privkeyFromASN1 asn1 = ETT__.t "Data.X509.PrivateKey.privkeyFromASN1" ETT__.$
   (mapFst PrivKeyRSA <$> rsaFromASN1 asn1) <!>
   (mapFst PrivKeyDSA <$> dsaFromASN1 asn1) <!>
   (mapFst PrivKeyEC <$> ecdsaFromASN1 asn1) <!>
@@ -90,7 +91,7 @@ privkeyFromASN1 asn1 =
 rsaFromASN1 :: [ASN1] -> Either String (RSA.PrivateKey, [ASN1])
 rsaFromASN1 (Start Sequence : IntVal 0 : IntVal n : IntVal e : IntVal d
     : IntVal p : IntVal q : IntVal dP : IntVal dQ : IntVal qinv
-    : End Sequence : as) = pure (key, as)
+    : End Sequence : as) = ETT__.t "Data.X509.PrivateKey.rsaFromASN1" ETT__.$ pure (key, as)
   where
     key = RSA.PrivateKey (RSA.PublicKey (go n 1) n e) d p q dP dQ qinv
     go m i
@@ -98,28 +99,28 @@ rsaFromASN1 (Start Sequence : IntVal 0 : IntVal n : IntVal e : IntVal d
         | otherwise = go m (i + 1)
 rsaFromASN1 (Start Sequence : IntVal 0 : Start Sequence
     : OID [1, 2, 840, 113549, 1, 1, 1] : Null : End Sequence
-    : OctetString bytes : End Sequence : as) = do
+    : OctetString bytes : End Sequence : as) = ETT__.t "Data.X509.PrivateKey.rsaFromASN1" ETT__.$ do
         asn1 <- mapLeft failure (decodeASN1' BER bytes)
         fmap (const as) <$> rsaFromASN1 asn1
   where
     failure = ("rsaFromASN1: " ++) . show
-rsaFromASN1 _ = Left "rsaFromASN1: unexpected format"
+rsaFromASN1 _ = ETT__.t "Data.X509.PrivateKey.rsaFromASN1" ETT__.$ Left "rsaFromASN1: unexpected format"
 
 dsaFromASN1 :: [ASN1] -> Either String (DSA.PrivateKey, [ASN1])
 dsaFromASN1 (Start Sequence : IntVal 0 : IntVal p : IntVal q : IntVal g
-    : IntVal _ : IntVal x : End Sequence : as) =
+    : IntVal _ : IntVal x : End Sequence : as) = ETT__.t "Data.X509.PrivateKey.dsaFromASN1" ETT__.$
         pure (DSA.PrivateKey (DSA.Params p g q) x, as)
 dsaFromASN1 (Start Sequence : IntVal 0 : Start Sequence
     : OID [1, 2, 840, 10040, 4, 1] : Start Sequence : IntVal p : IntVal q
     : IntVal g : End Sequence : End Sequence : OctetString bytes
-    : End Sequence : as) = case decodeASN1' BER bytes of
+    : End Sequence : as) = ETT__.t "Data.X509.PrivateKey.dsaFromASN1" ETT__.$ case decodeASN1' BER bytes of
         Right [IntVal x] -> pure (DSA.PrivateKey (DSA.Params p g q) x, as)
         Right _ -> Left "DSA.PrivateKey.fromASN1: unexpected format"
         Left e -> Left $ "DSA.PrivateKey.fromASN1: " ++ show e
-dsaFromASN1 _ = Left "DSA.PrivateKey.fromASN1: unexpected format"
+dsaFromASN1 _ = ETT__.t "Data.X509.PrivateKey.dsaFromASN1" ETT__.$ Left "DSA.PrivateKey.fromASN1: unexpected format"
 
 ecdsaFromASN1 :: [ASN1] -> Either String (PrivKeyEC, [ASN1])
-ecdsaFromASN1 = go []
+ecdsaFromASN1 = ETT__.t "Data.X509.PrivateKey.ecdsaFromASN1" ETT__.$ go []
   where
     failing = ("ECDSA.PrivateKey.fromASN1: " ++)
 
@@ -182,7 +183,7 @@ newcurveFromASN1 ( Start Sequence
                   : End Sequence
                   : OctetString bs
                   : xs)
-    | isValidVersion v = do
+    | isValidVersion v = ETT__.t "Data.X509.PrivateKey.newcurveFromASN1" ETT__.$ do
         let (_, ys) = containerWithTag 0 xs
         case primitiveWithTag 1 ys of
             (_, End Sequence : zs) ->
@@ -198,7 +199,7 @@ newcurveFromASN1 ( Start Sequence
                             Left  e -> err (show e)
                     Nothing -> Left ("newcurveFromASN1: unexpected OID " ++ show oid)
             _ -> Left "newcurveFromASN1: unexpected end format"
-    | otherwise = Left ("newcurveFromASN1: unexpected version: " ++ show v)
+    | otherwise = ETT__.t "Data.X509.PrivateKey.newcurveFromASN1" ETT__.$ Left ("newcurveFromASN1: unexpected version: " ++ show v)
   where
     getP [1,3,101,110] = Just ("X25519", fmap PrivKeyX25519 . X25519.secretKey)
     getP [1,3,101,111] = Just ("X448", fmap PrivKeyX448 . X448.secretKey)
@@ -206,30 +207,30 @@ newcurveFromASN1 ( Start Sequence
     getP [1,3,101,113] = Just ("Ed448", fmap PrivKeyEd448 . Ed448.secretKey)
     getP _             = Nothing
     isValidVersion version = version >= 0 && version <= 1
-newcurveFromASN1 _ =
+newcurveFromASN1 _ = ETT__.t "Data.X509.PrivateKey.newcurveFromASN1" ETT__.$
     Left "newcurveFromASN1: unexpected format"
 
 containerWithTag :: ASN1Tag -> [ASN1] -> ([ASN1], [ASN1])
 containerWithTag etag (Start (Container _ atag) : xs)
-    | etag == atag = getConstructedEnd 0 xs
-containerWithTag _    xs = ([], xs)
+    | etag == atag = ETT__.t "Data.X509.PrivateKey.containerWithTag" ETT__.$ getConstructedEnd 0 xs
+containerWithTag _    xs = ETT__.t "Data.X509.PrivateKey.containerWithTag" ETT__.$ ([], xs)
 
 primitiveWithTag :: ASN1Tag -> [ASN1] -> (Maybe B.ByteString, [ASN1])
 primitiveWithTag etag (Other _ atag bs : xs)
-    | etag == atag = (Just bs, xs)
-primitiveWithTag _    xs = (Nothing, xs)
+    | etag == atag = ETT__.t "Data.X509.PrivateKey.primitiveWithTag" ETT__.$ (Just bs, xs)
+primitiveWithTag _    xs = ETT__.t "Data.X509.PrivateKey.primitiveWithTag" ETT__.$ (Nothing, xs)
 
 privkeyToASN1 :: PrivKey -> ASN1S
-privkeyToASN1 (PrivKeyRSA rsa) = rsaToASN1 rsa
-privkeyToASN1 (PrivKeyDSA dsa) = dsaToASN1 dsa
-privkeyToASN1 (PrivKeyEC ecdsa) = ecdsaToASN1 ecdsa
-privkeyToASN1 (PrivKeyX25519 k)  = newcurveToASN1 [1,3,101,110] k
-privkeyToASN1 (PrivKeyX448 k)    = newcurveToASN1 [1,3,101,111] k
-privkeyToASN1 (PrivKeyEd25519 k) = newcurveToASN1 [1,3,101,112] k
-privkeyToASN1 (PrivKeyEd448 k)   = newcurveToASN1 [1,3,101,113] k
+privkeyToASN1 (PrivKeyRSA rsa) = ETT__.t "Data.X509.PrivateKey.privkeyToASN1" ETT__.$ rsaToASN1 rsa
+privkeyToASN1 (PrivKeyDSA dsa) = ETT__.t "Data.X509.PrivateKey.privkeyToASN1" ETT__.$ dsaToASN1 dsa
+privkeyToASN1 (PrivKeyEC ecdsa) = ETT__.t "Data.X509.PrivateKey.privkeyToASN1" ETT__.$ ecdsaToASN1 ecdsa
+privkeyToASN1 (PrivKeyX25519 k)  = ETT__.t "Data.X509.PrivateKey.privkeyToASN1" ETT__.$ newcurveToASN1 [1,3,101,110] k
+privkeyToASN1 (PrivKeyX448 k)    = ETT__.t "Data.X509.PrivateKey.privkeyToASN1" ETT__.$ newcurveToASN1 [1,3,101,111] k
+privkeyToASN1 (PrivKeyEd25519 k) = ETT__.t "Data.X509.PrivateKey.privkeyToASN1" ETT__.$ newcurveToASN1 [1,3,101,112] k
+privkeyToASN1 (PrivKeyEd448 k)   = ETT__.t "Data.X509.PrivateKey.privkeyToASN1" ETT__.$ newcurveToASN1 [1,3,101,113] k
 
 rsaToASN1 :: RSA.PrivateKey -> ASN1S
-rsaToASN1 key = (++)
+rsaToASN1 key = ETT__.t "Data.X509.PrivateKey.rsaToASN1" ETT__.$ (++)
     [ Start Sequence, IntVal 0, IntVal n, IntVal e, IntVal d, IntVal p
     , IntVal q, IntVal dP, IntVal dQ, IntVal qinv, End Sequence
     ]
@@ -237,7 +238,7 @@ rsaToASN1 key = (++)
     RSA.PrivateKey (RSA.PublicKey _ n e) d p q dP dQ qinv = key
 
 dsaToASN1 :: DSA.PrivateKey -> ASN1S
-dsaToASN1 (DSA.PrivateKey params@(DSA.Params p g q) y) = (++)
+dsaToASN1 (DSA.PrivateKey params@(DSA.Params p g q) y) = ETT__.t "Data.X509.PrivateKey.dsaToASN1" ETT__.$ (++)
     [ Start Sequence, IntVal 0, IntVal p, IntVal q, IntVal g, IntVal x
     , IntVal y, End Sequence
     ]
@@ -245,7 +246,7 @@ dsaToASN1 (DSA.PrivateKey params@(DSA.Params p g q) y) = (++)
     x = DSA.calculatePublic params y
 
 ecdsaToASN1 :: PrivKeyEC -> ASN1S
-ecdsaToASN1 (PrivKeyEC_Named curveName d) = (++)
+ecdsaToASN1 (PrivKeyEC_Named curveName d) = ETT__.t "Data.X509.PrivateKey.ecdsaToASN1" ETT__.$ (++)
     [ Start Sequence, IntVal 1, OctetString (i2osp d)
     , Start (Container Context 0), OID oid, End (Container Context 0)
     , End Sequence
@@ -254,7 +255,7 @@ ecdsaToASN1 (PrivKeyEC_Named curveName d) = (++)
     err = error . ("ECDSA.PrivateKey.toASN1: " ++)
     oid = fromMaybe (err $ "missing named curve " ++ show curveName)
                     (lookupOID curvesOIDTable curveName)
-ecdsaToASN1 (PrivKeyEC_Prime d a b p g o c s) = (++)
+ecdsaToASN1 (PrivKeyEC_Prime d a b p g o c s) = ETT__.t "Data.X509.PrivateKey.ecdsaToASN1" ETT__.$ (++)
     [ Start Sequence, IntVal 1, OctetString (i2osp d)
     , Start (Container Context 0), Start Sequence, IntVal 1
     , Start Sequence, OID [1, 2, 840, 10045, 1, 1], IntVal p, End Sequence
@@ -271,22 +272,22 @@ ecdsaToASN1 (PrivKeyEC_Prime d a b p g o c s) = (++)
         bytes = i2osp s
 
 newcurveToASN1 :: ByteArrayAccess key => OID -> key -> ASN1S
-newcurveToASN1 oid key = (++)
+newcurveToASN1 oid key = ETT__.t "Data.X509.PrivateKey.newcurveToASN1" ETT__.$ (++)
     [ Start Sequence, IntVal 0, Start Sequence, OID oid, End Sequence
     , OctetString (encodeASN1' DER [OctetString $ convert key])
     , End Sequence
     ]
 
 mapLeft :: (a0 -> a1) -> Either a0 b -> Either a1 b
-mapLeft f (Left x) = Left (f x)
-mapLeft _ (Right x) = Right x
+mapLeft f (Left x) = ETT__.t "Data.X509.PrivateKey.mapLeft" ETT__.$ Left (f x)
+mapLeft _ (Right x) = ETT__.t "Data.X509.PrivateKey.mapLeft" ETT__.$ Right x
 
 -- | Convert a Private key to the Public Key Algorithm type
 privkeyToAlg :: PrivKey -> PubKeyALG
-privkeyToAlg (PrivKeyRSA _)         = PubKeyALG_RSA
-privkeyToAlg (PrivKeyDSA _)         = PubKeyALG_DSA
-privkeyToAlg (PrivKeyEC _)          = PubKeyALG_EC
-privkeyToAlg (PrivKeyX25519 _)      = PubKeyALG_X25519
-privkeyToAlg (PrivKeyX448 _)        = PubKeyALG_X448
-privkeyToAlg (PrivKeyEd25519 _)     = PubKeyALG_Ed25519
-privkeyToAlg (PrivKeyEd448 _)       = PubKeyALG_Ed448
+privkeyToAlg (PrivKeyRSA _)         = ETT__.t "Data.X509.PrivateKey.privkeyToAlg" ETT__.$ PubKeyALG_RSA
+privkeyToAlg (PrivKeyDSA _)         = ETT__.t "Data.X509.PrivateKey.privkeyToAlg" ETT__.$ PubKeyALG_DSA
+privkeyToAlg (PrivKeyEC _)          = ETT__.t "Data.X509.PrivateKey.privkeyToAlg" ETT__.$ PubKeyALG_EC
+privkeyToAlg (PrivKeyX25519 _)      = ETT__.t "Data.X509.PrivateKey.privkeyToAlg" ETT__.$ PubKeyALG_X25519
+privkeyToAlg (PrivKeyX448 _)        = ETT__.t "Data.X509.PrivateKey.privkeyToAlg" ETT__.$ PubKeyALG_X448
+privkeyToAlg (PrivKeyEd25519 _)     = ETT__.t "Data.X509.PrivateKey.privkeyToAlg" ETT__.$ PubKeyALG_Ed25519
+privkeyToAlg (PrivKeyEd448 _)       = ETT__.t "Data.X509.PrivateKey.privkeyToAlg" ETT__.$ PubKeyALG_Ed448

@@ -28,6 +28,7 @@ Library
   Exposed-modules:   System.X509
                      System.X509.Unix
                      System.X509.MacOS
+  Other-modules:     Debug.EulerTrace.CryptonX509System
   ghc-options:       -Wall
   if os(windows)
      cpp-options:     -DWINDOWS

@@ -50,13 +50,14 @@ import qualified Data.Map as Map
 import qualified Data.Text as T
 import Data.Text.Read (decimal)
 import qualified Network.URI as U
+import qualified Debug.EulerTrace.HttpClientTls as ETT__
 
 -- | Create a TLS-enabled 'ManagerSettings' with the given 'NC.TLSSettings' and
 -- 'NC.SockSettings'
 mkManagerSettings :: NC.TLSSettings
                   -> Maybe NC.SockSettings
                   -> ManagerSettings
-mkManagerSettings = mkManagerSettingsContext Nothing
+mkManagerSettings = ETT__.t "Network.HTTP.Client.TLS.mkManagerSettings" ETT__.$ mkManagerSettingsContext Nothing
 
 -- | Same as 'mkManagerSettings', but also takes an optional
 -- 'NC.ConnectionContext'. Providing this externally can be an
@@ -71,7 +72,7 @@ mkManagerSettingsContext
     -> NC.TLSSettings
     -> Maybe NC.SockSettings
     -> ManagerSettings
-mkManagerSettingsContext mcontext tls sock = mkManagerSettingsContext' defaultManagerSettings mcontext tls sock sock
+mkManagerSettingsContext mcontext tls sock = ETT__.t "Network.HTTP.Client.TLS.mkManagerSettingsContext" ETT__.$ mkManagerSettingsContext' defaultManagerSettings mcontext tls sock sock
 
 -- | Internal, allow different SockSettings for HTTP and HTTPS
 mkManagerSettingsContext'
@@ -81,7 +82,7 @@ mkManagerSettingsContext'
     -> Maybe NC.SockSettings -- ^ insecure
     -> Maybe NC.SockSettings -- ^ secure
     -> ManagerSettings
-mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = set
+mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = ETT__.t "Network.HTTP.Client.TLS.mkManagerSettingsContext'" ETT__.$ set
     { managerTlsConnection = getTlsConnection mcontext (Just tls) sockHTTPS
     , managerTlsProxyConnection = getTlsProxyConnection mcontext tls sockHTTPS
     , managerRawConnection =
@@ -115,13 +116,13 @@ mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = set
 
 -- | Default TLS-enabled manager settings
 tlsManagerSettings :: ManagerSettings
-tlsManagerSettings = mkManagerSettings def Nothing
+tlsManagerSettings = ETT__.t "Network.HTTP.Client.TLS.tlsManagerSettings" ETT__.$ mkManagerSettings def Nothing
 
 getTlsConnection :: Maybe NC.ConnectionContext
                  -> Maybe NC.TLSSettings
                  -> Maybe NC.SockSettings
                  -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
-getTlsConnection mcontext tls sock = do
+getTlsConnection mcontext tls sock = ETT__.tio "Network.HTTP.Client.TLS.getTlsConnection" ETT__.$ do
     context <- maybe NC.initConnectionContext return mcontext
     return $ \_ha host port -> bracketOnError
         (NC.connectTo context NC.ConnectionParams
@@ -138,7 +139,7 @@ getTlsProxyConnection
     -> NC.TLSSettings
     -> Maybe NC.SockSettings
     -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
-getTlsProxyConnection mcontext tls sock = do
+getTlsProxyConnection mcontext tls sock = ETT__.tio "Network.HTTP.Client.TLS.getTlsProxyConnection" ETT__.$ do
     context <- maybe NC.initConnectionContext return mcontext
     return $ \connstr checkConn serverName _ha host port -> bracketOnError
         (NC.connectTo context NC.ConnectionParams
@@ -162,7 +163,7 @@ getTlsProxyConnection mcontext tls sock = do
             return conn'
 
 convertConnection :: NC.Connection -> IO Connection
-convertConnection conn = makeConnection
+convertConnection conn = ETT__.tio "Network.HTTP.Client.TLS.convertConnection" ETT__.$ makeConnection
     (NC.connectionGetChunk conn)
     (NC.connectionPut conn)
     -- Closing an SSL connection gracefully involves writing/reading
@@ -176,7 +177,7 @@ convertConnection conn = makeConnection
 -- tlsManagerSettings >>= newIORef). See:
 -- https://github.com/snoyberg/http-client/pull/227.
 globalConnectionContext :: NC.ConnectionContext
-globalConnectionContext = unsafePerformIO NC.initConnectionContext
+globalConnectionContext = ETT__.t "Network.HTTP.Client.TLS.globalConnectionContext" ETT__.$ unsafePerformIO NC.initConnectionContext
 {-# NOINLINE globalConnectionContext #-}
 
 -- | Load up a new TLS manager with default settings, respecting proxy
@@ -184,7 +185,7 @@ globalConnectionContext = unsafePerformIO NC.initConnectionContext
 --
 -- @since 0.3.4
 newTlsManager :: MonadIO m => m Manager
-newTlsManager = liftIO $ do
+newTlsManager = ETT__.tm "Network.HTTP.Client.TLS.newTlsManager" ETT__.$ liftIO $ do
     env <- getEnvironment
     let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
         msocksHTTP = parseSocksSettings env lenv "http_proxy"
@@ -200,7 +201,7 @@ newTlsManager = liftIO $ do
 --
 -- @since 0.3.5
 newTlsManagerWith :: MonadIO m => ManagerSettings -> m Manager
-newTlsManagerWith set = liftIO $ do
+newTlsManagerWith set = ETT__.tm "Network.HTTP.Client.TLS.newTlsManagerWith" ETT__.$ liftIO $ do
     env <- getEnvironment
     let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
         msocksHTTP = parseSocksSettings env lenv "http_proxy"
@@ -223,7 +224,7 @@ parseSocksSettings :: [(String, String)] -- ^ original environment
                    -> Map.Map T.Text String -- ^ lower-cased keys
                    -> T.Text -- ^ env name
                    -> Maybe NC.SockSettings
-parseSocksSettings env lenv n = do
+parseSocksSettings env lenv n = ETT__.t "Network.HTTP.Client.TLS.parseSocksSettings" ETT__.$ do
   str <- lookup (T.unpack n) env <|> Map.lookup n lenv
   let allowedScheme x = x == "socks5:" || x == "socks5h:"
   uri <- U.parseURI str
@@ -247,21 +248,21 @@ parseSocksSettings env lenv n = do
 
 -- | Evil global manager, to make life easier for the common use case
 globalManager :: IORef Manager
-globalManager = unsafePerformIO $ newTlsManager >>= newIORef
+globalManager = ETT__.t "Network.HTTP.Client.TLS.globalManager" ETT__.$ unsafePerformIO $ newTlsManager >>= newIORef
 {-# NOINLINE globalManager #-}
 
 -- | Get the current global 'Manager'
 --
 -- @since 0.2.4
 getGlobalManager :: IO Manager
-getGlobalManager = readIORef globalManager
+getGlobalManager = ETT__.tio "Network.HTTP.Client.TLS.getGlobalManager" ETT__.$ readIORef globalManager
 {-# INLINE getGlobalManager #-}
 
 -- | Set the current global 'Manager'
 --
 -- @since 0.2.4
 setGlobalManager :: Manager -> IO ()
-setGlobalManager = writeIORef globalManager
+setGlobalManager = ETT__.t "Network.HTTP.Client.TLS.setGlobalManager" ETT__.$ writeIORef globalManager
 
 -- | Generated by 'applyDigestAuth' when it is unable to apply the
 -- digest credentials to the request.
@@ -279,7 +280,7 @@ instance Exception DigestAuthException where
 --
 -- @since 0.3.3
 displayDigestAuthException :: DigestAuthException -> String
-displayDigestAuthException (DigestAuthException req res det) = concat
+displayDigestAuthException (DigestAuthException req res det) = ETT__.t "Network.HTTP.Client.TLS.displayDigestAuthException" ETT__.$ concat
     [ "Unable to submit digest credentials due to: "
     , details
     , ".\n\nRequest: "
@@ -330,7 +331,7 @@ applyDigestAuth :: (MonadIO m, MonadThrow n)
                 -> Request
                 -> Manager
                 -> m (n Request)
-applyDigestAuth user pass req0 man = liftIO $ do
+applyDigestAuth user pass req0 man = ETT__.tm "Network.HTTP.Client.TLS.applyDigestAuth" ETT__.$ liftIO $ do
     res <- httpNoBody req man
     let throw' = throwM . DigestAuthException req res
     return $ do

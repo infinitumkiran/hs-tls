@@ -43,6 +43,7 @@ import Crypto.Number.Generate
 import Crypto.Number.ModArithmetic (expFast, expSafe, inverse)
 import Crypto.PubKey.Internal (dsaTruncHash)
 import Crypto.Random.Types
+import qualified Debug.EulerTrace.Crypton as ETT__
 
 -- | DSA Public Number, usually embedded in DSA Public Key
 type PublicNumber = Integer
@@ -112,20 +113,20 @@ instance NFData KeyPair where
 
 -- | Public key of a DSA Key pair
 toPublicKey :: KeyPair -> PublicKey
-toPublicKey (KeyPair params pub _) = PublicKey params pub
+toPublicKey (KeyPair params pub _) = ETT__.t "Crypto.PubKey.DSA.toPublicKey" ETT__.$ PublicKey params pub
 
 -- | Private key of a DSA Key pair
 toPrivateKey :: KeyPair -> PrivateKey
-toPrivateKey (KeyPair params _ priv) = PrivateKey params priv
+toPrivateKey (KeyPair params _ priv) = ETT__.t "Crypto.PubKey.DSA.toPrivateKey" ETT__.$ PrivateKey params priv
 
 -- | generate a private number with no specific property
 -- this number is usually called X in DSA text.
 generatePrivate :: MonadRandom m => Params -> m PrivateNumber
-generatePrivate (Params _ _ q) = generateMax q
+generatePrivate (Params _ _ q) = ETT__.tm "Crypto.PubKey.DSA.generatePrivate" ETT__.$ generateMax q
 
 -- | Calculate the public number from the parameters and the private key
 calculatePublic :: Params -> PrivateNumber -> PublicNumber
-calculatePublic (Params p g _) x = expSafe g x p
+calculatePublic (Params p g _) x = ETT__.t "Crypto.PubKey.DSA.calculatePublic" ETT__.$ expSafe g x p
 
 -- | sign message using the private key and an explicit k number.
 signWith
@@ -140,8 +141,8 @@ signWith
     -- ^ message to sign
     -> Maybe Signature
 signWith k pk hashAlg msg
-    | r == 0 || s == 0 = Nothing
-    | otherwise = Just $ Signature r s
+    | r == 0 || s == 0 = ETT__.t "Crypto.PubKey.DSA.signWith" ETT__.$ Nothing
+    | otherwise = ETT__.t "Crypto.PubKey.DSA.signWith" ETT__.$ Just $ Signature r s
   where
     -- parameters
     (Params p g q) = private_params pk
@@ -156,7 +157,7 @@ signWith k pk hashAlg msg
 sign
     :: (ByteArrayAccess msg, HashAlgorithm hash, MonadRandom m)
     => PrivateKey -> hash -> msg -> m Signature
-sign pk hashAlg msg = do
+sign pk hashAlg msg = ETT__.tm "Crypto.PubKey.DSA.sign" ETT__.$ do
     k <- generateMax q
     case signWith k pk hashAlg msg of
         Nothing -> sign pk hashAlg msg
@@ -170,8 +171,8 @@ verify
     => hash -> PublicKey -> Signature -> msg -> Bool
 verify hashAlg pk (Signature r s) m
     -- Reject the signature if either 0 < r < q or 0 < s < q is not satisfied.
-    | r <= 0 || r >= q || s <= 0 || s >= q = False
-    | otherwise = v == r
+    | r <= 0 || r >= q || s <= 0 || s >= q = ETT__.t "Crypto.PubKey.DSA.verify" ETT__.$ False
+    | otherwise = ETT__.t "Crypto.PubKey.DSA.verify" ETT__.$ v == r
   where
     (Params p g q) = public_params pk
     y = public_y pk

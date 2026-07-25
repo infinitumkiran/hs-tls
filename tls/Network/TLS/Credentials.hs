@@ -29,6 +29,7 @@ import Data.X509
 
 import qualified Data.X509             as X509
 import qualified Network.TLS.Struct    as TLS
+import qualified Debug.EulerTrace.Tls as ETT__
 
 type Credential = (CertificateChain, PrivKey)
 
@@ -49,14 +50,14 @@ instance Monoid Credentials where
 credentialLoadX509 :: FilePath -- ^ public certificate (X.509 format)
                    -> FilePath -- ^ private key associated
                    -> IO (Either String Credential)
-credentialLoadX509 certFile = credentialLoadX509Chain certFile []
+credentialLoadX509 certFile = ETT__.t "Network.TLS.Credentials.credentialLoadX509" ETT__.$ credentialLoadX509Chain certFile []
 
 -- | similar to 'credentialLoadX509' but take the certificate
 -- and private key from memory instead of from the filesystem.
 credentialLoadX509FromMemory :: ByteString
                   -> ByteString
                   -> Either String Credential
-credentialLoadX509FromMemory certData =
+credentialLoadX509FromMemory certData = ETT__.t "Network.TLS.Credentials.credentialLoadX509FromMemory" ETT__.$
   credentialLoadX509ChainFromMemory certData []
 
 -- | similar to 'credentialLoadX509' but also allow specifying chain
@@ -66,7 +67,7 @@ credentialLoadX509Chain ::
                    -> [FilePath] -- ^ chain certificates (X.509 format)
                    -> FilePath   -- ^ private key associated
                    -> IO (Either String Credential)
-credentialLoadX509Chain certFile chainFiles privateFile = do
+credentialLoadX509Chain certFile chainFiles privateFile = ETT__.tio "Network.TLS.Credentials.credentialLoadX509Chain" ETT__.$ do
     x509 <- readSignedObject certFile
     chains <- mapM readSignedObject chainFiles
     keys <- readKeyFile privateFile
@@ -80,7 +81,7 @@ credentialLoadX509ChainFromMemory :: ByteString
                   -> [ByteString]
                   -> ByteString
                   -> Either String Credential
-credentialLoadX509ChainFromMemory certData chainData privateData =
+credentialLoadX509ChainFromMemory certData chainData privateData = ETT__.t "Network.TLS.Credentials.credentialLoadX509ChainFromMemory" ETT__.$
     let x509   = readSignedObjectFromMemory certData
         chains = map readSignedObjectFromMemory chainData
         keys   = readKeyFileFromMemory privateData
@@ -89,23 +90,23 @@ credentialLoadX509ChainFromMemory certData chainData privateData =
             (k:_) -> Right (CertificateChain . concat $ x509 : chains, k)
 
 credentialsListSigningAlgorithms :: Credentials -> [KeyExchangeSignatureAlg]
-credentialsListSigningAlgorithms (Credentials l) = mapMaybe credentialCanSign l
+credentialsListSigningAlgorithms (Credentials l) = ETT__.t "Network.TLS.Credentials.credentialsListSigningAlgorithms" ETT__.$ mapMaybe credentialCanSign l
 
 credentialsFindForSigning :: KeyExchangeSignatureAlg -> Credentials -> Maybe Credential
-credentialsFindForSigning kxsAlg (Credentials l) = find forSigning l
+credentialsFindForSigning kxsAlg (Credentials l) = ETT__.t "Network.TLS.Credentials.credentialsFindForSigning" ETT__.$ find forSigning l
   where forSigning cred = case credentialCanSign cred of
             Nothing  -> False
             Just kxs -> kxs == kxsAlg
 
 credentialsFindForDecrypting :: Credentials -> Maybe Credential
-credentialsFindForDecrypting (Credentials l) = find forEncrypting l
+credentialsFindForDecrypting (Credentials l) = ETT__.t "Network.TLS.Credentials.credentialsFindForDecrypting" ETT__.$ find forEncrypting l
   where forEncrypting cred = Just () == credentialCanDecrypt cred
 
 -- here we assume that only RSA is supported for key encipherment (encryption/decryption)
 -- we keep the same construction as 'credentialCanSign', returning a Maybe of () in case
 -- this change in future.
 credentialCanDecrypt :: Credential -> Maybe ()
-credentialCanDecrypt (chain, priv) =
+credentialCanDecrypt (chain, priv) = ETT__.t "Network.TLS.Credentials.credentialCanDecrypt" ETT__.$
     case (pub, priv) of
         (PubKeyRSA _, PrivKeyRSA _) ->
             case extensionGet (certExtensions cert) of
@@ -119,7 +120,7 @@ credentialCanDecrypt (chain, priv) =
           signed = getCertificateChainLeaf chain
 
 credentialCanSign :: Credential -> Maybe KeyExchangeSignatureAlg
-credentialCanSign (chain, priv) =
+credentialCanSign (chain, priv) = ETT__.t "Network.TLS.Credentials.credentialCanSign" ETT__.$
     case extensionGet (certExtensions cert) of
         Nothing    -> findKeyExchangeSignatureAlg (pub, priv)
         Just (ExtKeyUsage flags)
@@ -130,13 +131,13 @@ credentialCanSign (chain, priv) =
           signed = getCertificateChainLeaf chain
 
 credentialPublicPrivateKeys :: Credential -> (PubKey, PrivKey)
-credentialPublicPrivateKeys (chain, priv) = pub `seq` (pub, priv)
+credentialPublicPrivateKeys (chain, priv) = ETT__.t "Network.TLS.Credentials.credentialPublicPrivateKeys" ETT__.$ pub `seq` (pub, priv)
     where cert   = getCertificate signed
           pub    = certPubKey cert
           signed = getCertificateChainLeaf chain
 
 getHashSignature :: SignedCertificate -> Maybe TLS.HashAndSignatureAlgorithm
-getHashSignature signed =
+getHashSignature signed = ETT__.t "Network.TLS.Credentials.getHashSignature" ETT__.$
     case signedAlg $ getSigned signed of
         SignatureALG hashAlg PubKeyALG_RSA    -> convertHash TLS.SignatureRSA   hashAlg
         SignatureALG hashAlg PubKeyALG_DSA    -> convertHash TLS.SignatureDSS   hashAlg
@@ -164,7 +165,7 @@ getHashSignature signed =
 -- the signature of the leaf certificate, and when not self-signed.  This may
 -- be extended to additional chain elements in the future.
 credentialMatchesHashSignatures :: [TLS.HashAndSignatureAlgorithm] -> Credential -> Bool
-credentialMatchesHashSignatures hashSigs (chain, _) =
+credentialMatchesHashSignatures hashSigs (chain, _) = ETT__.t "Network.TLS.Credentials.credentialMatchesHashSignatures" ETT__.$
     case chain of
         CertificateChain []       -> True
         CertificateChain (leaf:_) -> isSelfSigned leaf || matchHashSig leaf

@@ -16,6 +16,7 @@ import Network.TLS.Struct (Header, Handshake)
 import Network.TLS.Struct13 (Handshake13)
 import Network.TLS.X509 (CertificateChain)
 import Data.Default.Class
+import qualified Debug.EulerTrace.Tls as ETT__
 
 -- | Hooks for logging
 --
@@ -28,7 +29,7 @@ data Logging = Logging
     }
 
 defaultLogging :: Logging
-defaultLogging = Logging
+defaultLogging = ETT__.t "Network.TLS.Hooks.defaultLogging" ETT__.$ Logging
     { loggingPacketSent = \_ -> return ()
     , loggingPacketRecv = \_ -> return ()
     , loggingIOSent     = \_ -> return ()
@@ -51,7 +52,7 @@ data Hooks = Hooks
     }
 
 defaultHooks :: Hooks
-defaultHooks = Hooks
+defaultHooks = ETT__.t "Network.TLS.Hooks.defaultHooks" ETT__.$ Hooks
     { hookRecvHandshake    = return
     , hookRecvHandshake13  = return
     , hookRecvCertificates = return . const ()
