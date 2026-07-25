@@ -18,10 +18,14 @@ module Network.TLS.DebugLog (
     tlsDebugV,
     tlsDebugHost,
     tlsDebugHostFilter,
+    hexOf,
 ) where
 
 import Control.Exception (SomeException, try)
 import Control.Monad (when)
+import Data.ByteArray.Encoding (Base (Base16), convertToBase)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as C8
 import System.IO (hFlush, stdout)
 
 -- | Whether tracing is emitted at all.  Always on in this fork.
@@ -44,13 +48,24 @@ tlsDebugV :: String -> IO ()
 tlsDebugV msg = when tlsDebugVerbose $ tlsDebug msg
 
 -- | Emit a trace line. Never throws.
+--
+-- 'putStrLn', deliberately not 'print': 'print' on a 'String' goes through
+-- 'show', which wraps the line in quotes and backslash-escapes every internal
+-- quote and backslash.  That mangles exactly the payloads this trace exists
+-- for -- distinguished names (@CN=...,O=...@ rendered by 'show') and hex blobs
+-- -- and makes the log unusable for a byte-for-byte comparison.
 tlsDebug :: String -> IO ()
 tlsDebug msg =
     when tlsDebugEnabled $ do
         _ <-
-            try (print ("[TLS-DBG] " ++ msg) >> hFlush stdout)
+            try (putStrLn ("[TLS-DBG] " ++ msg) >> hFlush stdout)
                 :: IO (Either SomeException ())
         pure ()
+
+-- | Lower-case hex of a 'ByteString', with no quotes and no @0x@ prefix, so
+-- the value can be pasted straight into @xxd -r -p@ or an @openssl@ pipeline.
+hexOf :: ByteString -> String
+hexOf bs = C8.unpack (convertToBase Base16 bs :: ByteString)
 
 -- | Host-aware variant: prefixes the line with the SNI host.
 tlsDebugHost :: String -> String -> IO ()

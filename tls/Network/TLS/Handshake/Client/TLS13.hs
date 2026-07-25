@@ -29,6 +29,7 @@ import Network.TLS.Handshake.State
 import Network.TLS.Handshake.State13
 import Network.TLS.IO
 import Network.TLS.Imports
+import Network.TLS.Packet13 (compressCertificate13)
 import Network.TLS.Parameters
 import Network.TLS.State
 import Network.TLS.Struct
@@ -367,6 +368,62 @@ uncertsig :: SignatureAlgorithmsCert
 uncertsig (SignatureAlgorithmsCert a) = Just a
 -}
 
+-- | (fork) Decide, rather than describe, whether our leaf certificate's issuer
+-- is one the server said it would accept.
+--
+-- The three renderings this replaces (@show dNames@ in 'processCertRequest13',
+-- @show certIssuerDN@ in 'describeCertChain', and the peer's own list) are not
+-- comparable by eye: 'Show' on a 'DistinguishedName' hides the ASN.1 string
+-- type and normalises nothing, so a DN encoded as @UTF8String@ and the same DN
+-- encoded as @PrintableString@ print identically but are different bytes, and a
+-- server matching @certificate_authorities@ compares bytes.  So compare the DER
+-- encodings and report the verdict.
+--
+-- @leafIssuerInAcceptableCAs=False@ with a non-empty list is very likely the
+-- whole answer: the peer cannot build a path from our certificate to a CA it
+-- trusts, and TLS 1.3 gives it no way to say so during the handshake -- it
+-- completes the handshake, then drops the connection.
+--
+-- An empty list is not a failure: @certificate_authorities@ is optional, and
+-- when it is absent the server has told us nothing to violate.
+acceptableCAVerdict
+    :: Maybe CertificateChain
+    -> Maybe
+        ( [CertificateType]
+        , Maybe [HashAndSignatureAlgorithm]
+        , [DistinguishedName]
+        )
+    -> String
+acceptableCAVerdict mcc mcbdata =
+    "sendClientFlight13: acceptableCAs check:"
+        ++ leafPart
+        ++ " nAcceptableCAs="
+        ++ show (length dNames)
+        ++ " acceptableCA_DER_SHA256s=["
+        ++ intercalate "," (map (hexOf . sha256 . encodeDNDER) dNames)
+        ++ "]"
+        ++ if null dNames
+            then " (server advertised no certificate_authorities: no constraint)"
+            else ""
+  where
+    sha256 = hash SHA256
+    dNames = case mcbdata of
+        Just (_, _, dns) -> dns
+        Nothing -> []
+    leafPart = case mcc of
+        Just (CertificateChain (leaf : _)) ->
+            let issuerDER = encodeDNDER $ certIssuerDN $ getCertificate leaf
+                midx = elemIndex issuerDER $ map encodeDNDER dNames
+             in " leafIssuerInAcceptableCAs="
+                    ++ show (isJust midx)
+                    ++ " matchIndex="
+                    ++ show (fromMaybe (-1 :: Int) midx)
+                    ++ " leafIssuerDER_SHA256="
+                    ++ hexOf (sha256 issuerDER)
+        _ ->
+            " leafIssuerInAcceptableCAs=n/a matchIndex=-1"
+                ++ " leafIssuerDER_SHA256=<no client certificate to check>"
+
 sendClientFlight13
     :: ClientParams -> Context -> Hash -> ClientTrafficSecret a -> IO ()
 sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
@@ -377,6 +434,10 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
                 "<none: server sent no CertificateRequest>"
                 describeCertChain
                 mcc
+    -- 'clientChain' has just read the same field, so this cannot fail where it
+    -- would not already have failed.
+    mcbdata <- usingHState ctx getCertReqCBdata
+    tlsDebug $ acceptableCAVerdict mcc mcbdata
     runPacketFlight ctx $ do
         case mcc of
             Nothing -> return ()
@@ -395,6 +456,28 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
             certExts = replicate (length certs) []
             cHashSigs = filter isHashSignatureValid13 $ supportedHashSignatures $ ctxSupported ctx
         let certtag = if certComp then CompressedCertificate13 else Certificate13
+        -- RFC 8879 encoding detail, so the compressed message can be checked
+        -- without a decryptable capture: @rawLen@ is the @uncompressed_length@
+        -- field the peer will use to size its output buffer, @zlibLen@ is the
+        -- @compressed_certificate_message@ length, and CMF\/FLG are the two
+        -- zlib (RFC 1950) header bytes -- 78 9c is the usual default-compression
+        -- stream; a peer that expects raw deflate (RFC 1951) rather than zlib
+        -- would choke on exactly these two bytes.  Computed with the encoder's
+        -- own function, so the numbers cannot drift from the wire.
+        let compInfo
+                | certComp =
+                    let (rawB, zB) = compressCertificate13 token chain certExts
+                        rawLen = B.length rawB
+                        zlibLen = B.length zB
+                     in " rawLen="
+                            ++ show rawLen
+                            ++ " zlibLen="
+                            ++ show zlibLen
+                            ++ " ratio="
+                            ++ show (fromIntegral zlibLen / fromIntegral (max 1 rawLen) :: Double)
+                            ++ " zlibHdrCMF_FLG="
+                            ++ hexOf (B.take 2 zB)
+                | otherwise = ""
         -- Which of the two Certificate encodings actually goes on the wire.
         -- tls-1.6.0 had no RFC 8879 support and so could only ever send
         -- 'Certificate13'; a peer that accepted the old client but rejects this
@@ -407,6 +490,7 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
                     ++ show (length certs)
                     ++ " reqCtxLen="
                     ++ show (B.length token)
+                    ++ compInfo
         loadPacket13 ctx $
             Handshake13 [certtag token (TLSCertificateChain chain) certExts]
         case certs of
@@ -415,7 +499,7 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
                     tlsDebug
                         "sendClientFlight13: chain is EMPTY -> no CertificateVerify sent; peer sees an unauthenticated client"
                 return ()
-            _ -> do
+            (leaf : _) -> do
                 hChSc <- transcriptHash ctx
                 pubKey <- getLocalPublicKey ctx
                 sigAlg <-
@@ -441,7 +525,130 @@ sendClientFlight13 cparams ctx usedHash (ClientTrafficSecret baseKey) = do
                         tlsDebug $
                             "sendClientFlight13: CertificateVerify self-check="
                                 ++ show ok
-                                ++ (if ok then " (signature valid for our own public key)" else " (INVALID LOCALLY -- signing path is broken, no peer can accept this)")
+                                ++ (if ok then " (signature valid for our own public key -- but see offline-verify below, this check is NOT conclusive)" else " (INVALID LOCALLY -- signing path is broken, no peer can accept this)")
+                        ----------------------------------------------------
+                        -- (fork) Re-verify this signature with an INDEPENDENT
+                        -- implementation.
+                        --
+                        -- The self-check above must not be read as exonerating
+                        -- the crypto backend.  It verifies with the same crypton
+                        -- code that produced the signature, over the same
+                        -- locally computed transcript, and crypton's PSS
+                        -- verifier RECOVERS the salt length from the encoded
+                        -- message instead of requiring it to equal hLen.  So a
+                        -- non-conformant salt length -- the single most
+                        -- plausible crypton-vs-cryptonite difference, and the
+                        -- leading hypothesis for this bug -- still prints
+                        -- self-check=True here while every RFC 8446 conformant
+                        -- peer (OpenSSL, BoringSSL, JSSE) rejects the
+                        -- CertificateVerify.  RFC 8446 4.2.3 REQUIRES the RSASSA-PSS
+                        -- salt length to equal the digest length.
+                        --
+                        -- Everything needed to settle that offline is on the
+                        -- next line.  Nothing on it is secret: the transcript
+                        -- hash, the signed blob, the signature and the public
+                        -- key all went out on the wire, or are derived from
+                        -- bytes that did.
+                        --
+                        --   printf '%s' <signedBlob>  | xxd -r -p > tbs.bin
+                        --   printf '%s' <sig>         | xxd -r -p > sig.bin
+                        --   printf '%s' <leafSPKI>    | xxd -r -p > pub.der
+                        --   sha256sum tbs.bin      # == signedBlobSHA256
+                        --   openssl pkey -pubin -inform DER -in pub.der -text -noout
+                        --
+                        -- RSASSA-PSS (sigAlg rsa_pss_rsae_sha256 => -sha256,
+                        -- MGF1-SHA256).  Sweep the salt length, because that is
+                        -- what we are hunting:
+                        --
+                        --   for s in -1 -2 32 48 64 0 20; do
+                        --     echo -n "saltlen=$s: "
+                        --     openssl dgst -sha256 \
+                        --       -verify pub.der -signature sig.bin \
+                        --       -sigopt rsa_padding_mode:pss \
+                        --       -sigopt rsa_pss_saltlen:$s \
+                        --       -sigopt rsa_mgf1_md:sha256 tbs.bin
+                        --   done
+                        --
+                        -- -1 = "salt length equals digest length", i.e. exactly
+                        -- what RFC 8446 requires and what a strict peer checks.
+                        -- -2 = "auto-recover whatever salt length is there",
+                        -- i.e. what our own verifier effectively does.
+                        -- If -2 verifies and -1 does not, the salt length is
+                        -- wrong and that is the bug.  Substitute -sha384 /
+                        -- -sha512 and rsa_mgf1_md accordingly for the other
+                        -- rsa_pss_rsae_* algorithms.
+                        --
+                        -- RSASSA-PKCS1-v1_5 (only legal pre-1.3; a TLS 1.3 peer
+                        -- MUST reject it in CertificateVerify):
+                        --   openssl dgst -sha256 -verify pub.der \
+                        --     -signature sig.bin tbs.bin
+                        --
+                        -- ECDSA (ecdsa_secp256r1_sha256, DER-encoded r,s):
+                        --   openssl dgst -sha256 -verify pub.der \
+                        --     -signature sig.bin tbs.bin
+                        --
+                        -- Ed25519 / Ed448 (no prehash):
+                        --   openssl pkeyutl -verify -pubin -inkey pub.der \
+                        --     -rawin -in tbs.bin -sigfile sig.bin
+                        --
+                        -- To confirm pub.der really is our leaf's key:
+                        --   openssl x509 -inform DER -in leaf.der -pubkey -noout \
+                        --     | openssl pkey -pubin -outform DER | sha256sum
+                        --   # == leafSPKI_SHA256; and sha256sum leaf.der ==
+                        --   # leafDER_SHA256, which identifies the certificate
+                        --   # itself among several the process may hold.
+                        ----------------------------------------------------
+                        let signedBlob = makeTarget clientContextString hChSc
+                            sigParams = signatureParams pubKey sigAlg
+                            leafSPKI = encodePubKeyDER pubKey
+                            leafDER = encodeSignedObject leaf
+                            sha256 = hash SHA256
+                            pssNote = case sigParams of
+                                RSAParams h RSApss ->
+                                    " pssRequiredSaltLenBytes="
+                                        ++ show (hashDigestSize h)
+                                        ++ " pssMGF1="
+                                        ++ hashName h
+                                _ -> ""
+                        tlsDebug $
+                            "sendClientFlight13: CertificateVerify offline-verify:"
+                                ++ " transcriptHashAlg="
+                                ++ hashName usedHash
+                                ++ " transcriptHashSize="
+                                ++ show (hashDigestSize usedHash)
+                                ++ " transcriptHashLen="
+                                ++ show (B.length hChSc)
+                                ++ " transcriptHash="
+                                ++ hexOf hChSc
+                                ++ " contextString="
+                                ++ show clientContextString
+                                ++ " signedBlobLen="
+                                ++ show (B.length signedBlob)
+                                ++ " signedBlobSHA256="
+                                ++ hexOf (sha256 signedBlob)
+                                ++ " signedBlob="
+                                ++ hexOf signedBlob
+                                ++ " sigAlg="
+                                ++ show sigAlg
+                                ++ " sigParams="
+                                ++ show sigParams
+                                ++ pssNote
+                                ++ " sigLen="
+                                ++ show (B.length sig)
+                                ++ " sig="
+                                ++ hexOf sig
+                                ++ " pubKeyType="
+                                ++ pubkeyType pubKey
+                                ++ " pubKeyBits="
+                                ++ show (pubkeySizeBits pubKey)
+                                ++ " leafSPKI_SHA256="
+                                ++ hexOf (sha256 leafSPKI)
+                                ++ " leafSPKI="
+                                ++ hexOf leafSPKI
+                                ++ " leafDERLen="
+                                ++ show (B.length leafDER)
+                                ++ " leafDER_SHA256="
+                                ++ hexOf (sha256 leafDER)
                     _ -> return ()
                 loadPacket13 ctx $ Handshake13 [vfy]
     --

@@ -354,13 +354,41 @@ getLocalHashSigAlg ctx isCompatible cHashSigs pubKey = do
 ----------------------------------------------------------------
 
 setALPN :: Context -> MessageType -> [ExtensionRaw] -> IO ()
-setALPN ctx msgt exts =
+setALPN ctx msgt exts = do
     lookupAndDecodeAndDo
         EID_ApplicationLayerProtocolNegotiation
         msgt
         exts
         (return ())
         setAlpn
+    -- (fork) ALPN is otherwise invisible in the trace, yet it decides what the
+    -- peer expects on the connection: a server that selects @h2@ while the
+    -- client goes on to write an HTTP/1.1 request gets a protocol error and
+    -- closes without an alert -- indistinguishable, from the outside, from the
+    -- mTLS rejection we are chasing.  Both call sites (ServerHello for TLS 1.2,
+    -- EncryptedExtensions for TLS 1.3) come through here.
+    --
+    -- selected=<none> with peerSentALPNExt=True means the peer offered a
+    -- protocol we never suggested, which is a handshake bug on their side.
+    (offered, selected, alpnUsed) <- usingState_ ctx $ do
+        o <- getClientALPNSuggest
+        s <- getNegotiatedProtocol
+        u <- getExtensionALPN
+        return (o, s, u)
+    tlsDebug $
+        "setALPN: msgType="
+            ++ show msgt
+            ++ " peerSentALPNExt="
+            ++ show
+                (isJust (extensionLookup EID_ApplicationLayerProtocolNegotiation exts))
+            -- Protocol names are short ASCII tokens ("h2", "http/1.1"), so the
+            -- ByteString Show instance keeps the line readable.  Not secret.
+            ++ " offered="
+            ++ maybe "<none>" show offered
+            ++ " selected="
+            ++ maybe "<none>" show selected
+            ++ " alpnNegotiated="
+            ++ show alpnUsed
   where
     setAlpn (ApplicationLayerProtocolNegotiation [proto]) = usingState_ ctx $ do
         mprotos <- getClientALPNSuggest

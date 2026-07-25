@@ -36,6 +36,7 @@ module Network.TLS.Crypto (
     kxVerify,
     kxCanUseRSApkcs1,
     kxCanUseRSApss,
+    pubkeySizeBits,
     kxSupportedPrivKeyEC,
     KxError (..),
     RSAEncoding (..),
@@ -246,6 +247,25 @@ kxCanUseRSApkcs1 pk h = RSA.public_size pk >= tLen + 11
 -- i.e. @emBits >= 8hLen + 8sLen + 9@.  Lengths are in bits.
 kxCanUseRSApss :: RSA.PublicKey -> Hash -> Bool
 kxCanUseRSApss pk h = numBits (RSA.public_n pk) >= 16 * hashDigestSize h + 10
+
+-- | (fork) Size of a public key in bits, for diagnostics: the RSA modulus
+-- size, the DSA prime size, or the curve size.  Public key material only, no
+-- private component is touched.  0 means "unknown key type".
+--
+-- The RSA modulus size is what bounds the PSS salt: RFC 8446 requires the salt
+-- length to equal the digest length, and @emLen = ceil((numBits-1)/8)@ must
+-- leave room for it, so this number is needed to reason about a PSS signature
+-- offline.
+pubkeySizeBits :: PubKey -> Int
+pubkeySizeBits (PubKeyRSA pk) = numBits (RSA.public_n pk)
+pubkeySizeBits (PubKeyDSA pk) = numBits p
+  where
+    DSA.Params p _ _ = DSA.public_params pk
+pubkeySizeBits (PubKeyEC pk) =
+    maybe 0 (ECC.curveSizeBits . ECC.getCurveByName) (ecPubKeyCurveName pk)
+pubkeySizeBits (PubKeyEd25519 _) = 255
+pubkeySizeBits (PubKeyEd448 _) = 448
+pubkeySizeBits _ = 0
 
 -- Signature algorithm and associated parameters.
 --

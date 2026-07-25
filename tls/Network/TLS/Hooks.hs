@@ -8,7 +8,7 @@ module Network.TLS.Hooks (
 import qualified Data.ByteString as B
 import Data.Char (isSpace)
 import Data.Default (Default (def))
-import Data.List (isPrefixOf)
+import Data.List (isInfixOf, isPrefixOf)
 import Network.TLS.DebugLog (tlsDebug, tlsDebugV)
 import Network.TLS.Struct (Handshake, Header)
 import Network.TLS.Struct13 (Handshake13)
@@ -30,14 +30,38 @@ truncateTrace n s =
     let (hd, tl) = splitAt n s
      in if null tl then hd else hd ++ "...<truncated>"
 
+-- | (fork) The handshake messages that carry the client-auth flight:
+-- @Certificate13@, @CompressedCertificate13@, @CertRequest13@ and
+-- @CertVerify13@ (the first pattern matches both certificate messages).  A 1500
+-- character cap decapitates precisely these -- a single certificate alone shows
+-- as more than 1500 characters -- and the truncated tail is where the
+-- interesting part lives (the chain beyond the leaf, the signature bytes, the
+-- @certificate_authorities@ list).  They are given a much larger budget; every
+-- other packet keeps the small default so the firehose stays readable.
+largeTraceMessages :: [String]
+largeTraceMessages =
+    [ "Certificate13" -- also matches CompressedCertificate13
+    , "CertRequest13"
+    , "CertVerify13"
+    ]
+
+-- | (fork) Cap for one trace line.  The constructor may be nested inside a
+-- packet ("Handshake13 [CertVerify13 ..."), so look for it in the head of the
+-- string rather than at position 0; 64 characters is well past any wrapper.
+traceCap :: String -> Int
+traceCap s
+    | any (`isInfixOf` take 64 s) largeTraceMessages = 65536
+    | otherwise = 1500
+
 -- | (fork) Redact application data before tracing.  This library is deployed in
 -- a payments path, so @AppData@ packets carry cardholder data and request
--- bodies: only the constructor name is ever emitted, never the payload.
+-- bodies: only the constructor name is ever emitted, never the payload.  That
+-- redaction is unconditional and must stay that way.
 -- Handshake packets are safe to show and are merely truncated.
 sanitizePacket :: String -> String
 sanitizePacket s
     | "AppData" `isPrefixOf` s = takeWhile (not . isSpace) s ++ " <payload redacted>"
-    | otherwise = truncateTrace 1500 s
+    | otherwise = truncateTrace (traceCap s) s
 
 -- | (fork) Trace every packet and record-layer read\/write when @TLS_DEBUG@ is
 -- set.  Wiring this into 'defaultLogging' (rather than requiring callers to

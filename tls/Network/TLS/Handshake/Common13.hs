@@ -12,6 +12,8 @@ module Network.TLS.Handshake.Common13 (
     makeCertVerify,
     checkCertVerify,
     selfCheckCertVerify,
+    makeTarget,
+    clientContextString,
     makePSKBinder,
     replacePSKBinder,
     sendChangeCipherSpec13,
@@ -213,6 +215,10 @@ checkCertVerify ctx pub hs signature hashValue
         verifyPublic ctx sigParams target signature
     | otherwise = return False
 
+-- | The blob a CertificateVerify signature is computed over (RFC 8446 4.4.3):
+-- 64 spaces, the context string, a zero byte, then the transcript hash.
+-- Exported (fork) so a trace can print the exact bytes that were signed and a
+-- signature can be re-verified offline by an implementation other than ours.
 makeTarget :: ByteString -> ByteString -> ByteString
 makeTarget contextString hashValue = runPut $ do
     putBytes $ B.replicate 64 32

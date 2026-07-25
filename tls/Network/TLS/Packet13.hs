@@ -7,6 +7,7 @@ module Network.TLS.Packet13 (
     decodeHandshake13,
     decodeHandshakes13,
     encodeCertificate13,
+    compressCertificate13,
 ) where
 
 import Codec.Compression.Zlib
@@ -71,9 +72,24 @@ encodeHandshake13' (KeyUpdate13 UpdateNotRequested) = runPut $ putWord8 0
 encodeHandshake13' (KeyUpdate13 UpdateRequested) = runPut $ putWord8 1
 encodeHandshake13' (CompressedCertificate13 reqctx (TLSCertificateChain cc) ess) = runPut $ do
     putWord16 1 -- zlib: fixme
-    let bs = encodeCertificate13 reqctx cc ess
+    let (bs, zbs) = compressCertificate13 reqctx cc ess
     putWord24 $ fromIntegral $ B.length bs
-    putOpaque24 $ BL.toStrict $ compress $ BL.fromStrict bs
+    putOpaque24 zbs
+
+-- | (fork) The uncompressed @Certificate@ body of an RFC 8879
+-- @CompressedCertificate@ together with its zlib form -- i.e. exactly the two
+-- byte strings the encoder puts on the wire (@uncompressed_length@ counts the
+-- former, @compressed_certificate_message@ carries the latter).  Exported so a
+-- trace can report the compression ratio and the zlib header without having to
+-- reimplement, and therefore possibly disagree with, the encoder.
+compressCertificate13
+    :: CertReqContext
+    -> CertificateChain
+    -> [[ExtensionRaw]]
+    -> (ByteString, ByteString)
+compressCertificate13 reqctx cc ess = (bs, BL.toStrict $ compress $ BL.fromStrict bs)
+  where
+    bs = encodeCertificate13 reqctx cc ess
 
 encodeHandshakeHeader13 :: HandshakeType -> Int -> ByteString
 encodeHandshakeHeader13 ty len = runPut $ do

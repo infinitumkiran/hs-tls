@@ -25,7 +25,9 @@ import Network.TLS.Parameters
 import Network.TLS.State
 import Network.TLS.Struct
 import Network.TLS.Types
-import Network.TLS.DebugLog (tlsDebugHost)
+import Network.TLS.DebugLog (hexOf, tlsDebugHost)
+
+import qualified Data.ByteString as B
 
 ----------------------------------------------------------------
 
@@ -95,6 +97,23 @@ sendClientHello' cparams ctx groups crand (pskInfo, rtt0info, rtt0) = do
     let extensions1 = sharedHelloExtensions (clientShared cparams) ++ extensions0
     extensions <- adjustExtentions extensions1 $ mkClientHello extensions1
     sendPacket12 ctx $ Handshake [mkClientHello extensions]
+    -- (fork) The ClientHello exactly as encoded, hex, one line.  This branch
+    -- exists to reproduce the tls-1.6.0 JA3 fingerprint, and a fingerprint is a
+    -- function of the bytes: cipher suite IDs, extension IDs *and their order*,
+    -- supported groups and EC point formats.  A count of ciphers and a list of
+    -- extension IDs cannot settle whether this ClientHello is byte-identical to
+    -- the known-good one; these bytes can, via
+    --   printf '<hex>' | xxd -r -p > ch.bin   (then diff against a tshark
+    --   "Client Hello" export from the working build)
+    -- The first 4 bytes are the handshake header (0x01 + 24-bit length); the
+    -- 32-byte random that follows differs per connection by design.
+    -- No secret material: everything here went out on the wire in clear.
+    let chEncoded = encodeHandshake $ mkClientHello extensions
+    tlsDebugHost (fst (clientServerIdentification cparams)) $
+        "ClientHello bytes: len="
+            ++ show (B.length chEncoded)
+            ++ " hex="
+            ++ hexOf chEncoded
     tlsDebugHost (fst (clientServerIdentification cparams)) $
         "ClientHello sent:"
             ++ " legacyVersion="

@@ -19,19 +19,48 @@ module Network.TLS.X509 (
     pubkeyType,
     validateClientCertificate,
     describeCertChain,
+    encodeSignedObject,
+    encodePubKeyDER,
+    encodeDNDER,
+    DistinguishedName,
 ) where
 
+import Data.ASN1.BinaryEncoding (DER (..))
+import Data.ASN1.Encoding (encodeASN1')
+import Data.ASN1.Types (ASN1Object, toASN1)
+import Data.ByteString (ByteString)
 import Data.List (intercalate)
 import Data.X509
 import Data.X509.CertificateStore
 import Data.X509.Validation
 
+-- | (fork) DER of any ASN.1 object, used to render a public key or a
+-- distinguished name in the exact form that goes on the wire, so it can be
+-- compared byte for byte against a capture or fed to @openssl@.
+encodeASN1Object :: ASN1Object a => a -> ByteString
+encodeASN1Object o = encodeASN1' DER (toASN1 o [])
+
+-- | (fork) DER of a @SubjectPublicKeyInfo@.  This is exactly what
+-- @openssl pkey -pubin -inform DER@ expects, so a signature can be re-verified
+-- offline against the key from the trace alone.
+encodePubKeyDER :: PubKey -> ByteString
+encodePubKeyDER = encodeASN1Object
+
+-- | (fork) DER of a 'DistinguishedName'.  DNs must be compared in this form:
+-- the 'Show' instance of a DN is lossy and two renderings that look identical
+-- can differ in string encoding (UTF8String vs PrintableString) or attribute
+-- order, which is precisely the difference that decides whether a server can
+-- match our issuer against its @certificate_authorities@ list.
+encodeDNDER :: DistinguishedName -> ByteString
+encodeDNDER = encodeASN1Object
+
 -- | (fork) One-line diagnostic summary of a certificate chain, for tracing an
 -- mTLS handshake.  Subject and issuer are rendered with 'show' on the raw
--- 'DistinguishedName' so that an issuer here is directly comparable, byte for
--- byte, against the @certificate_authorities@ list a server advertises in its
--- CertificateRequest -- the check that tells you whether a peer can build a
--- path to your client certificate at all.
+-- 'DistinguishedName', which is for human reading only: 'show' is lossy, so do
+-- NOT eyeball an issuer here against the @certificate_authorities@ list a
+-- server advertises in its CertificateRequest.  That comparison is done on DER
+-- ('encodeDNDER') and reported as a verdict by @acceptableCAVerdict@ in
+-- "Network.TLS.Handshake.Client.TLS13".
 --
 -- The empty case is called out explicitly: a client that declines a
 -- CertificateRequest still sends a well-formed (but empty) Certificate message,
