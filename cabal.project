@@ -1,0 +1,19 @@
+-- Standalone project so the forks can be built and the probe run without the
+-- gateway.  Inside `nix develop --impure` in euler-api-gateway:
+--
+--   cabal update            # once; overriding these forces dependents to rebuild
+--   cabal build ett-probe
+--   EULER_TLS_TRACE=all cabal run ett-probe -- https://example.com
+packages:
+  tls
+  crypton
+  crypton-x509
+  crypton-x509-store
+  crypton-x509-validation
+  crypton-x509-system
+  crypton-connection
+  http-client
+  http-client-tls
+  ett-probe
+
+allow-newer: all
